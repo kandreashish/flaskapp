@@ -2,11 +2,39 @@
 
 A simple Flask application that runs in a Docker container.
 
-## Prerequisites
+## Features
+- Clean and professional design
+- Responsive layout for all devices
+- Interactive skills badges
+- Modern card-based layout
+- Bootstrap 5 integration
+- Font Awesome icons
+- Easy to maintain and update
 
-- Python 3.11+
-- Docker
-- Docker Compose (optional)
+## Setup
+
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Run the application:
+```bash
+python app.py
+```
+
+The website will be available at http://localhost:5000
+
+## Structure
+- `/templates` - Contains HTML templates
+- `/static/css` - Contains CSS styles
+- `app.py` - Main Flask application
+- `requirements.txt` - Python dependencies
+
+## Customization
+- Update content in `templates/index.html`
+- Modify styles in `static/css/style.css`
+- Add new sections as needed
 
 ## Running the Application
 
