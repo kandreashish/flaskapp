@@ -1,10 +1,8 @@
-# Flask Application with Docker Support
+# Expense Tracker
 
-A simple Flask application that runs in a Docker container.
+A Spring Boot application for managing personal expenses with CRUD operations.
 
 ## Features
-- Clean and professional design
-- Responsive layout for all devices
 - Interactive skills badges
 - Modern card-based layout
 - Bootstrap 5 integration

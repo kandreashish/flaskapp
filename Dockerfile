@@ -1,21 +1,28 @@
-FROM python:3.11-slim
-
+# Build stage
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+# Copy the Maven project files
+COPY pom.xml .
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Download dependencies
+RUN mvn dependency:go-offline
 
-# Copy application code
-COPY . .
+# Copy the rest of the source code
+COPY src ./src
 
-# Expose port 5000
-EXPOSE 5000
+# Build the application
+RUN mvn clean package -DskipTests
 
-# Command to run the application
-CMD ["python", "app.py"]
+# Runtime stage
+FROM eclipse-temurin:17-jre-jammy
+WORKDIR /app
+
+# Copy the built JAR file
+COPY --from=build /app/target/*.jar app.jar
+
+# Expose the application port
+EXPOSE 8080
+
+# Run the application
+ENTRYPOINT ["java", "-Dspring.profiles.active=prod", "-jar", "app.jar"]
