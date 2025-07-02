@@ -1,74 +1,87 @@
 package com.example.expensetracker.config
 
-import com.example.expensetracker.model.Expense
-import com.example.expensetracker.repository.ExpenseRepository
+import com.example.expensetracker.model.ExpenseDto
+import com.example.expensetracker.repository.ExpenseRepositoryImpl
 import jakarta.annotation.PostConstruct
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
-import java.time.LocalDate
+import java.util.*
 
 @Configuration
 @Profile("!test") // Don't run this in tests
 open class DataInitializer(
-    private val expenseRepository: ExpenseRepository
+    private val expenseRepository: ExpenseRepositoryImpl
 ) {
     
     @PostConstruct
     fun init() {
         // Only add data if the database is empty
-        if (expenseRepository.count() == 0L) {
+        if (expenseRepository.isEmpty()) {
+            val now = System.currentTimeMillis()
             val expenses = listOf(
-                Expense(
+                ExpenseDto(
+                    expenseId = UUID.randomUUID().toString(),
+                    userId = "user1",
                     description = "Grocery shopping",
-                    amount = 125.75,
-                    category = "Groceries",
-                    date = LocalDate.now().minusDays(2)
+                    amount = 12575, // Amount in cents
+                    category = "GROCERIES",
+                    date = now,
+                    familyId = "family1",
+                    createdBy = "user1",
+                    expenseCreatedOn = now,
+                    lastModifiedOn = now
                 ),
-                Expense(
+                ExpenseDto(
+                    expenseId = UUID.randomUUID().toString(),
+                    userId = "user1",
                     description = "Monthly Netflix subscription",
-                    amount = 15.99,
-                    category = "Entertainment",
-                    date = LocalDate.now().minusDays(5)
+                    amount = 1599,
+                    category = "ENTERTAINMENT",
+                    date = now,
+                    familyId = "family1",
+                    createdBy = "user1",
+                    expenseCreatedOn = now,
+                    lastModifiedOn = now
                 ),
-                Expense(
+                ExpenseDto(
+                    expenseId = UUID.randomUUID().toString(),
+                    userId = "user1",
                     description = "Lunch with team",
-                    amount = 32.50,
-                    category = "Food",
-                    date = LocalDate.now().minusDays(1)
+                    amount = 3250,
+                    category = "FOOD",
+                    date = now,
+                    familyId = "family1",
+                    createdBy = "user1",
+                    expenseCreatedOn = now,
+                    lastModifiedOn = now
                 ),
-                Expense(
+                ExpenseDto(
+                    expenseId = UUID.randomUUID().toString(),
+                    userId = "user1",
                     description = "Electric bill",
-                    amount = 85.20,
-                    category = "Utilities",
-                    date = LocalDate.now().minusDays(10)
+                    amount = 8520,
+                    category = "UTILITIES",
+                    date = now,
+                    familyId = "family1",
+                    createdBy = "user1",
+                    expenseCreatedOn = now,
+                    lastModifiedOn = now
                 ),
-                Expense(
+                ExpenseDto(
+                    expenseId = UUID.randomUUID().toString(),
+                    userId = "user1",
                     description = "New headphones",
-                    amount = 129.99,
-                    category = "Electronics",
-                    date = LocalDate.now().minusDays(3)
-                ),
-                Expense(
-                    description = "Coffee shop",
-                    amount = 4.75,
-                    category = "Food",
-                    date = LocalDate.now()
-                ),
-                Expense(
-                    description = "Gym membership",
-                    amount = 45.00,
-                    category = "Health",
-                    date = LocalDate.now().withDayOfMonth(1) // First of this month
-                ),
-                Expense(
-                    description = "Taxi to airport",
-                    amount = 28.50,
-                    category = "Transportation",
-                    date = LocalDate.now().minusDays(7)
+                    amount = 12999,
+                    category = "ELECTRONICS",
+                    date = now,
+                    familyId = "family1",
+                    createdBy = "user1",
+                    expenseCreatedOn = now,
+                    lastModifiedOn = now
                 )
             )
             
-            expenseRepository.saveAll(expenses)
+            expenses.forEach { expenseRepository.save(it) }
             println("Added ${expenses.size} sample expenses to the database")
         }
     }
