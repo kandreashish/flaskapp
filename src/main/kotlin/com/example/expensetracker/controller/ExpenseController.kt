@@ -3,6 +3,7 @@ package com.example.expensetracker.controller
 import com.example.expensetracker.model.ExpenseDto
 import com.example.expensetracker.model.PagedResponse
 import com.example.expensetracker.service.ExpenseService
+import com.example.expensetracker.util.AuthUtil
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -11,31 +12,59 @@ import java.time.ZoneOffset
 
 @RestController
 @RequestMapping("/api/expenses")
-class ExpenseController(private val expenseService: ExpenseService) {
+class ExpenseController(
+    private val expenseService: ExpenseService,
+    private val authUtil: AuthUtil
+) {
 
     @GetMapping
     fun getAllExpenses(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int
     ): PagedResponse<ExpenseDto> {
-        return expenseService.getAllExpenses(page, size)
+        val currentUserId = authUtil.getCurrentUserId()
+        return expenseService.getExpensesByUserId(currentUserId, page, size)
     }
 
     @GetMapping("/{id}")
     fun getExpenseById(@PathVariable id: String): ResponseEntity<ExpenseDto> {
-        return expenseService.getExpenseById(id)?.let {
-            ResponseEntity.ok(it)
+        val currentUserId = authUtil.getCurrentUserId()
+        return expenseService.getExpenseById(id)?.let { expense ->
+            if (expense.userId == currentUserId) {
+                ResponseEntity.ok(expense)
+            } else {
+                ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+            }
         } ?: ResponseEntity.notFound().build()
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    fun createExpense(@RequestBody expense: ExpenseDto): ExpenseDto = expenseService.createExpense(expense)
+    fun createExpense(@RequestBody expense: ExpenseDto): ExpenseDto {
+        val currentUserId = authUtil.getCurrentUserId()
+        val expenseWithUser = expense.copy(
+            userId = currentUserId,
+            createdBy = currentUserId,
+            modifiedBy = currentUserId,
+            expenseCreatedOn = System.currentTimeMillis(),
+            lastModifiedOn = System.currentTimeMillis()
+        )
+        return expenseService.createExpense(expenseWithUser)
+    }
 
     @PutMapping("/{id}")
     fun updateExpense(@PathVariable id: String, @RequestBody expense: ExpenseDto): ResponseEntity<ExpenseDto> {
+        val currentUserId = authUtil.getCurrentUserId()
         return try {
-            val updatedExpense = expenseService.updateExpense(id, expense)
+            val existingExpense = expenseService.getExpenseById(id)
+            if (existingExpense?.userId != currentUserId) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+            }
+
+            val updatedExpense = expenseService.updateExpense(id, expense.copy(
+                userId = currentUserId,
+                modifiedBy = currentUserId
+            ))
             ResponseEntity.ok(updatedExpense)
         } catch (e: NoSuchElementException) {
             ResponseEntity.notFound().build()
@@ -44,6 +73,13 @@ class ExpenseController(private val expenseService: ExpenseService) {
 
     @DeleteMapping("/{id}")
     fun deleteExpense(@PathVariable id: String): ResponseEntity<Void> {
+        val currentUserId = authUtil.getCurrentUserId()
+        val existingExpense = expenseService.getExpenseById(id)
+
+        if (existingExpense?.userId != currentUserId) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
+
         return if (expenseService.deleteExpense(id)) {
             ResponseEntity.noContent().build()
         } else {
@@ -56,7 +92,10 @@ class ExpenseController(private val expenseService: ExpenseService) {
         @PathVariable category: String,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int
-    ): PagedResponse<ExpenseDto> = expenseService.getExpensesByCategory(category, page, size)
+    ): PagedResponse<ExpenseDto> {
+        val currentUserId = authUtil.getCurrentUserId()
+        return expenseService.getExpensesByUserIdAndCategory(currentUserId, category, page, size)
+    }
 
     @GetMapping("/between-dates")
     fun getExpensesBetweenDates(
@@ -65,23 +104,20 @@ class ExpenseController(private val expenseService: ExpenseService) {
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int
     ): PagedResponse<ExpenseDto> {
-        // Convert ISO date strings to epoch timestamps
+        val currentUserId = authUtil.getCurrentUserId()
         val start = LocalDate.parse(startDate).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
         val end = LocalDate.parse(endDate).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
-        return expenseService.getExpensesBetweenDates(start, end, page, size)
+        return expenseService.getExpensesByUserIdAndDateRange(currentUserId, start, end, page, size)
     }
 
-    @GetMapping("/user/{userId}")
-    fun getExpensesByUserId(
-        @PathVariable userId: String,
+    @GetMapping("/family")
+    fun getFamilyExpenses(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int
-    ): PagedResponse<ExpenseDto> = expenseService.getExpensesByUserId(userId, page, size)
-
-    @GetMapping("/family/{familyId}")
-    fun getExpensesByFamilyId(
-        @PathVariable familyId: String,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "10") size: Int
-    ): PagedResponse<ExpenseDto> = expenseService.getExpensesByFamilyId(familyId, page, size)
+    ): PagedResponse<ExpenseDto> {
+        val currentUserId = authUtil.getCurrentUserId()
+        // This would need to get the user's family ID first
+        // For now, we'll return the user's expenses
+        return expenseService.getExpensesByUserId(currentUserId, page, size)
+    }
 }

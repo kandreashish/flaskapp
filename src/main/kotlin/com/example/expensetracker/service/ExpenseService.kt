@@ -47,4 +47,11 @@ class ExpenseService(private val expenseRepository: ExpenseRepository) {
 
     fun getExpensesByFamilyId(familyId: String, page: Int, size: Int): PagedResponse<ExpenseDto> =
         expenseRepository.findByFamilyId(familyId, page, size)
+
+    // New authentication-aware methods
+    fun getExpensesByUserIdAndCategory(userId: String, category: String, page: Int, size: Int): PagedResponse<ExpenseDto> =
+        expenseRepository.findByUserIdAndCategory(userId, category, page, size)
+
+    fun getExpensesByUserIdAndDateRange(userId: String, startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto> =
+        expenseRepository.findByUserIdAndDateBetween(userId, startDate, endDate, page, size)
 }

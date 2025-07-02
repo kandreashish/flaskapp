@@ -14,4 +14,7 @@ interface ExpenseRepository {
     fun findByDateBetween(startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto>
     fun findByUserId(userId: String, page: Int, size: Int): PagedResponse<ExpenseDto>
     fun findByFamilyId(familyId: String, page: Int, size: Int): PagedResponse<ExpenseDto>
+    // New authentication-aware methods
+    fun findByUserIdAndCategory(userId: String, category: String, page: Int, size: Int): PagedResponse<ExpenseDto>
+    fun findByUserIdAndDateBetween(userId: String, startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto>
 }

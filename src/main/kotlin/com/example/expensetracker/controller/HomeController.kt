@@ -27,14 +27,55 @@ class HomeController {
                     a { color: #007bff; text-decoration: none; }
                     a:hover { text-decoration: underline; }
                     .description { color: #666; margin-top: 5px; font-style: italic; }
+                    .auth-info { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107; }
                     .pagination-info { background: #e8f4fd; padding: 10px; border-radius: 5px; margin: 10px 0; }
                     .sample-response { background: #f1f3f4; padding: 10px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 12px; overflow-x: auto; }
                     code { background: #f1f3f4; padding: 2px 4px; border-radius: 3px; }
+                    .test-credentials { background: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0; }
                 </style>
             </head>
             <body>
                 <h1>🏦 Expense Tracker API</h1>
-                <p>Welcome to the Expense Tracker API! Your application is running successfully with <strong>pagination support</strong>.</p>
+                <p>Welcome to the Expense Tracker API! Your application is running successfully with <strong>JWT Authentication</strong> and <strong>pagination support</strong>.</p>
+                
+                <div class="auth-info">
+                    <strong>🔐 Authentication Required:</strong>
+                    <ul>
+                        <li>All expense endpoints require JWT authentication</li>
+                        <li>Include JWT token in Authorization header: <code>Bearer {token}</code></li>
+                        <li>Users can only access their own expenses</li>
+                    </ul>
+                </div>
+                
+                <div class="test-credentials">
+                    <strong>🧪 Test User Credentials:</strong>
+                    <ul>
+                        <li>Email: <code>john@example.com</code> | Password: <code>password123</code></li>
+                        <li>Email: <code>jane@example.com</code> | Password: <code>password123</code></li>
+                    </ul>
+                </div>
+                
+                <h2>🔑 Authentication Endpoints:</h2>
+                
+                <div class="endpoint">
+                    <span class="method post">POST</span> 
+                    /api/auth/signup
+                    <div class="description">Create a new user account</div>
+                    <div>Body: <code>{"name": "John Doe", "email": "john@example.com", "password": "password123"}</code></div>
+                </div>
+                
+                <div class="endpoint">
+                    <span class="method post">POST</span> 
+                    /api/auth/login
+                    <div class="description">Login and get JWT token</div>
+                    <div>Body: <code>{"email": "john@example.com", "password": "password123"}</code></div>
+                </div>
+                
+                <div class="endpoint">
+                    <span class="method get">GET</span> 
+                    /api/auth/me
+                    <div class="description">Get current user information (requires JWT token)</div>
+                </div>
                 
                 <div class="pagination-info">
                     <strong>📄 Pagination Information:</strong>
@@ -45,95 +86,72 @@ class HomeController {
                     </ul>
                 </div>
                 
-                <h2>📋 Available Endpoints:</h2>
+                <h2>📋 Expense Endpoints (Authentication Required):</h2>
                 
                 <div class="endpoint">
                     <span class="method get">GET</span> 
-                    <a href="/api/expenses">/api/expenses</a>
-                    <div class="description">Get all expenses (paginated) - Default: page=0, size=10</div>
+                    /api/expenses
+                    <div class="description">Get current user's expenses (paginated) - Default: page=0, size=10</div>
+                    <div>Headers: <code>Authorization: Bearer {jwt_token}</code></div>
                     <div>Query params: <code>?page=0&size=10</code></div>
                 </div>
                 
                 <div class="endpoint">
                     <span class="method get">GET</span> 
                     /api/expenses/{id}
-                    <div class="description">Get a specific expense by ID</div>
+                    <div class="description">Get a specific expense by ID (user's own expenses only)</div>
                 </div>
                 
                 <div class="endpoint">
                     <span class="method post">POST</span> 
                     /api/expenses
-                    <div class="description">Create a new expense</div>
+                    <div class="description">Create a new expense (automatically assigned to current user)</div>
                 </div>
                 
                 <div class="endpoint">
                     <span class="method put">PUT</span> 
                     /api/expenses/{id}
-                    <div class="description">Update an existing expense</div>
+                    <div class="description">Update an existing expense (user's own expenses only)</div>
                 </div>
                 
                 <div class="endpoint">
                     <span class="method delete">DELETE</span> 
                     /api/expenses/{id}
-                    <div class="description">Delete an expense</div>
+                    <div class="description">Delete an expense (user's own expenses only)</div>
                 </div>
                 
                 <div class="endpoint">
                     <span class="method get">GET</span> 
                     /api/expenses/category/{category}
-                    <div class="description">Get expenses by category (paginated)</div>
+                    <div class="description">Get current user's expenses by category (paginated)</div>
                     <div>Query params: <code>?page=0&size=10</code></div>
                 </div>
                 
                 <div class="endpoint">
                     <span class="method get">GET</span> 
                     /api/expenses/between-dates
-                    <div class="description">Get expenses between date range (paginated)</div>
+                    <div class="description">Get current user's expenses between date range (paginated)</div>
                     <div>Query params: <code>?startDate=2024-01-01&endDate=2024-12-31&page=0&size=10</code></div>
                 </div>
                 
                 <div class="endpoint">
                     <span class="method get">GET</span> 
-                    /api/expenses/user/{userId}
-                    <div class="description">Get expenses by user ID (paginated)</div>
+                    /api/expenses/family
+                    <div class="description">Get current user's family expenses (paginated)</div>
                     <div>Query params: <code>?page=0&size=10</code></div>
                 </div>
                 
-                <div class="endpoint">
-                    <span class="method get">GET</span> 
-                    /api/expenses/family/{familyId}
-                    <div class="description">Get expenses by family ID (paginated)</div>
-                    <div>Query params: <code>?page=0&size=10</code></div>
-                </div>
-                
-                <h2>📊 Sample Paginated Response:</h2>
+                <h2>📊 Sample Authentication Response:</h2>
                 <div class="sample-response">
 {
-  "content": [
-    {
-      "expense_id": "123e4567-e89b-12d3-a456-426614174000",
-      "user_id": "user1",
-      "amount": 12575,
-      "category": "GROCERIES",
-      "description": "Grocery shopping",
-      "date": 1719936618000,
-      "family_id": "family1",
-      "is_date_expense": false,
-      "expense_created_on": 1719936618000,
-      "created_by": "user1",
-      "modified_by": "",
-      "last_modified_on": 1719936618000,
-      "synced": false
-    }
-  ],
-  "page": 0,
-  "size": 10,
-  "totalElements": 5,
-  "totalPages": 1,
-  "isFirst": true,
-  "isLast": true,
-  "hasNext": false,
-  "hasPrevious": false
+  "token": "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiIxMjM...",
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "familyId": "family123"
+  },
+  "expiresIn": 86400000
 }
                 </div>
                 
@@ -147,8 +165,8 @@ class HomeController {
                 </ul>
                 
                 <h2>🚀 Quick Test:</h2>
-                <p>Click <a href="/api/expenses">here</a> to view the first page of expenses (sample data should be loaded)</p>
-                <p>Or try: <a href="/api/expenses?page=0&size=3">First 3 expenses</a></p>
+                <p>1. First login to get JWT token: <code>POST /api/auth/login</code></p>
+                <p>2. Use the token to access expenses: <code>GET /api/expenses</code> with <code>Authorization: Bearer {token}</code></p>
             </body>
             </html>
         """.trimIndent()

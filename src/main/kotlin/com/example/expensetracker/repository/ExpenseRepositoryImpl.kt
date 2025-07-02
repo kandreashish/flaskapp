@@ -53,6 +53,20 @@ class ExpenseRepositoryImpl : ExpenseRepository {
         return createPagedResponse(filteredExpenses, page, size)
     }
 
+    override fun findByUserIdAndCategory(userId: String, category: String, page: Int, size: Int): PagedResponse<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter {
+            it.userId == userId && it.category == category
+        }.sortedByDescending { it.expenseCreatedOn }
+        return createPagedResponse(filteredExpenses, page, size)
+    }
+
+    override fun findByUserIdAndDateBetween(userId: String, startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter {
+            it.userId == userId && it.date in startDate..endDate
+        }.sortedByDescending { it.expenseCreatedOn }
+        return createPagedResponse(filteredExpenses, page, size)
+    }
+
     // Helper method to check if repository has data (for DataInitializer)
     fun isEmpty(): Boolean = expenses.isEmpty()
 
