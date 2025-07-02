@@ -1,32 +1,22 @@
 package com.example.expensetracker.repository
 
 import com.example.expensetracker.model.ExpenseUser
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
-import java.util.concurrent.ConcurrentHashMap
 
 @Repository
-class UserRepository {
+interface ExpenseUserRepository : JpaRepository<ExpenseUser, String> {
 
-    private val users = ConcurrentHashMap<String, ExpenseUser>()
+    fun findByEmail(email: String): ExpenseUser?
 
-    fun save(user: ExpenseUser): ExpenseUser {
-        users[user.id] = user
-        return user
-    }
+    fun findByFirebaseUid(firebaseUid: String): ExpenseUser?
 
-    fun findByEmail(email: String): ExpenseUser? {
-        return users.values.find { it.email == email }
-    }
+    @Query("SELECT u FROM ExpenseUser u WHERE u.familyId = :familyId")
+    fun findByFamilyId(@Param("familyId") familyId: String): List<ExpenseUser>
 
-    fun findById(id: String): ExpenseUser? {
-        return users[id]
-    }
+    fun existsByEmail(email: String): Boolean
 
-    fun existsByEmail(email: String): Boolean {
-        return users.values.any { it.email == email }
-    }
-
-    fun findAll(): List<ExpenseUser> {
-        return users.values.toList()
-    }
+    fun existsByFirebaseUid(firebaseUid: String): Boolean
 }

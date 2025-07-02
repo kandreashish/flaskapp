@@ -1,19 +1,30 @@
 package com.example.expensetracker.model
 
-import kotlinx.serialization.SerialName
+import jakarta.persistence.*
 import kotlinx.serialization.Serializable
 
+@Entity
+@Table(name = "expense_users")
 @Serializable
 data class ExpenseUser(
+    @Id
     val id: String = "",
-    val name: String? = "",
-    val email: String? = "",
-    @SerialName("profile_url")
-    val profileUrl: String? = "",
-    @SerialName("family_id")
-    val familyId: String = "",
-    @SerialName("updated_at")
-    val updatedAt: Long = System.currentTimeMillis(),
-    val password: String = "", // Added for authentication
-    val roles: List<String> = listOf("USER") // Added for role-based access
+
+    @Column(nullable = false)
+    val name: String? = null,
+
+    @Column(unique = true, nullable = false)
+    val email: String,
+
+    @Column(name = "firebase_uid", unique = true)
+    var firebaseUid: String? = null,
+
+    @Column(name = "family_id")
+    val familyId: String? = null,
+
+    @Column(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @Column(name = "updated_at")
+    var updatedAt: Long = System.currentTimeMillis()
 )

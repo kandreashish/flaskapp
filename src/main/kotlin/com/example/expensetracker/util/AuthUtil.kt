@@ -8,11 +8,20 @@ class AuthUtil {
 
     fun getCurrentUserId(): String {
         val authentication = SecurityContextHolder.getContext().authentication
-        return authentication?.name ?: throw RuntimeException("User not authenticated")
+        return authentication?.principal as? String
+            ?: throw IllegalStateException("No authenticated user found")
     }
 
     fun isAuthenticated(): Boolean {
         val authentication = SecurityContextHolder.getContext().authentication
         return authentication != null && authentication.isAuthenticated
+    }
+
+    fun getCurrentUserIdOrNull(): String? {
+        return try {
+            getCurrentUserId()
+        } catch (e: Exception) {
+            null
+        }
     }
 }

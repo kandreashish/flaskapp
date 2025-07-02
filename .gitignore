@@ -36,6 +36,9 @@ bin/
 /nbdist/
 /.nb-gradle/
 
+# Firebase
+serviceAccountKey.json
+
 # macOS
 .DS_Store
 .AppleDouble

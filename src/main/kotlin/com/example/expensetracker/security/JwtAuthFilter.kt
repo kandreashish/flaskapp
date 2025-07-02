@@ -1,10 +1,10 @@
-package com.example.expensetracker.config
+package com.example.expensetracker.security
 
 import com.example.expensetracker.service.JwtService
-import com.example.expensetracker.repository.UserRepository
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.slf4j.LoggerFactory
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
@@ -13,10 +13,9 @@ import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
 @Component
-class JwtAuthenticationFilter(
-    private val jwtService: JwtService,
-    private val userRepository: UserRepository
-) : OncePerRequestFilter() {
+class JwtAuthFilter(private val jwtService: JwtService) : OncePerRequestFilter() {
+
+    private val logger = LoggerFactory.getLogger(JwtAuthFilter::class.java)
 
     override fun doFilterInternal(
         request: HttpServletRequest,
@@ -32,13 +31,11 @@ class JwtAuthenticationFilter(
 
         try {
             val jwt = authHeader.substring(7)
+            val userId = jwtService.extractUserId(jwt)
 
-            if (jwtService.isTokenValid(jwt) && SecurityContextHolder.getContext().authentication == null) {
-                val userId = jwtService.extractUserId(jwt)
-                val user = userRepository.findById(userId)
-
-                if (user != null) {
-                    val authorities = user.roles.map { SimpleGrantedAuthority("ROLE_$it") }
+            if (userId != null && SecurityContextHolder.getContext().authentication == null) {
+                if (jwtService.isTokenValid(jwt)) {
+                    val authorities = listOf(SimpleGrantedAuthority("ROLE_USER"))
                     val authToken = UsernamePasswordAuthenticationToken(
                         userId,
                         null,
@@ -46,10 +43,12 @@ class JwtAuthenticationFilter(
                     )
                     authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
                     SecurityContextHolder.getContext().authentication = authToken
+                    logger.debug("Authenticated user: $userId")
                 }
             }
         } catch (e: Exception) {
-            logger.error("JWT authentication failed", e)
+            logger.error("JWT authentication error: ${e.message}", e)
+            // Don't throw the exception to avoid breaking the filter chain
         }
 
         filterChain.doFilter(request, response)

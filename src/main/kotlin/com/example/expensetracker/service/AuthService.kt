@@ -2,81 +2,164 @@ package com.example.expensetracker.service
 
 import com.example.expensetracker.model.ExpenseUser
 import com.example.expensetracker.model.auth.*
-import com.example.expensetracker.repository.UserRepository
-import org.springframework.security.crypto.password.PasswordEncoder
+import com.example.expensetracker.repository.ExpenseUserRepository
+import com.google.firebase.auth.FirebaseAuthException
+import org.slf4j.LoggerFactory
+import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.util.*
 
+/**
+ * Service responsible for handling authentication and user management.
+ */
 @Service
+@Transactional
 class AuthService(
-    private val userRepository: UserRepository,
-    private val passwordEncoder: PasswordEncoder,
-    private val jwtService: JwtService
+    private val firebaseAuthService: FirebaseAuthService,
+    private val jwtService: JwtService,
+    private val userRepository: ExpenseUserRepository
 ) {
 
-    fun signup(signupRequest: SignupRequest): AuthResponse {
-        // Check if user already exists
-        if (userRepository.existsByEmail(signupRequest.email)) {
-            throw RuntimeException("User with email ${signupRequest.email} already exists")
+    private val logger = LoggerFactory.getLogger(AuthService::class.java)
+
+    /**
+     * Authenticates a user using Firebase ID token.
+     *
+     * @param loginRequest The login request containing the Firebase ID token
+     * @return AuthResponse containing the authentication result and user information
+     * @throws BadCredentialsException if the token is invalid or authentication fails
+     */
+    @Throws(BadCredentialsException::class)
+    fun firebaseLogin(loginRequest: FirebaseLoginRequest): AuthResponse {
+        logger.debug("Initiating Firebase login")
+        
+        try {
+            // Verify the Firebase ID token
+            val firebaseUser = firebaseAuthService.verifyIdToken(loginRequest.idToken)
+            logger.debug("Successfully verified Firebase user: ${firebaseUser.email}")
+
+            // Ensure email is available
+            if (firebaseUser.email.isNullOrBlank()) {
+                val errorMsg = "Email is required but not provided by Firebase"
+                logger.error(errorMsg)
+                throw BadCredentialsException(errorMsg)
+            }
+
+            // Find or create user in the local database
+            val user = findOrCreateUser(firebaseUser)
+            logger.debug("User found/created with ID: ${user.id}")
+
+            // Generate JWT token for session management
+            val jwtToken = jwtService.generateToken(user.id)
+            logger.debug("Generated JWT token for user: ${user.id}")
+
+            return createSuccessAuthResponse(user, firebaseUser, jwtToken)
+            
+        } catch (e: FirebaseAuthException) {
+            val errorMsg = "Firebase authentication failed: ${e.message}"
+            logger.error(errorMsg, e)
+            throw BadCredentialsException(errorMsg, e)
+        } catch (e: Exception) {
+            val errorMsg = "Authentication failed: ${e.message}"
+            logger.error(errorMsg, e)
+            throw BadCredentialsException(errorMsg, e)
         }
-
-        // Create new user
-        val userId = UUID.randomUUID().toString()
-        val encodedPassword = passwordEncoder.encode(signupRequest.password)
-
-        val user = ExpenseUser(
-            id = userId,
-            name = signupRequest.name,
-            email = signupRequest.email,
-            password = encodedPassword,
-            familyId = signupRequest.familyId.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString(),
-            updatedAt = System.currentTimeMillis(),
-            roles = listOf("USER")
-        )
-
-        userRepository.save(user)
-
-        // Generate JWT token
-        val token = jwtService.generateToken(userId, signupRequest.email)
-
-        return AuthResponse(
-            token = token,
-            user = UserInfo(
-                id = userId,
-                name = signupRequest.name,
-                email = signupRequest.email,
-                familyId = user.familyId
-            ),
-            expiresIn = jwtService.getExpirationTime()
-        )
     }
 
-    fun login(loginRequest: LoginRequest): AuthResponse {
-        // Find user by email
-        val user = userRepository.findByEmail(loginRequest.email)
-            ?: throw RuntimeException("Invalid email or password")
-
-        // Verify password
-        if (!passwordEncoder.matches(loginRequest.password, user.password)) {
-            throw RuntimeException("Invalid email or password")
+    /**
+     * Finds an existing user by ID or creates a new one if not found.
+     */
+    private fun findOrCreateUser(firebaseUser: FirebaseUserInfo): ExpenseUser {
+        return userRepository.findByEmail(firebaseUser.email!!)?.let { existingUser ->
+            // Update Firebase UID if not set or changed
+            if (existingUser.firebaseUid != firebaseUser.uid) {
+                logger.info("Updating Firebase UID for user: ${existingUser.id}")
+                existingUser.firebaseUid = firebaseUser.uid
+                userRepository.save(existingUser)
+            }
+            existingUser
+        } ?: run {
+            // Create new user from Firebase data
+            logger.info("Creating new user for email: ${firebaseUser.email}")
+            val newUser = ExpenseUser(
+                id = UUID.randomUUID().toString(),
+                name = firebaseUser.name?.ifEmpty { firebaseUser.email.substringBefore("@") },
+                email = firebaseUser.email,
+                firebaseUid = firebaseUser.uid,
+                familyId = generateFamilyId()
+            )
+            userRepository.save(newUser)
+            newUser
         }
+    }
 
-        // Generate JWT token
-        val token = jwtService.generateToken(user.id, user.email!!)
-
+    /**
+     * Creates a successful authentication response.
+     */
+    private fun createSuccessAuthResponse(
+        user: ExpenseUser,
+        firebaseUser: FirebaseUserInfo,
+        token: String
+    ): AuthResponse {
+        logger.debug("Creating success auth response for user: ${user.id}")
+        
         return AuthResponse(
-            token = token,
+            success = true,
+            message = "Authentication successful",
             user = UserInfo(
                 id = user.id,
-                name = user.name ?: "",
+                name = user.name?.ifEmpty { firebaseUser.name },
                 email = user.email,
-                familyId = user.familyId
+                familyId = user.familyId,
+                profilePicture = firebaseUser.picture
             ),
-            expiresIn = jwtService.getExpirationTime()
+            token = token
         )
     }
 
+    /**
+     * Retrieves a user by their ID.
+     *
+     * @param userId The ID of the user to retrieve
+     * @return The user if found, null otherwise
+     */
+    @Transactional(readOnly = true)
     fun getUserById(userId: String): ExpenseUser? {
-        return userRepository.findById(userId)
+        logger.debug("Fetching user by ID: $userId")
+        return userRepository.findById(userId).orElse(null)?.also {
+            logger.debug("Found user with ID: $userId")
+        } ?: run {
+            logger.warn("User not found with ID: $userId")
+            null
+        }
+    }
+
+    /**
+     * Retrieves a user by their Firebase UID.
+     *
+     * @param firebaseUid The Firebase UID of the user to retrieve
+     * @return The user if found, null otherwise
+     */
+    @Transactional(readOnly = true)
+    fun getUserByFirebaseUid(firebaseUid: String): ExpenseUser? {
+        logger.debug("Fetching user by Firebase UID: $firebaseUid")
+        return userRepository.findByFirebaseUid(firebaseUid)?.also {
+            logger.debug("Found user with Firebase UID: $firebaseUid")
+        } ?: run {
+            logger.warn("User not found with Firebase UID: $firebaseUid")
+            null
+        }
+    }
+
+    /**
+     * Generates a unique family ID.
+     *
+     * @return A unique family ID string
+     */
+    private fun generateFamilyId(): String {
+        return "FAM_${UUID.randomUUID().toString().substring(0, 8).uppercase()}".also {
+            logger.debug("Generated new family ID: $it")
+        }
     }
 }
