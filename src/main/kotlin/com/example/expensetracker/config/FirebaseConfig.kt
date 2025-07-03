@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import jakarta.annotation.PostConstruct
 
 @Configuration
 class FirebaseConfig {
@@ -18,20 +19,20 @@ class FirebaseConfig {
     @Value("\${firebase.type:service_account}")
     private lateinit var type: String
 
-    @Value("\${firebase.project-id}")
-    private lateinit var projectId: String
+    @Value("\${firebase.project-id:#{null}}")
+    private var projectId: String? = null
 
-    @Value("\${firebase.private-key-id}")
-    private lateinit var privateKeyId: String
+    @Value("\${firebase.private-key-id:#{null}}")
+    private var privateKeyId: String? = null
 
-    @Value("\${firebase.private-key}")
-    private lateinit var privateKey: String
+    @Value("\${firebase.private-key:#{null}}")
+    private var privateKey: String? = null
 
-    @Value("\${firebase.client-email}")
-    private lateinit var clientEmail: String
+    @Value("\${firebase.client-email:#{null}}")
+    private var clientEmail: String? = null
 
-    @Value("\${firebase.client-id}")
-    private lateinit var clientId: String
+    @Value("\${firebase.client-id:#{null}}")
+    private var clientId: String? = null
 
     @Value("\${firebase.auth-uri:https://accounts.google.com/o/oauth2/auth}")
     private lateinit var authUri: String
@@ -42,8 +43,28 @@ class FirebaseConfig {
     @Value("\${firebase.auth-provider-cert-url:https://www.googleapis.com/oauth2/v1/certs}")
     private lateinit var authProviderCertUrl: String
 
-    @Value("\${firebase.client-cert-url}")
-    private lateinit var clientCertUrl: String
+    @Value("\${firebase.client-cert-url:#{null}}")
+    private var clientCertUrl: String? = null
+
+    @PostConstruct
+    fun validateConfiguration() {
+        val missingProperties = mutableListOf<String>()
+
+        if (projectId.isNullOrBlank()) missingProperties.add("firebase.project-id")
+        if (privateKeyId.isNullOrBlank()) missingProperties.add("firebase.private-key-id")
+        if (privateKey.isNullOrBlank()) missingProperties.add("firebase.private-key")
+        if (clientEmail.isNullOrBlank()) missingProperties.add("firebase.client-email")
+        if (clientId.isNullOrBlank()) missingProperties.add("firebase.client-id")
+        if (clientCertUrl.isNullOrBlank()) missingProperties.add("firebase.client-cert-url")
+
+        if (missingProperties.isNotEmpty()) {
+            logger.error("Missing required Firebase configuration properties: ${missingProperties.joinToString(", ")}")
+            logger.error("Please ensure all Firebase environment variables are properly set")
+            throw IllegalStateException("Firebase configuration incomplete. Missing: ${missingProperties.joinToString(", ")}")
+        }
+
+        logger.info("Firebase configuration validation passed")
+    }
 
     @Bean
     fun firebaseApp(): FirebaseApp {
@@ -56,7 +77,7 @@ class FirebaseConfig {
               "type": "$type",
               "project_id": "$projectId",
               "private_key_id": "$privateKeyId",
-              "private_key": "${privateKey.replace("\\n", "\n")}",
+              "private_key": "${privateKey!!.replace("\\n", "\n")}",
               "client_email": "$clientEmail",
               "client_id": "$clientId",
               "auth_uri": "$authUri",
@@ -72,7 +93,7 @@ class FirebaseConfig {
 
             val options = FirebaseOptions.builder()
                 .setCredentials(credentials)
-                .setProjectId(projectId)
+                .setProjectId(projectId!!)
                 .build()
 
             val app = if (FirebaseApp.getApps().isEmpty()) {
