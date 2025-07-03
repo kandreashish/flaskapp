@@ -258,36 +258,62 @@ src/main/kotlin/com/example/expensetracker/
 - **Auto-Assignment**: Expenses automatically assigned to authenticated user
 - **Role-Based Access**: Support for user roles and permissions
 
-## 🚀 Development
+# Expense Tracker Application
 
-### Building
+A Spring Boot expense tracking application built with Kotlin.
+
+## Getting Started
+
+### Prerequisites
+- Docker and Docker Compose
+- Java 17+ (for local development)
+
+### Running with Docker Compose
+
+The application uses Docker Compose for easy deployment. When you start the application using Docker Compose, it will automatically execute the `start.sh` script to initialize and start the application.
+
 ```bash
-./gradlew build
+# Start the application
+docker-compose up -d
+
+# View logs
+docker-compose logs -f expense-tracker
+
+# Stop the application
+docker-compose down
 ```
 
-### Running Tests
+### Docker Configuration
+
+The Docker Compose configuration includes:
+- **Port**: Application runs on port 8080
+- **Environment**: Uses production profile (`SPRING_PROFILES_ACTIVE=prod`)
+- **Volumes**: H2 database data is persisted in `./data/h2`
+- **Health Check**: Monitors application health via `/actuator/health` endpoint
+- **Restart Policy**: Automatically restarts unless stopped manually
+- **Startup Command**: Uses `./start.sh` script for initialization
+
+### Application Features
+
+- Expense tracking and management
+- REST API endpoints
+- H2 database for data persistence
+- Spring Boot Actuator for monitoring
+- Health check endpoints
+
+### Development
+
+For local development without Docker:
 ```bash
-./gradlew test
+./gradlew bootRun
 ```
 
-### Creating JAR
-```bash
-./gradlew bootJar
+### Health Check
+
+The application health can be monitored at:
 ```
-
-### Cleaning Build
-```bash
-./gradlew clean
+http://localhost:8080/actuator/health
 ```
-
-## 📱 Frontend Integration
-
-This API is designed to work with mobile and web frontends. Key integration points:
-
-1. **Authentication Flow**: Login → Store JWT token → Include in all requests
-2. **Pagination**: Use `page` and `size` parameters for efficient data loading
-3. **Error Handling**: Standardized error responses with meaningful messages
-4. **Real-time Updates**: Create/Update/Delete operations return updated data
 
 ## 🤝 Contributing
 

@@ -21,12 +21,13 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
             .cors(Customizer.withDefaults())
-            .csrf(Customizer.withDefaults())
+            .csrf { it.disable() }  // Disable CSRF for REST API
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers("/api/auth/login").permitAll()
                     .requestMatchers("/h2-console/**").permitAll() // Allow H2 console in dev
                     .requestMatchers("/api/home").permitAll()
+                    .requestMatchers("/error").permitAll()
                     .anyRequest().authenticated()
             }
             .sessionManagement { session ->

@@ -1,5 +1,29 @@
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs
+hs_err_pid*
+
 # Gradle
-.gradle/
+.gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
@@ -17,148 +41,27 @@ out/
 # VS Code
 .vscode/
 
-# Eclipse
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
-
-# NetBeans
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-# Firebase
-serviceAccountKey.json
-
 # macOS
 .DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
 
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.tmp
-*.temp
-Desktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
-# Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
-
-# Java
-*.class
-*.log
-*.ctxt
-.mtj.tmp/
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-hs_err_pid*
-replay_pid*
-
-# Spring Boot
-target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
-
-# H2 Database
-*.db
-*.trace.db
-*.lock.db
-data/h2/
-
-# Logs
-logs/
-*.log
-log/
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# SECURITY: Firebase service account keys
+serviceAccountKey.json
+**/serviceAccountKey.json
+src/main/resources/serviceAccountKey.json
 
 # Environment variables
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.production
 
-# Application specific
-application-*.yml
-application-*.yaml
-application-*.properties
-!application.properties
-!application.yml
-!application.yaml
+# H2 Database files (optional - keep if you want to persist data)
+data/h2/
+*.mv.db
+*.trace.db
 
-# Temporary files
-*.tmp
-*.swp
-*.swo
-*~
-
-# Package Files
-*.7z
-*.dmg
-*.gz
-*.iso
-*.tar
-*.zip
-
-# JetBrains IDEs
-.idea/
-*.iml
-*.ipr
-*.iws
-
-# Maven (if you switch from Gradle)
-.mvn/
-mvnw
-mvnw.cmd
+# Logs
+logs/
+*.log
 
 # Docker
-.dockerignore
-Dockerfile.bak
+docker-compose.override.yml
