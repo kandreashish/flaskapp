@@ -60,13 +60,13 @@ class JwtService {
 
     private fun extractAllClaims(token: String): Claims {
         return Jwts.parser()
-            .setSigningKey(getSigningKey())
+            .verifyWith(getSigningKey())
             .build()
-            .parseClaimsJws(token)
-            .body
+            .parseSignedClaims(token)
+            .payload
     }
 
-    private fun getSigningKey(): Key {
+    private fun getSigningKey(): javax.crypto.SecretKey {
         val keyBytes = Decoders.BASE64.decode(secretKey)
         return Keys.hmacShaKeyFor(keyBytes)
     }
