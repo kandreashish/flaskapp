@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   expense-tracker:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     environment:
@@ -19,13 +21,19 @@ services:
       - FIREBASE_AUTH_PROVIDER_CERT_URL=${FIREBASE_AUTH_PROVIDER_CERT_URL:-https://www.googleapis.com/oauth2/v1/certs}
       - FIREBASE_CLIENT_CERT_URL=${FIREBASE_CLIENT_CERT_URL}
       # Database configuration for persistent storage
-      - SPRING_DATASOURCE_URL=jdbc:h2:file:/h2-data/expensedb;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=
+      - SPRING_H2_CONSOLE_ENABLED=true
+      - SPRING_H2_CONSOLE_PATH=/h2-console
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_SQL_INIT_MODE=always
     volumes:
       - ./data/h2:/h2-data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health || http://localhost:8080/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 1
       start_period: 60s

@@ -1,22 +1,13 @@
 # Build stage
-FROM gradle:8.5-jdk17 AS build
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 WORKDIR /app
 
-# Copy Gradle files
-COPY build.gradle.kts settings.gradle.kts gradlew ./
-COPY gradle gradle/
-
-# Make gradlew executable
-RUN chmod +x gradlew
-
-# Download dependencies
-RUN ./gradlew dependencies --no-daemon
-
-# Copy source code
+# Copy the Maven project files
+COPY pom.xml .
 COPY src ./src
 
 # Build the application
-RUN ./gradlew bootJar --no-daemon
+RUN mvn clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-jammy
