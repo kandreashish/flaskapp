@@ -18,12 +18,14 @@ services:
       - FIREBASE_TOKEN_URI=${FIREBASE_TOKEN_URI:-https://oauth2.googleapis.com/token}
       - FIREBASE_AUTH_PROVIDER_CERT_URL=${FIREBASE_AUTH_PROVIDER_CERT_URL:-https://www.googleapis.com/oauth2/v1/certs}
       - FIREBASE_CLIENT_CERT_URL=${FIREBASE_CLIENT_CERT_URL}
+      # Database configuration for persistent storage
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/h2-data/expensedb;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1
     volumes:
       - ./data/h2:/h2-data
     restart: unless-stopped
-    command: ["./start.sh"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health || http://localhost:8080/"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 60s
