@@ -101,7 +101,7 @@ class FirebaseAuthService {
                 uid = userRecord.uid,
                 name = userRecord.displayName ?: "",
                 email = userRecord.email ?: "",
-                picture = userRecord.photoUrl?.toString() ?: ""
+                picture = userRecord.photoUrl ?: ""
             ).also {
                 logger.debug("Successfully fetched user: ${userRecord.uid}")
             }
