@@ -18,7 +18,8 @@ import java.util.*
 class AuthService(
     private val firebaseAuthService: FirebaseAuthService,
     private val jwtService: JwtService,
-    private val userRepository: ExpenseUserRepository
+    private val userRepository: ExpenseUserRepository,
+    private val refreshTokenService: RefreshTokenService
 ) {
 
     private val logger = LoggerFactory.getLogger(AuthService::class.java)
@@ -104,6 +105,10 @@ class AuthService(
     ): AuthResponse {
         logger.debug("Creating success auth response for user: ${user.id}")
         
+        // Generate refresh token
+        val refreshToken = refreshTokenService.generateRefreshToken(user.id)
+        logger.debug("Generated refresh token for user: ${user.id}")
+
         return AuthResponse(
             success = true,
             message = "Authentication successful",
@@ -114,7 +119,8 @@ class AuthService(
                 familyId = user.familyId,
                 profilePicture = firebaseUser.picture
             ),
-            token = token
+            token = token,
+            refreshToken = refreshToken
         )
     }
 

@@ -40,7 +40,8 @@ data class AuthResponse(
     val success: Boolean,
     val message: String,
     val user: UserInfo? = null,
-    val token: String? = null
+    val token: String? = null,
+    val refreshToken: String? = null
 )
 
 data class UserInfo(

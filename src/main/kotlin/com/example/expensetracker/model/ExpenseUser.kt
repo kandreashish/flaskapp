@@ -26,5 +26,8 @@ data class ExpenseUser(
     val createdAt: Long = System.currentTimeMillis(),
 
     @Column(name = "updated_at")
-    var updatedAt: Long = System.currentTimeMillis()
+    var updatedAt: Long = System.currentTimeMillis(),
+
+    @Column(name = "fcm_token")
+    var fcmToken: String? = null
 )

@@ -49,6 +49,16 @@ class JwtService {
         }
     }
 
+    fun getTokenExpirationTime(token: String): Long? {
+        return try {
+            val claims = extractAllClaims(token)
+            claims.expiration.time - System.currentTimeMillis()
+        } catch (e: Exception) {
+            logger.error("Error getting token expiration time: ${e.message}", e)
+            null
+        }
+    }
+
     private fun isTokenExpired(claims: Claims): Boolean {
         return claims.expiration.before(Date())
     }
@@ -71,3 +81,4 @@ class JwtService {
         return Keys.hmacShaKeyFor(keyBytes)
     }
 }
+

@@ -12,7 +12,7 @@ class ApplicationFailureHandler : ApplicationListener<ApplicationFailedEvent> {
     private val logger = LoggerFactory.getLogger(ApplicationFailureHandler::class.java)
 
     override fun onApplicationEvent(event: ApplicationFailedEvent) {
-        val exception = event.getException()
+        val exception = event.exception
         logger.error("Application failed to start: ${exception.message}", exception)
 
         // Clean up database locks on failure

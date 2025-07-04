@@ -2,7 +2,10 @@ package com.example.expensetracker.controller
 
 import com.example.expensetracker.model.auth.*
 import com.example.expensetracker.service.AuthService
+import com.example.expensetracker.service.JwtService
+import com.example.expensetracker.service.RefreshTokenService
 import com.example.expensetracker.util.AuthUtil
+import com.google.api.client.auth.oauth2.RefreshTokenRequest
 import com.google.firebase.auth.FirebaseAuthException
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
@@ -20,7 +23,9 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/api/auth")
 class AuthController(
     private val authService: AuthService,
-    private val authUtil: AuthUtil
+    private val authUtil: AuthUtil,
+    private val jwtService: JwtService,
+    private val refreshTokenService: RefreshTokenService // Add RefreshTokenService here
 ) {
 
     private val logger = LoggerFactory.getLogger(AuthController::class.java)
@@ -107,5 +112,90 @@ class AuthController(
     @PostMapping("/logout")
     fun logout(): ResponseEntity<Any> {
         return ResponseEntity.ok(mapOf("message" to "Logged out successfully"))
+    }
+
+    /**
+     * Refreshes the JWT token using a refresh token.
+     *
+     * @param request The refresh token request containing the refresh token
+     * @return ResponseEntity containing the new authentication response
+     */
+    @PostMapping("/refresh")
+    fun refreshToken(@RequestBody request: RefreshTokenRequest): ResponseEntity<AuthResponse> {
+        return try {
+            // Validate the refresh token and get user ID
+            val userId = refreshTokenService.validateRefreshToken(request.refreshToken)
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(AuthResponse(success = false, message = "Invalid or expired refresh token"))
+            }
+
+            // Get user from a database
+            val user = authService.getUserById(userId)
+                ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(AuthResponse(success = false, message = "User not found"))
+
+            // Generate new JWT token
+            val newJwtToken = jwtService.generateToken(user.id)
+
+            // Generate new refresh token (rotate refresh tokens for security)
+            val newRefreshToken = refreshTokenService.generateRefreshToken(user.id)
+
+            val response = AuthResponse(
+                success = true,
+                message = "Token refreshed successfully",
+                token = newJwtToken,
+                refreshToken = newRefreshToken,
+                user = UserInfo(
+                    id = user.id,
+                    name = user.name ?: "",
+                    email = user.email,
+                    familyId = user.familyId
+                )
+            )
+
+            logger.info("Token refreshed for user: ${user.email}")
+            ResponseEntity.ok(response)
+
+        } catch (e: Exception) {
+            logger.error("Token refresh failed", e)
+            ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(AuthResponse(success = false, message = "Token refresh failed"))
+        }
+    }
+
+    /**
+     * Validates the JWT token for the authenticated user.
+     *
+     * @param authHeader The authorization header containing the Bearer token
+     * @return ResponseEntity containing the validation result
+     */
+    @PostMapping("/validate")
+    fun validateToken(@RequestHeader("Authorization") authHeader: String): ResponseEntity<Map<String, Any>> {
+        return try {
+            if (!authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(mapOf("valid" to false, "message" to "Invalid authorization header"))
+            }
+
+            val token = authHeader.substring(7)
+            val isValid = jwtService.isTokenValid(token)
+            val userId = jwtService.extractUserId(token)
+
+            if (isValid && userId != null) {
+                ResponseEntity.ok(mapOf(
+                    "valid" to true,
+                    "userId" to userId,
+                    "expiresIn" to (jwtService.getTokenExpirationTime(token) ?: 0)
+                ))
+            } else {
+                ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(mapOf("valid" to false, "message" to "Token expired or invalid"))
+            }
+        } catch (e: Exception) {
+            logger.error("Token validation failed", e)
+            ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(mapOf("valid" to false, "message" to "Token validation failed"))
+        }
     }
 }
