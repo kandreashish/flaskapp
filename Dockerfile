@@ -24,14 +24,13 @@ COPY src ./src
 RUN ./gradlew clean bootJar --no-daemon --parallel --build-cache --console=plain
 
 # Stage 2: Create the final runtime image
-# Using eclipse-temurin:17-jre-alpine for smaller size and better performance
-FROM eclipse-temurin:17-jre-alpine AS runtime
+# Using standard JRE image with ARM64 support
+FROM eclipse-temurin:17-jre AS runtime
 WORKDIR /app
 
-# Install only curl for health checks, minimize packages
-RUN apk add --no-cache curl && \
-    addgroup -g 1001 -S appgroup && \
-    adduser -S appuser -u 1001 -G appgroup
+# Install curl for health checks and create non-root user
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* && \
+    groupadd -r appgroup && useradd -r -g appgroup appuser
 
 # Copy the built JAR file from the 'build' stage
 COPY --from=build /app/build/libs/*.jar app.jar
