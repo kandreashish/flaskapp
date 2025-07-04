@@ -39,17 +39,25 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Create user with specific UID/GID that matches common host user (1000:1000)
+RUN groupadd -g 1000 appgroup && \
+    useradd -r -u 1000 -g appgroup -d /app -s /bin/bash appuser
+
 # Copy the built JAR from build stage
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Create data directory with proper permissions
+# Create data directory and set ownership BEFORE switching users
 RUN mkdir -p /app/h2-data && \
-    chmod 777 /app/h2-data
+    chown -R 1000:1000 /app && \
+    chmod -R 755 /app
+
+# Switch to non-root user with consistent UID
+USER 1000:1000
 
 # Expose port
 EXPOSE 8080
 
-# Optimized JVM settings for Raspberry Pi (ARM64) - running as root for now to avoid permission issues
+# Optimized JVM settings for Raspberry Pi (ARM64)
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=70.0", \
