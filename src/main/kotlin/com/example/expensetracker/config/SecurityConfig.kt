@@ -35,9 +35,8 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
             }
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
             .headers { headers ->
-                headers.frameOptions(Customizer.withDefaults())
+                headers.frameOptions(Customizer.withDefaults()).disable()
             }
-
         return http.build()
     }
 
