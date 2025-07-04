@@ -17,28 +17,48 @@ class UserDeviceService(
         deviceName: String? = null,
         deviceType: String? = null
     ): UserDevice {
-        // Check if device already exists
-        val existingDevice = userDeviceRepository.findByUserIdAndFcmToken(userId, fcmToken)
+        // First, check if this exact user-token combination exists
+        val existingUserDevice = userDeviceRepository.findByUserIdAndFcmToken(userId, fcmToken)
 
-        return if (existingDevice != null) {
-            // Update existing device
-            val updatedDevice = existingDevice.copy(
-                deviceName = deviceName ?: existingDevice.deviceName,
-                deviceType = deviceType ?: existingDevice.deviceType,
+        if (existingUserDevice != null) {
+            // Update existing device for same user
+            val updatedDevice = existingUserDevice.copy(
+                deviceName = deviceName ?: existingUserDevice.deviceName,
+                deviceType = deviceType ?: existingUserDevice.deviceType,
                 updatedAt = System.currentTimeMillis(),
                 isActive = true
             )
-            userDeviceRepository.save(updatedDevice)
-        } else {
-            // Create new device
-            val newDevice = UserDevice(
-                userId = userId,
-                fcmToken = fcmToken,
-                deviceName = deviceName,
-                deviceType = deviceType
-            )
-            userDeviceRepository.save(newDevice)
+            return userDeviceRepository.save(updatedDevice)
         }
+
+        // Check if this FCM token is already associated with any user (active or inactive)
+        val existingTokenDevice = userDeviceRepository.findByFcmToken(fcmToken)
+
+        if (existingTokenDevice != null) {
+            // Transfer the existing device record to the new user instead of creating a new one
+            val updatedAt = System.currentTimeMillis()
+            val rowsUpdated = userDeviceRepository.transferDeviceToUser(
+                fcmToken = fcmToken,
+                newUserId = userId,
+                deviceName = deviceName,
+                deviceType = deviceType,
+                updatedAt = updatedAt
+            )
+
+            if (rowsUpdated > 0) {
+                // Return the updated device record
+                return userDeviceRepository.findByFcmToken(fcmToken)!!
+            }
+        }
+
+        // No existing device with this token, create new one
+        val newDevice = UserDevice(
+            userId = userId,
+            fcmToken = fcmToken,
+            deviceName = deviceName,
+            deviceType = deviceType
+        )
+        return userDeviceRepository.save(newDevice)
     }
 
     fun getActiveDeviceTokens(userId: String): List<String> {

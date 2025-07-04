@@ -29,4 +29,15 @@ interface UserDeviceRepository : JpaRepository<UserDevice, String> {
     @Transactional
     @Query("UPDATE UserDevice ud SET ud.isActive = false WHERE ud.userId = :userId")
     fun deactivateAllUserDevices(@Param("userId") userId: String): Int
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE UserDevice ud SET ud.userId = :newUserId, ud.deviceName = :deviceName, ud.deviceType = :deviceType, ud.updatedAt = :updatedAt, ud.isActive = true WHERE ud.fcmToken = :fcmToken")
+    fun transferDeviceToUser(
+        @Param("fcmToken") fcmToken: String,
+        @Param("newUserId") newUserId: String,
+        @Param("deviceName") deviceName: String?,
+        @Param("deviceType") deviceType: String?,
+        @Param("updatedAt") updatedAt: Long
+    ): Int
 }
