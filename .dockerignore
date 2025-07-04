@@ -3,6 +3,7 @@ build/
 target/
 *.jar
 *.war
+.gradle/
 
 # IDE files
 .idea/
@@ -10,10 +11,18 @@ target/
 *.iml
 *.ipr
 *.iws
+.project
+.classpath
+.settings/
 
 # OS files
 .DS_Store
 Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 
 # Git
 .git/
@@ -27,9 +36,14 @@ docker-compose*.yml
 # Documentation
 README.md
 *.md
+FIREBASE_SETUP.md
 
 # Scripts
 *.sh
+cleanup.sh
+health-check.sh
+start.sh
+test_notifications.sh
 
 # Logs
 *.log
@@ -39,6 +53,7 @@ logs/
 *.tmp
 *.swp
 *.swo
+*~
 
 # Database files (if not needed in container)
 data/
@@ -50,3 +65,13 @@ data/
 .env
 .env.local
 .env.*.local
+
+# Maven (if switching from Gradle)
+pom.xml
+
+# Test outputs
+test-results/
+*.test
+
+# Cache files
+.cache/

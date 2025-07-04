@@ -1,0 +1,8 @@
+# syntax=docker/dockerfile:1
+# Enable BuildKit features for better caching and performance
+
+# Build arguments for cache optimization
+ARG BUILDKIT_INLINE_CACHE=1
+
+# Use this in your build commands:
+# DOCKER_BUILDKIT=1 docker-compose build
