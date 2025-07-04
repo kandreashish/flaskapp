@@ -39,15 +39,15 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -r appgroup && \
-    useradd -r -g appgroup appuser
+    useradd -r -g appgroup -d /app appuser
 
 # Copy the built JAR from build stage
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Create data directory with proper permissions
+# Create data directory with proper permissions BEFORE switching users
 RUN mkdir -p /app/h2-data && \
     chown -R appuser:appgroup /app && \
-    chmod 755 /app/h2-data
+    chmod -R 755 /app
 
 # Switch to non-root user
 USER appuser:appgroup
