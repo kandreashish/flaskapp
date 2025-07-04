@@ -3,9 +3,6 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
-      target: runtime
-      args:
-        BUILDKIT_INLINE_CACHE: 1
     image: expense-tracker:latest
     container_name: expense-tracker
     ports:
@@ -23,7 +20,7 @@ services:
       # Optimized JVM settings for Raspberry Pi
       - JAVA_OPTS=-Xms128m -Xmx384m -XX:+UseG1GC -XX:G1HeapRegionSize=8m
     volumes:
-      - ./data/h2:/app/h2-data:rw
+      - ./data/h2:/app/h2-data
       # Cache Gradle dependencies on host for faster rebuilds
       - gradle-cache:/root/.gradle
     restart: unless-stopped
@@ -33,12 +30,9 @@ services:
       timeout: 15s
       retries: 3
       start_period: 60s
-    # Simplified resource limits for macOS compatibility
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.8'
+    # Resource limits compatible with older docker-compose
+    mem_limit: 512m
+    cpus: 0.8
     security_opt:
       - no-new-privileges:true
 
