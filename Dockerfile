@@ -37,25 +37,19 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    groupadd -r appgroup && \
-    useradd -r -g appgroup -d /app appuser
+    rm -rf /var/lib/apt/lists/*
 
 # Copy the built JAR from build stage
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Create data directory with proper permissions BEFORE switching users
+# Create data directory with proper permissions
 RUN mkdir -p /app/h2-data && \
-    chown -R appuser:appgroup /app && \
-    chmod -R 755 /app
-
-# Switch to non-root user
-USER appuser:appgroup
+    chmod 777 /app/h2-data
 
 # Expose port
 EXPOSE 8080
 
-# Optimized JVM settings for Raspberry Pi (ARM64)
+# Optimized JVM settings for Raspberry Pi (ARM64) - running as root for now to avoid permission issues
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=70.0", \
