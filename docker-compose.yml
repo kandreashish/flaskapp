@@ -3,6 +3,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
+      target: runtime
       args:
         BUILDKIT_INLINE_CACHE: 1
     image: expense-tracker:latest
@@ -19,29 +20,31 @@ services:
       - SPRING_H2_CONSOLE_PATH=/h2-console
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_SQL_INIT_MODE=always
-      # JVM Performance tuning
-      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC
+      # Optimized JVM settings for Raspberry Pi
+      - JAVA_OPTS=-Xms128m -Xmx384m -XX:+UseG1GC -XX:G1HeapRegionSize=8m
     volumes:
       - ./data/h2:/app/h2-data
+      # Cache Gradle dependencies on host for faster rebuilds
+      - gradle-cache:/root/.gradle
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 45s
+      timeout: 15s
       retries: 3
-      start_period: 45s
-    # Resource limits for better performance
+      start_period: 60s
+    # Raspberry Pi resource limits
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '1.0'
+          memory: 512M
+          cpus: '0.8'
         reservations:
-          memory: 256M
-          cpus: '0.25'
-    # Security improvements
+          memory: 128M
+          cpus: '0.2'
     security_opt:
       - no-new-privileges:true
-    read_only: false
-    tmpfs:
-      - /tmp:noexec,nosuid,size=100m
+
+volumes:
+  gradle-cache:
+    driver: local
