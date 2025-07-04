@@ -1,24 +1,52 @@
-.git
-.gradle
+# Build artifacts
 build/
 target/
-*.log
+*.jar
+*.war
+
+# IDE files
 .idea/
 .vscode/
 *.iml
 *.ipr
-Dockerfile
-docker-compose.yml
-*.md
-.gitignore
 *.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md
+
+# Scripts
+*.sh
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
 *.swp
 *.swo
-*~
-.DS_Store
-bin/
-.settings/
 
-# Allow essential Gradle files
-!build.gradle.kts
-!settings.gradle.kts
+# Database files (if not needed in container)
+data/
+*.db
+*.mv.db
+*.trace.db
+
+# Environment files
+.env
+.env.local
+.env.*.local

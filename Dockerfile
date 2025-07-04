@@ -1,55 +1,47 @@
 # Stage 1: Build the application
-# Using gradle:8.5-jdk17 as the build environment.
-# This image already contains Gradle 8.5 and JDK 17,
-# so we align our project's wrapper to use 8.5 to avoid re-downloading.
-FROM gradle:8.5-jdk17 AS build
+# Using eclipse-temurin:17-jdk-alpine for a much smaller build image (~300MB vs 1GB+)
+FROM eclipse-temurin:17-jdk-alpine AS build
 WORKDIR /app
 
-# Copy necessary Gradle wrapper files and project configuration
-# This ensures the Gradle wrapper can function correctly and use the Gradle version
-# provided by the base image (8.5), or download it if not present/cached.
+# Install only essential build tools
+RUN apk add --no-cache bash
+
+# Copy Gradle wrapper and configuration files first for better caching
 COPY gradlew .
 COPY gradlew.bat .
 COPY gradle ./gradle
 COPY build.gradle.kts .
 COPY settings.gradle.kts .
 
-# Copy your source code
-COPY src ./src
-
 # Grant execute permissions to the Gradle wrapper script
-# This is essential for ./gradlew to run.
 RUN chmod +x gradlew
 
-# Build the application into a JAR file.
-# --no-daemon is good practice in Docker builds as daemons aren't needed across builds.
-RUN ./gradlew clean bootJar --no-daemon
+# Download and cache dependencies first (this layer will be cached unless dependencies change)
+# This is the key optimization - dependencies are cached separately from source code
+RUN ./gradlew dependencies --no-daemon || true
+
+# Copy source code last so changes don't invalidate dependency cache
+COPY src ./src
+
+# Build the application with optimizations
+RUN ./gradlew clean bootJar --no-daemon --parallel --build-cache
 
 # Stage 2: Create the final runtime image
-# Using eclipse-temurin:17-jre-jammy for a smaller runtime footprint,
-# as it only includes the JRE, not the full JDK.
-FROM eclipse-temurin:17-jre-jammy
+# Using alpine variant for smaller size (~200MB vs ~400MB)
+FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Install curl for healthcheck purposes.
-# apt-get update is followed by apt-get install and then rm -rf /var/lib/apt/lists/*
-# to clean up package lists, reducing the final image size.
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Install curl for healthcheck with minimal footprint
+RUN apk add --no-cache curl
 
-# Copy the built JAR file from the 'build' stage into the runtime image.
-# The JAR is typically found in /app/build/libs/ within the build stage.
-# We rename it to app.jar for simplicity.
+# Copy the built JAR file from the 'build' stage
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Create a directory for the H2 database.
-# This ensures that if your H2 database is configured to store files,
-# it has a designated persistent location within the container's filesystem.
+# Create a directory for the H2 database
 RUN mkdir -p /h2-data
 
-# Expose the port on which your Spring Boot application will run.
-# This informs Docker that the container listens on this port.
+# Expose the port
 EXPOSE 8080
 
-# Define the command to run the application when the container starts.
-# java -jar app.jar is the standard way to run a Spring Boot executable JAR.
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Define the command to run the application with JVM optimizations
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
