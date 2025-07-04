@@ -7,6 +7,8 @@ import com.example.expensetracker.model.toEntity
 import com.example.expensetracker.repository.ExpenseJpaRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import java.time.YearMonth
+import java.time.ZoneOffset
 import java.util.UUID
 
 @Service
@@ -144,5 +146,13 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             hasNext = result.hasNext(),
             hasPrevious = result.hasPrevious()
         )
+    }
+
+    fun getMonthlyExpenseSum(userId: String, year: Int, month: Int): Long {
+        val yearMonth = YearMonth.of(year, month)
+        val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+
+        return expenseRepository.sumExpensesByUserIdAndDateRange(userId, startDate, endDate)
     }
 }

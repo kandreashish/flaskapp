@@ -32,7 +32,7 @@ class AuthService(
      * @throws BadCredentialsException if the token is invalid or authentication fails
      */
     @Throws(BadCredentialsException::class)
-    fun firebaseLogin(loginRequest: FirebaseLoginRequest): AuthResponse {
+    fun firebaseLogin(loginRequest: FirebaseLoginRequest): AuthResponseBase {
         logger.debug("Initiating Firebase login")
         
         try {
@@ -102,14 +102,14 @@ class AuthService(
         user: ExpenseUser,
         firebaseUser: FirebaseUserInfo,
         token: String
-    ): AuthResponse {
+    ): AuthResponseBase {
         logger.debug("Creating success auth response for user: ${user.id}")
         
         // Generate refresh token
         val refreshToken = refreshTokenService.generateRefreshToken(user.id)
         logger.debug("Generated refresh token for user: ${user.id}")
 
-        return AuthResponse(
+        return SuccessAuthResponse(
             success = true,
             message = "Authentication successful",
             user = UserInfo(

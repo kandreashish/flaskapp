@@ -36,13 +36,23 @@ data class FirebaseLoginRequest(
     val idToken: String
 )
 
-data class AuthResponse(
-    val success: Boolean,
-    val message: String,
+data class SuccessAuthResponse(
+    override val success: Boolean,
+    override val message: String,
     val user: UserInfo? = null,
     val token: String? = null,
     val refreshToken: String? = null
-)
+) : AuthResponseBase
+
+data class FailureAuthResponse(
+    override val success: Boolean,
+    override val message: String,
+) : AuthResponseBase
+
+interface AuthResponseBase {
+    val success: Boolean
+    val message: String
+}
 
 data class UserInfo(
     val id: String,

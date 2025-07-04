@@ -177,4 +177,33 @@ class ExpenseController(
 
         return ResponseEntity.ok("Notification sent successfully to ${fcmTokens.size - invalidTokens.size} device(s)")
     }
+
+    @GetMapping("/monthly-sum")
+    fun getMonthlyExpenseSum(
+        @RequestParam year: Int,
+        @RequestParam month: Int
+    ): ResponseEntity<Map<String, Any>> {
+        val currentUserId = authUtil.getCurrentUserId()
+
+        // Validate month parameter
+        if (month < 1 || month > 12) {
+            return ResponseEntity.badRequest().body(
+                mapOf(
+                    "error" to "Invalid month. Month must be between 1 and 12",
+                    "month" to month
+                )
+            )
+        }
+
+        val totalAmount = expenseService.getMonthlyExpenseSum(currentUserId, year, month)
+
+        return ResponseEntity.ok(
+            mapOf(
+                "year" to year,
+                "month" to month,
+                "totalAmount" to totalAmount,
+                "userId" to currentUserId
+            )
+        )
+    }
 }

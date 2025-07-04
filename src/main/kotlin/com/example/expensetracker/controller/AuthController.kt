@@ -37,16 +37,16 @@ class AuthController(
      * @return ResponseEntity containing the authentication response
      */
     @PostMapping("/login")
-    fun firebaseLogin(@Valid @RequestBody loginRequest: FirebaseLoginRequest): ResponseEntity<AuthResponse> {
+    fun firebaseLogin(@Valid @RequestBody loginRequest: FirebaseLoginRequest): ResponseEntity<AuthResponseBase> {
         return try {
             logger.debug("Processing Firebase login request")
             val response = authService.firebaseLogin(loginRequest)
             
-            if (response.success) {
+            if (response is SuccessAuthResponse && response.success) {
                 logger.info("Successful login for user: ${response.user?.email}")
                 ResponseEntity.ok(response)
             } else {
-                logger.warn("Login failed: ${response.message}")
+                logger.warn("Login failed: ${(response as FailureAuthResponse).message}")
                 ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response)
             }
         } catch (e: FirebaseAuthException) {
@@ -121,19 +121,19 @@ class AuthController(
      * @return ResponseEntity containing the new authentication response
      */
     @PostMapping("/refresh")
-    fun refreshToken(@RequestBody request: RefreshTokenRequest): ResponseEntity<AuthResponse> {
+    fun refreshToken(@RequestBody request: RefreshTokenRequest): ResponseEntity<AuthResponseBase> {
         return try {
             // Validate the refresh token and get user ID
             val userId = refreshTokenService.validateRefreshToken(request.refreshToken)
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(AuthResponse(success = false, message = "Invalid or expired refresh token"))
+                    .body(FailureAuthResponse(success = false, message = "Invalid or expired refresh token"))
             }
 
             // Get user from a database
             val user = authService.getUserById(userId)
                 ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(AuthResponse(success = false, message = "User not found"))
+                    .body(FailureAuthResponse(success = false, message = "User not found"))
 
             // Generate new JWT token
             val newJwtToken = jwtService.generateToken(user.id)
@@ -141,7 +141,7 @@ class AuthController(
             // Generate new refresh token (rotate refresh tokens for security)
             val newRefreshToken = refreshTokenService.generateRefreshToken(user.id)
 
-            val response = AuthResponse(
+            val response = SuccessAuthResponse(
                 success = true,
                 message = "Token refreshed successfully",
                 token = newJwtToken,
@@ -160,7 +160,7 @@ class AuthController(
         } catch (e: Exception) {
             logger.error("Token refresh failed", e)
             ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(AuthResponse(success = false, message = "Token refresh failed"))
+                .body(FailureAuthResponse(success = false, message = "Token refresh failed"))
         }
     }
 
