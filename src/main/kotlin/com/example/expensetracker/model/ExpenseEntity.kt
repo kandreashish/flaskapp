@@ -24,9 +24,6 @@ data class Expense(
     @Column(name = "family_id")
     val familyId: String?,
 
-    @Column(name = "is_date_expense")
-    val dateExpense: Boolean,
-
     @Column(name = "expense_created_on")
     val expenseCreatedOn: Long,
 
@@ -51,7 +48,6 @@ fun Expense.toDto() = ExpenseDto(
     description = this.description,
     date = this.date,
     familyId = this.familyId ?: "",
-    dateExpense = this.dateExpense,
     expenseCreatedOn = this.expenseCreatedOn,
     createdBy = this.createdBy,
     modifiedBy = this.modifiedBy,
@@ -67,10 +63,9 @@ fun ExpenseDto.toEntity() = Expense(
     description = this.description,
     date = this.date,
     familyId = this.familyId.takeIf { it.isNotEmpty() },
-    dateExpense = this.dateExpense,
     expenseCreatedOn = this.expenseCreatedOn,
     createdBy = this.createdBy,
     modifiedBy = this.modifiedBy,
     lastModifiedOn = this.lastModifiedOn,
-    synced = this.synced
+    synced = this.synced,
 )

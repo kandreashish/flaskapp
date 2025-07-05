@@ -53,4 +53,8 @@ class UserService(
     fun logoutAllDevices(userId: String): Boolean {
         return userDeviceService.deactivateAllUserDevices(userId)
     }
+
+    fun userExists(userId: String): Boolean {
+        return userRepository.existsById(userId)
+    }
 }

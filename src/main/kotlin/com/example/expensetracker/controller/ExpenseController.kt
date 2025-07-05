@@ -47,8 +47,21 @@ class ExpenseController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    fun createExpense(@RequestBody expense: ExpenseDto): ExpenseDto {
+    fun createExpense(@RequestBody expense: ExpenseDto): ResponseEntity<Any> {
         val currentUserId = authUtil.getCurrentUserId()
+
+        // Validate the expense data
+        val validationErrors = validateExpense(expense)
+        if (validationErrors.isNotEmpty()) {
+            return ResponseEntity.badRequest().body(
+                mapOf(
+                    "error" to "Validation failed",
+                    "message" to "Please fix the following errors",
+                    "validationErrors" to validationErrors
+                )
+            )
+        }
+
         val expenseWithUser = expense.copy(
             userId = currentUserId,
             createdBy = currentUserId,
@@ -74,7 +87,62 @@ class ExpenseController(
             }
         }
 
-        return createdExpense
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdExpense)
+    }
+
+    private fun validateExpense(expense: ExpenseDto): List<String> {
+        val errors = mutableListOf<String>()
+
+        // Validate amount
+        if (expense.amount <= 0) {
+            errors.add("Amount is required and must be greater than 0")
+        }
+        if (expense.amount > 1000000) {
+            errors.add("Amount cannot exceed 1,000,000")
+        }
+
+        // Validate category
+        val validCategories = listOf(
+            "FOOD",
+            "ENTERTAINMENT",
+            "FUN",
+            "BILLS",
+            "TRAVEL",
+            "UTILITIES",
+            "HEALTH",
+            "SHOPPING",
+            "EDUCATION",
+            "OTHERS"
+        )
+        if (expense.category.isBlank()) {
+            errors.add("Category is required")
+        } else if (!validCategories.contains(expense.category.uppercase())) {
+            errors.add("Category must be one of: ${validCategories.joinToString(", ")}")
+        }
+
+        // Validate description (optional but if provided, should have reasonable length)
+        if (expense.description.length > 500) {
+            errors.add("Description cannot exceed 500 characters")
+        }
+
+        // Validate date
+        if (expense.date <= 0) {
+            errors.add("Date is required and must be a valid timestamp")
+        }
+
+        // Check if the date is not too far in the future (more than 1 day)
+        val oneDayFromNow = System.currentTimeMillis() + (24 * 60 * 60 * 1000)
+        if (expense.date > oneDayFromNow) {
+            errors.add("Date cannot be more than 1 day in the future")
+        }
+
+        // Check if date is not too far in the past (more than 10 years)
+        val tenYearsAgo = System.currentTimeMillis() - (10 * 365 * 24 * 60 * 60 * 1000L)
+        if (expense.date < tenYearsAgo) {
+            errors.add("Date cannot be more than 10 years in the past")
+        }
+
+        return errors
     }
 
     @PutMapping("/{id}")
@@ -86,10 +154,12 @@ class ExpenseController(
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
             }
 
-            val updatedExpense = expenseService.updateExpense(id, expense.copy(
-                userId = currentUserId,
-                modifiedBy = currentUserId
-            ))
+            val updatedExpense = expenseService.updateExpense(
+                id, expense.copy(
+                    userId = currentUserId,
+                    modifiedBy = currentUserId
+                )
+            )
             ResponseEntity.ok(updatedExpense)
         } catch (e: NoSuchElementException) {
             ResponseEntity.notFound().build()

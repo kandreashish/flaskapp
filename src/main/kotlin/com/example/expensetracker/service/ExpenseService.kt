@@ -55,7 +55,6 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             description = expenseDetails.description,
             date = expenseDetails.date,
             familyId = expenseDetails.familyId.takeIf { it.isNotEmpty() },
-            dateExpense = expenseDetails.dateExpense,
             modifiedBy = expenseDetails.modifiedBy,
             lastModifiedOn = System.currentTimeMillis(),
             synced = expenseDetails.synced

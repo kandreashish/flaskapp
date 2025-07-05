@@ -6,37 +6,40 @@ import java.time.Instant
 
 @Serializable
 data class ExpenseDto(
-    @SerialName("expense_id")
-    val expenseId: String = "",
+    @SerialName("expenseId")
+    val expenseId: String,
 
-    @SerialName("user_id")
-    val userId: String = "",
+    @SerialName("userId")
+    val userId: String,
 
+    @SerialName("amount")
     val amount: Int = 0,
 
+    @SerialName("category")
     val category: String = "OTHERS", // Use string to decouple from domain enum
 
+    @SerialName("description")
     val description: String = "",
 
+    @SerialName("date")
     val date: Long = System.currentTimeMillis(), // Use epoch timestamp
 
     @SerialName("family_id")
     val familyId: String = "",
 
-    @SerialName("is_date_expense")
-    val dateExpense: Boolean = false,
+    @SerialName("expenseCreatedOn")
+    val expenseCreatedOn: Long,
 
-    @SerialName("expense_created_on")
-    val expenseCreatedOn: Long = System.currentTimeMillis(),
+    @SerialName("createdBy")
+    val createdBy: String,
 
-    @SerialName("created_by")
-    val createdBy: String = "",
+    @SerialName("modifiedBy")
+    val modifiedBy: String,
 
-    @SerialName("modified_by")
-    val modifiedBy: String = "",
+    @SerialName("lastModifiedOn")
+    val lastModifiedOn: Long,
 
-    @SerialName("last_modified_on")
-    val lastModifiedOn: Long = System.currentTimeMillis(),
-
+    @SerialName("synced")
     val synced: Boolean = false
 )
+
