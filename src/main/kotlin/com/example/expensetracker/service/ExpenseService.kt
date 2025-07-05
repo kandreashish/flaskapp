@@ -1,5 +1,8 @@
 package com.example.expensetracker.service
 
+import com.example.expensetracker.exception.DatabaseOperationException
+import com.example.expensetracker.exception.ExpenseCreationException
+import com.example.expensetracker.exception.ExpenseNotFoundException
 import com.example.expensetracker.model.ExpenseDto
 import com.example.expensetracker.model.PagedResponse
 import com.example.expensetracker.model.toDto
@@ -7,6 +10,7 @@ import com.example.expensetracker.model.toEntity
 import com.example.expensetracker.repository.ExpenseJpaRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import org.springframework.dao.DataAccessException
 import java.time.YearMonth
 import java.time.ZoneOffset
 import java.util.UUID
@@ -35,39 +39,113 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         expenseRepository.findById(id).map { it.toDto() }.orElse(null)
 
     fun createExpense(expense: ExpenseDto): ExpenseDto {
-        // Generate ID if not provided
-        val expenseWithId = if (expense.expenseId.isBlank()) {
-            expense.copy(expenseId = UUID.randomUUID().toString())
-        } else {
-            expense
+        return try {
+            // Generate ID if not provided
+            val expenseWithId = if (expense.expenseId.isBlank()) {
+                expense.copy(expenseId = UUID.randomUUID().toString())
+            } else {
+                expense
+            }
+
+            // Additional validation before saving
+            if (expenseWithId.userId.isBlank()) {
+                throw ExpenseCreationException("User ID is required for expense creation")
+            }
+
+            if (expenseWithId.amount <= 0) {
+                throw ExpenseCreationException("Amount must be greater than 0")
+            }
+
+            // Check for duplicate expense ID
+            if (expenseRepository.existsById(expenseWithId.expenseId)) {
+                throw ExpenseCreationException("An expense with ID '${expenseWithId.expenseId}' already exists")
+            }
+
+            val savedExpense = expenseRepository.save(expenseWithId.toEntity())
+            savedExpense.toDto()
+
+        } catch (e: ExpenseCreationException) {
+            // Re-throw our custom exceptions
+            throw e
+        } catch (e: DataAccessException) {
+            throw DatabaseOperationException(
+                "Database error occurred while creating expense: ${e.message}",
+                e
+            )
+        } catch (e: Exception) {
+            throw ExpenseCreationException(
+                "Unexpected error during expense creation: ${e.message}",
+                e
+            )
         }
-        return expenseRepository.save(expenseWithId.toEntity()).toDto()
     }
 
     fun updateExpense(id: String, expenseDetails: ExpenseDto): ExpenseDto {
-        val existingExpense = expenseRepository.findById(id)
-            .orElseThrow { NoSuchElementException("Expense not found with id: $id") }
+        return try {
+            val existingExpense = expenseRepository.findById(id)
+                .orElseThrow { ExpenseNotFoundException("Expense not found with id: $id") }
 
-        val updatedExpense = existingExpense.copy(
-            userId = expenseDetails.userId,
-            amount = expenseDetails.amount,
-            category = expenseDetails.category,
-            description = expenseDetails.description,
-            date = expenseDetails.date,
-            familyId = expenseDetails.familyId.takeIf { it.isNotEmpty() },
-            modifiedBy = expenseDetails.modifiedBy,
-            lastModifiedOn = System.currentTimeMillis(),
-            synced = expenseDetails.synced
-        )
-        return expenseRepository.save(updatedExpense).toDto()
+            // Validate update data
+            if (expenseDetails.amount <= 0) {
+                throw ExpenseCreationException("Amount must be greater than 0")
+            }
+
+            if (expenseDetails.userId.isBlank()) {
+                throw ExpenseCreationException("User ID cannot be empty")
+            }
+
+            val updatedExpense = existingExpense.copy(
+                userId = expenseDetails.userId,
+                amount = expenseDetails.amount,
+                category = expenseDetails.category,
+                description = expenseDetails.description,
+                date = expenseDetails.date,
+                familyId = expenseDetails.familyId.takeIf { it.isNotEmpty() },
+                modifiedBy = expenseDetails.modifiedBy,
+                lastModifiedOn = System.currentTimeMillis(),
+                synced = expenseDetails.synced
+            )
+
+            expenseRepository.save(updatedExpense).toDto()
+
+        } catch (e: ExpenseNotFoundException) {
+            throw e
+        } catch (e: ExpenseCreationException) {
+            throw e
+        } catch (e: DataAccessException) {
+            throw DatabaseOperationException(
+                "Database error occurred while updating expense: ${e.message}",
+                e
+            )
+        } catch (e: Exception) {
+            throw ExpenseCreationException(
+                "Unexpected error during expense update: ${e.message}",
+                e
+            )
+        }
     }
 
     fun deleteExpense(id: String): Boolean {
-        return if (expenseRepository.existsById(id)) {
+        return try {
+            if (!expenseRepository.existsById(id)) {
+                throw ExpenseNotFoundException("Expense with ID '$id' not found")
+            }
+
             expenseRepository.deleteById(id)
             true
-        } else {
-            false
+
+        } catch (e: ExpenseNotFoundException) {
+            throw e
+        } catch (e: DataAccessException) {
+            throw DatabaseOperationException(
+                "Database error occurred while deleting expense: ${e.message}",
+                e
+            )
+        } catch (e: Exception) {
+            throw ExpenseCreationException(
+                "Unexpected error during expense deletion: ${e.message}",
+                e
+            )
         }
     }
 

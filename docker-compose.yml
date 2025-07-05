@@ -1,6 +1,6 @@
 services:
   expense-tracker:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     image: expense-tracker:latest
@@ -9,18 +9,16 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      # Persistent database with proper file permissions
-      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;AUTO_SERVER=FALSE
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;AUTO_SERVER=FALSE;FILE_LOCK=NO;TRACE_LEVEL_FILE=0
       - SPRING_DATASOURCE_USERNAME=sa
       - SPRING_DATASOURCE_PASSWORD=
       - SPRING_H2_CONSOLE_ENABLED=true
       - SPRING_H2_CONSOLE_PATH=/h2-console
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_SQL_INIT_MODE=always
-      # Optimized JVM settings for Raspberry Pi
       - JAVA_OPTS=-Xms128m -Xmx384m -XX:+UseG1GC -XX:G1HeapRegionSize=8m
     volumes:
-      - ./data/h2:/app/h2-data
+      - h2-data:/app/h2-data  # Changed to named volume
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
@@ -28,12 +26,13 @@ services:
       timeout: 15s
       retries: 3
       start_period: 60s
-    # Resource limits compatible with older docker-compose
     mem_limit: 512m
     cpus: 0.8
     security_opt:
       - no-new-privileges:true
 
 volumes:
+  h2-data:  # Add this
+    driver: local
   gradle-cache:
     driver: local

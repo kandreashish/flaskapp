@@ -1,6 +1,10 @@
 package com.example.expensetracker.controller
 
 import com.example.expensetracker.config.PushNotificationService
+import com.example.expensetracker.exception.ExpenseValidationException
+import com.example.expensetracker.exception.ExpenseCreationException
+import com.example.expensetracker.exception.ExpenseNotFoundException
+import com.example.expensetracker.exception.ExpenseAccessDeniedException
 import com.example.expensetracker.model.ExpenseDto
 import com.example.expensetracker.model.PagedResponse
 import com.example.expensetracker.service.ExpenseService
@@ -33,61 +37,80 @@ class ExpenseController(
         return expenseService.getExpensesByUserId(currentUserId, page, size)
     }
 
-    @GetMapping("/{id}")
-    fun getExpenseById(@PathVariable id: String): ResponseEntity<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
-        return expenseService.getExpenseById(id)?.let { expense ->
-            if (expense.userId == currentUserId) {
-                ResponseEntity.ok(expense)
-            } else {
-                ResponseEntity.status(HttpStatus.FORBIDDEN).build()
-            }
-        } ?: ResponseEntity.notFound().build()
-    }
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createExpense(@RequestBody expense: ExpenseDto): ResponseEntity<Any> {
-        val currentUserId = authUtil.getCurrentUserId()
+        return try {
+            val currentUserId = authUtil.getCurrentUserId()
 
-        // Validate the expense data
-        val validationErrors = validateExpense(expense)
-        if (validationErrors.isNotEmpty()) {
-            return ResponseEntity.badRequest().body(
+            // Validate the expense data
+            val validationErrors = validateExpense(expense)
+            if (validationErrors.isNotEmpty()) {
+                throw ExpenseValidationException(
+                    "Expense validation failed",
+                    validationErrors
+                )
+            }
+
+            val expenseWithUser = expense.copy(
+                userId = currentUserId,
+                createdBy = currentUserId,
+                modifiedBy = currentUserId,
+                expenseCreatedOn = System.currentTimeMillis(),
+                lastModifiedOn = System.currentTimeMillis()
+            )
+
+            val createdExpense = try {
+                expenseService.createExpense(expenseWithUser)
+            } catch (e: Exception) {
+                throw ExpenseCreationException(
+                    "Failed to save expense to database: ${e.message}",
+                    e
+                )
+            }
+
+            // Send FCM notification to all user devices after creating expense
+            try {
+                val user = userService.findById(currentUserId)
+                if (user != null) {
+                    val fcmTokens = userService.getAllFcmTokens(currentUserId)
+                    if (fcmTokens.isNotEmpty()) {
+                        val formattedAmount = "$${expense.amount}"
+                        val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
+                            fcmTokens, formattedAmount, expense.description, user.name
+                        )
+                        // Clean up invalid tokens
+                        if (invalidTokens.isNotEmpty()) {
+                            userDeviceService.removeInvalidTokens(invalidTokens)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Log notification error but don't fail the expense creation
+                println("Warning: Failed to send push notification for expense ${createdExpense.expenseId}: ${e.message}")
+            }
+
+            ResponseEntity.status(HttpStatus.CREATED).body(
                 mapOf(
-                    "error" to "Validation failed",
-                    "message" to "Please fix the following errors",
-                    "validationErrors" to validationErrors
+                    "success" to true,
+                    "message" to "Expense created successfully",
+                    "expense" to createdExpense
                 )
             )
+
+        } catch (e: ExpenseValidationException) {
+            // Re-throw validation exceptions to be handled by GlobalExceptionHandler
+            throw e
+        } catch (e: ExpenseCreationException) {
+            // Re-throw creation exceptions to be handled by GlobalExceptionHandler
+            throw e
+        } catch (e: Exception) {
+            // Catch any unexpected exceptions
+            throw ExpenseCreationException(
+                "An unexpected error occurred while creating the expense: ${e.message}",
+                e
+            )
         }
-
-        val expenseWithUser = expense.copy(
-            userId = currentUserId,
-            createdBy = currentUserId,
-            modifiedBy = currentUserId,
-            expenseCreatedOn = System.currentTimeMillis(),
-            lastModifiedOn = System.currentTimeMillis()
-        )
-        val createdExpense = expenseService.createExpense(expenseWithUser)
-
-        // Send FCM notification to all user devices after creating expense
-        val user = userService.findById(currentUserId)
-        if (user != null) {
-            val fcmTokens = userService.getAllFcmTokens(currentUserId)
-            if (fcmTokens.isNotEmpty()) {
-                val formattedAmount = "$${expense.amount}"
-                val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
-                    fcmTokens, formattedAmount, expense.description, user.name
-                )
-                // Clean up invalid tokens
-                if (invalidTokens.isNotEmpty()) {
-                    userDeviceService.removeInvalidTokens(invalidTokens)
-                }
-            }
-        }
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdExpense)
     }
 
     private fun validateExpense(expense: ExpenseDto): List<String> {
@@ -98,7 +121,10 @@ class ExpenseController(
             errors.add("Amount is required and must be greater than 0")
         }
         if (expense.amount > 1000000) {
-            errors.add("Amount cannot exceed 1,000,000")
+            errors.add("Amount cannot exceed $1,000,000")
+        }
+        if (expense.amount.toString().length > 10) {
+            errors.add("Amount value is too large")
         }
 
         // Validate category
@@ -125,6 +151,12 @@ class ExpenseController(
             errors.add("Description cannot exceed 500 characters")
         }
 
+        // Check for potentially harmful content in description
+        val suspiciousPatterns = listOf("<script", "javascript:", "onerror=", "onload=")
+        if (suspiciousPatterns.any { expense.description.lowercase().contains(it) }) {
+            errors.add("Description contains invalid characters")
+        }
+
         // Validate date
         if (expense.date <= 0) {
             errors.add("Date is required and must be a valid timestamp")
@@ -142,7 +174,38 @@ class ExpenseController(
             errors.add("Date cannot be more than 10 years in the past")
         }
 
+        // Validate user ID format if provided
+        if (expense.userId.isNotBlank() && expense.userId.length < 3) {
+            errors.add("User ID format is invalid")
+        }
+
+        // Validate family ID if provided
+        if (expense.familyId.isNotBlank() && expense.familyId.length < 3) {
+            errors.add("Family ID format is invalid")
+        }
+
         return errors
+    }
+
+    @GetMapping("/{id}")
+    fun getExpenseById(@PathVariable id: String): ResponseEntity<ExpenseDto> {
+        return try {
+            val currentUserId = authUtil.getCurrentUserId()
+            val expense = expenseService.getExpenseById(id)
+                ?: throw ExpenseNotFoundException("Expense with ID '$id' not found")
+
+            if (expense.userId != currentUserId) {
+                throw ExpenseAccessDeniedException("You don't have permission to view this expense")
+            }
+
+            ResponseEntity.ok(expense)
+        } catch (e: ExpenseNotFoundException) {
+            throw e
+        } catch (e: ExpenseAccessDeniedException) {
+            throw e
+        } catch (e: Exception) {
+            throw ExpenseCreationException("Error retrieving expense: ${e.message}", e)
+        }
     }
 
     @PutMapping("/{id}")
