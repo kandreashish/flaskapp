@@ -1,40 +1,59 @@
 #!/bin/bash
 
-echo "Starting H2 Database Server on port 9092..."
-
-# Stop any existing Spring Boot application first
-echo "Stopping any existing Spring Boot application..."
-pkill -f "ExpenseTrackerApplicationKt" 2>/dev/null || true
-
-# Create data directory if it doesn't exist and set proper permissions
-echo "Setting up database directory with proper permissions..."
-mkdir -p ./data/h2
-chmod 755 ./data/h2
-chmod 755 ./data
-
-# Set write permissions for any existing database files
-if [ -f "./data/h2/expensedb.mv.db" ]; then
-    chmod 664 ./data/h2/expensedb.mv.db
-    echo "Set write permissions for existing database file"
+echo "Checking for processes on port 9092..."
+PID=$(lsof -ti:9092)
+if [ ! -z "$PID" ]; then
+    echo "Killing process $PID on port 9092..."
+    kill -9 $PID
+    sleep 2
+else
+    echo "No process found on port 9092"
 fi
 
-if [ -f "./data/h2/expensedb.trace.db" ]; then
-    chmod 664 ./data/h2/expensedb.trace.db
-    echo "Set write permissions for existing trace file"
+
+
+# Configuration
+DB_NAME="expensedb"
+H2_PORT=9092
+WEB_PORT=8082
+H2_USER="h2user"
+DB_PASSWORD="ashish123"  # CHANGE THIS!
+DATA_DIR="/var/lib/h2-data"         # Recommended production location
+H2_JAR="/opt/h2/h2.jar"             # Official H2 jar location
+
+# ============= PRE-FLIGHT CHECKS =============
+# Check if Java is installed
+if ! command -v java &> /dev/null; then
+    echo "ERROR: Java not found! Install with:"
+    echo "sudo apt install openjdk-17-jdk"
+    exit 1
 fi
 
-echo "Starting H2 TCP Server..."
-echo "Database files will be stored in: $(pwd)/data/h2"
-echo "TCP Server will listen on port: 9092"
-echo "Web Console will be available at: http://localhost:8082"
-echo ""
-echo "To stop the server, press Ctrl+C"
-echo ""
+# Check if H2 jar exists
+if [ ! -f "$H2_JAR" ]; then
+    echo "Downloading H2 database..."
+    sudo mkdir -p /opt/h2
+    sudo wget -q https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar -O "$H2_JAR"
+    sudo chmod 644 "$H2_JAR"
+fi
 
-# Start H2 server with explicit read-write access and create database if it doesn't exist
-java -cp ~/.gradle/caches/modules-2/files-2.1/com.h2database/h2/2.2.224/7bdade27d8cd197d9b5ce9dc251f41d2edc5f7ad/h2-2.2.224.jar org.h2.tools.Server \
-    -tcp -tcpAllowOthers -tcpPort 9092 \
-    -web -webAllowOthers -webPort 8082 \
-    -baseDir ./data/h2 \
+# ============= SETUP ENVIRONMENT =============
+echo "Configuring H2 environment..."
+sudo useradd --system --home "$DATA_DIR" --shell /bin/false "$H2_USER" 2>/dev/null || true
+sudo mkdir -p "$DATA_DIR"
+sudo chown -R "$H2_USER:$H2_USER" "$DATA_DIR"
+sudo chmod 750 "$DATA_DIR"
+
+# ============= START SERVER =============
+echo "Starting H2 Server..."
+echo "• Data Directory: $DATA_DIR"
+echo "• TCP Port: $H2_PORT (Remote Connections)"
+echo "• Web Console: http://localhost:$WEB_PORT"
+echo "• DB Password: ******** (set in script)"
+
+exec sudo -u "$H2_USER" java -cp "$H2_JAR" org.h2.tools.Server \
+    -tcp -tcpPort "$H2_PORT" -tcpAllowOthers -tcpPassword "$DB_PASSWORD" \
+    -web -webPort "$WEB_PORT" -webAllowOthers \
+    -baseDir "$DATA_DIR" \
     -ifNotExists \
-    -tcpPassword ""
+    -properties ""
