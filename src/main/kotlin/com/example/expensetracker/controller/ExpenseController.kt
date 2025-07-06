@@ -27,17 +27,11 @@ class ExpenseController(
     private val userService: UserService,
     private val userDeviceService: UserDeviceService
 ) {
-
+    /**
+     * Get all expenses for the current user with pagination and sorting.
+     * Default sort by 'expenseCreatedOn' in descending order.
+     */
     @GetMapping
-    fun getAllExpenses(
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "10") size: Int
-    ): PagedResponse<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
-        return expenseService.getExpensesByUserId(currentUserId, page, size)
-    }
-
-    @GetMapping("/ordered")
     fun getExpenses(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int,
