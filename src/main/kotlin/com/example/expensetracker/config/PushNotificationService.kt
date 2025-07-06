@@ -36,7 +36,7 @@ class PushNotificationService {
             .putData("type", "expense")
             .putData("title", "New Expense Added")
             .putData("body", description)
-            .putData("amount", amount ?: "$0.00")
+            .putData("amount", amount ?: "₹0.00")
             .build()
 
         try {
@@ -104,7 +104,7 @@ class PushNotificationService {
             .putData("type", "expense")
             .putData("title", "New Expense Added")
             .putData("body", "Someone added a new expense")
-            .putData("amount", amount ?: "$0.00")
+            .putData("amount", amount ?: "₹0.00")
             .build()
 
         try {
@@ -129,7 +129,7 @@ class PushNotificationService {
             .putData("type", "expense")
             .putData("title", "New Expense Added")
             .putData("body", description)
-            .putData("amount", amount ?: "$0.00")
+            .putData("amount", amount ?: "₹0.00")
             .build()
 
         return try {
