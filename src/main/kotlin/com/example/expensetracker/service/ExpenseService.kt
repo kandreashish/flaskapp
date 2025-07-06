@@ -9,6 +9,7 @@ import com.example.expensetracker.model.toDto
 import com.example.expensetracker.model.toEntity
 import com.example.expensetracker.repository.ExpenseJpaRepository
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.dao.DataAccessException
 import java.time.YearMonth
@@ -21,6 +22,55 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
     fun getAllExpenses(page: Int, size: Int): PagedResponse<ExpenseDto> {
         val pageable = PageRequest.of(page, size)
         val result = expenseRepository.findAll(pageable)
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = page,
+            size = size,
+            totalElements = result.totalElements,
+            totalPages = result.totalPages,
+            isFirst = result.isFirst,
+            isLast = result.isLast,
+            hasNext = result.hasNext(),
+            hasPrevious = result.hasPrevious()
+        )
+    }
+
+    fun getExpensesWithOrder(
+        page: Int,
+        size: Int,
+        sortBy: String = "expenseCreatedOn",
+        isAsc: Boolean = false
+    ): PagedResponse<ExpenseDto> {
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(page, size, sort)
+        val result = expenseRepository.findAll(pageable)
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = page,
+            size = size,
+            totalElements = result.totalElements,
+            totalPages = result.totalPages,
+            isFirst = result.isFirst,
+            isLast = result.isLast,
+            hasNext = result.hasNext(),
+            hasPrevious = result.hasPrevious()
+        )
+    }
+
+    fun getExpensesByUserIdWithOrder(
+        userId: String,
+        page: Int,
+        size: Int,
+        sortBy: String = "expenseCreatedOn",
+        isAsc: Boolean = false
+    ): PagedResponse<ExpenseDto> {
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(page, size, sort)
+        val result = expenseRepository.findByUserId(userId, pageable)
 
         return PagedResponse(
             content = result.content.map { it.toDto() },

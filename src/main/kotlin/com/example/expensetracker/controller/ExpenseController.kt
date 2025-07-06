@@ -37,6 +37,26 @@ class ExpenseController(
         return expenseService.getExpensesByUserId(currentUserId, page, size)
     }
 
+    @GetMapping("/ordered")
+    fun getExpenses(
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(defaultValue = "expenseCreatedOn") sortBy: String,
+        @RequestParam(defaultValue = "false") isAsc: Boolean
+    ): PagedResponse<ExpenseDto> {
+        val currentUserId = authUtil.getCurrentUserId()
+
+        // Validate sortBy parameter to prevent SQL injection
+        val validSortFields = listOf(
+            "expenseCreatedOn", "lastModifiedOn", "amount", "category",
+            "description", "date", "userId", "expenseId"
+        )
+
+        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "expenseCreatedOn"
+
+        return expenseService.getExpensesByUserIdWithOrder(currentUserId, page, size, safeSortBy, isAsc)
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createExpense(@RequestBody expense: ExpenseDto): ResponseEntity<Any> {
