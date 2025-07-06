@@ -64,7 +64,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         userId: String,
         page: Int,
         size: Int,
-        sortBy: String = "expenseCreatedOn",
+        sortBy: String = "date",
         isAsc: Boolean = false
     ): PagedResponse<ExpenseDto> {
         val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC

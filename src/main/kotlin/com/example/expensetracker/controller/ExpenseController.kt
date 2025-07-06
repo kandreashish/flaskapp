@@ -35,7 +35,7 @@ class ExpenseController(
     fun getExpenses(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int,
-        @RequestParam(defaultValue = "expenseCreatedOn") sortBy: String,
+        @RequestParam(defaultValue = "date") sortBy: String,
         @RequestParam(defaultValue = "false") isAsc: Boolean
     ): PagedResponse<ExpenseDto> {
         val currentUserId = authUtil.getCurrentUserId()
