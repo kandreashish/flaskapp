@@ -10,7 +10,7 @@
         <version>3.2.4</version>
     </parent>
     
-    <groupId>com.example</groupId>
+    <groupId>com.lavish</groupId>
     <artifactId>expense-tracker</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>expense-tracker</name>

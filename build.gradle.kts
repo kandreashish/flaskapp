@@ -9,8 +9,8 @@ plugins {
     kotlin("plugin.serialization") version "1.9.22"
 }
 
-group = "com.example"
-version = "0.0.1-SNAPSHOT"
+group = "com.lavish"
+version = "0.0.11-SNAPSHOT"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
