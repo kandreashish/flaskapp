@@ -16,6 +16,19 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     fun findByFamilyId(familyId: String, pageable: Pageable): Page<Expense>
     fun findByUserIdAndCategory(userId: String, category: String, pageable: Pageable): Page<Expense>
     fun findByUserIdAndDateBetween(userId: String, startDate: Long, endDate: Long, pageable: Pageable): Page<Expense>
+    fun countByUserId(userId: String): Long
+
+    // Cursor-based pagination methods for date sorting
+    fun findByUserIdAndDateGreaterThanOrderByDateAsc(userId: String, date: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateLessThanOrderByDateDesc(userId: String, date: Long, pageable: Pageable): Page<Expense>
+
+    // Cursor-based pagination methods for amount sorting
+    fun findByUserIdAndAmountGreaterThanOrderByAmountAsc(userId: String, amount: Int, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndAmountLessThanOrderByAmountDesc(userId: String, amount: Int, pageable: Pageable): Page<Expense>
+
+    // Cursor-based pagination methods for creation date sorting
+    fun findByUserIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
 
     @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId AND e.date >= :startDate AND e.date <= :endDate")
     fun sumExpensesByUserIdAndDateRange(@Param("userId") userId: String, @Param("startDate") startDate: Long, @Param("endDate") endDate: Long): Long

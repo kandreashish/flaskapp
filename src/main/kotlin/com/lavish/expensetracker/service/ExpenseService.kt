@@ -3,6 +3,7 @@ package com.lavish.expensetracker.service
 import com.lavish.expensetracker.exception.DatabaseOperationException
 import com.lavish.expensetracker.exception.ExpenseCreationException
 import com.lavish.expensetracker.exception.ExpenseNotFoundException
+import com.lavish.expensetracker.exception.ExpenseAccessDeniedException
 import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.model.toDto
@@ -19,14 +20,29 @@ import java.util.UUID
 @Service
 class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
+    /**
+     * Validates and sanitizes pagination parameters to prevent issues with dynamic page sizes
+     */
+    private fun validatePaginationParams(page: Int, size: Int): Pair<Int, Int> {
+        val validatedPage = maxOf(0, page) // Ensure page is not negative
+        val validatedSize = when {
+            size <= 0 -> 10 // Default to 10 if size is 0 or negative
+            size > 100 -> 100 // Cap at 100 to prevent performance issues
+            else -> size
+        }
+        return Pair(validatedPage, validatedSize)
+    }
+
     fun getAllExpenses(page: Int, size: Int): PagedResponse<ExpenseDto> {
-        val pageable = PageRequest.of(page, size)
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
+        val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findAll(pageable)
 
         return PagedResponse(
             content = result.content.map { it.toDto() },
-            page = page,
-            size = size,
+            page = validatedPage,
+            size = validatedSize,
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             isFirst = result.isFirst,
@@ -42,15 +58,17 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         sortBy: String = "expenseCreatedOn",
         isAsc: Boolean = false
     ): PagedResponse<ExpenseDto> {
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
         val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
         val sort = Sort.by(direction, sortBy)
-        val pageable = PageRequest.of(page, size, sort)
+        val pageable = PageRequest.of(validatedPage, validatedSize, sort)
         val result = expenseRepository.findAll(pageable)
 
         return PagedResponse(
             content = result.content.map { it.toDto() },
-            page = page,
-            size = size,
+            page = validatedPage,
+            size = validatedSize,
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             isFirst = result.isFirst,
@@ -67,15 +85,17 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         sortBy: String = "date",
         isAsc: Boolean = false
     ): PagedResponse<ExpenseDto> {
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
         val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
         val sort = Sort.by(direction, sortBy)
-        val pageable = PageRequest.of(page, size, sort)
+        val pageable = PageRequest.of(validatedPage, validatedSize, sort)
         val result = expenseRepository.findByUserId(userId, pageable)
 
         return PagedResponse(
             content = result.content.map { it.toDto() },
-            page = page,
-            size = size,
+            page = validatedPage,
+            size = validatedSize,
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             isFirst = result.isFirst,
@@ -200,13 +220,15 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
     }
 
     fun getExpensesByCategory(category: String, page: Int, size: Int): PagedResponse<ExpenseDto> {
-        val pageable = PageRequest.of(page, size)
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
+        val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findByCategory(category, pageable)
 
         return PagedResponse(
             content = result.content.map { it.toDto() },
-            page = page,
-            size = size,
+            page = validatedPage,
+            size = validatedSize,
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             isFirst = result.isFirst,
@@ -217,13 +239,15 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
     }
 
     fun getExpensesByUserId(userId: String, page: Int, size: Int): PagedResponse<ExpenseDto> {
-        val pageable = PageRequest.of(page, size)
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
+        val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findByUserId(userId, pageable)
 
         return PagedResponse(
             content = result.content.map { it.toDto() },
-            page = page,
-            size = size,
+            page = validatedPage,
+            size = validatedSize,
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             isFirst = result.isFirst,
@@ -234,34 +258,57 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
     }
 
     fun getExpensesByDateRange(startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto> {
-        val pageable = PageRequest.of(page, size)
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
+        val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findByDateBetween(startDate, endDate, pageable)
 
-        return createPagedResponse(result, page, size)
+        return createPagedResponse(result, validatedPage, validatedSize)
     }
 
     fun getExpensesByFamilyId(familyId: String, page: Int, size: Int): PagedResponse<ExpenseDto> {
-        val pageable = PageRequest.of(page, size)
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
+        val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findByFamilyId(familyId, pageable)
 
-        return createPagedResponse(result, page, size)
+        return createPagedResponse(result, validatedPage, validatedSize)
     }
 
-    fun getExpensesByUserIdAndCategory(userId: String, category: String, page: Int, size: Int): PagedResponse<ExpenseDto> {
-        val pageable = PageRequest.of(page, size)
+    fun getExpensesByUserIdAndCategory(
+        userId: String,
+        category: String,
+        page: Int,
+        size: Int
+    ): PagedResponse<ExpenseDto> {
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
+        val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findByUserIdAndCategory(userId, category, pageable)
 
-        return createPagedResponse(result, page, size)
+        return createPagedResponse(result, validatedPage, validatedSize)
     }
 
-    fun getExpensesByUserIdAndDateRange(userId: String, startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto> {
-        val pageable = PageRequest.of(page, size)
+    fun getExpensesByUserIdAndDateRange(
+        userId: String,
+        startDate: Long,
+        endDate: Long,
+        page: Int,
+        size: Int
+    ): PagedResponse<ExpenseDto> {
+        val (validatedPage, validatedSize) = validatePaginationParams(page, size)
+
+        val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findByUserIdAndDateBetween(userId, startDate, endDate, pageable)
 
-        return createPagedResponse(result, page, size)
+        return createPagedResponse(result, validatedPage, validatedSize)
     }
 
-    private fun createPagedResponse(result: org.springframework.data.domain.Page<com.lavish.expensetracker.model.Expense>, page: Int, size: Int): PagedResponse<ExpenseDto> {
+    private fun createPagedResponse(
+        result: org.springframework.data.domain.Page<com.lavish.expensetracker.model.Expense>,
+        page: Int,
+        size: Int
+    ): PagedResponse<ExpenseDto> {
         return PagedResponse(
             content = result.content.map { it.toDto() },
             page = page,
@@ -281,5 +328,162 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
 
         return expenseRepository.sumExpensesByUserIdAndDateRange(userId, startDate, endDate)
+    }
+
+    fun getExpensesByUserIdWithOffset(
+        userId: String,
+        offset: Int,
+        size: Int,
+        sortBy: String = "date",
+        isAsc: Boolean = false
+    ): PagedResponse<ExpenseDto> {
+        val (validatedOffset, validatedSize) = validateOffsetParams(offset, size)
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+
+        // Calculate page number from offset
+        val pageNumber = validatedOffset / validatedSize
+        val pageable = PageRequest.of(pageNumber, validatedSize, sort)
+
+        // Get total count first to calculate proper pagination info
+        val totalElements = expenseRepository.countByUserId(userId)
+
+        // Use custom offset if it doesn't align with page boundaries
+        val result = if (validatedOffset % validatedSize == 0) {
+            // Offset aligns with page boundary, use standard pagination
+            expenseRepository.findByUserId(userId, pageable)
+        } else {
+            // Offset doesn't align, we need to simulate offset-based pagination
+            // Get a larger page and slice it
+            val adjustedPageSize = validatedSize + (validatedOffset % validatedSize)
+            val adjustedPageable = PageRequest.of(validatedOffset / validatedSize, adjustedPageSize, sort)
+            val adjustedResult = expenseRepository.findByUserId(userId, adjustedPageable)
+
+            // Slice the result to get exactly what we need
+            val startIndex = validatedOffset % validatedSize
+            val endIndex = minOf(startIndex + validatedSize, adjustedResult.content.size)
+            val slicedContent = if (startIndex < adjustedResult.content.size) {
+                adjustedResult.content.subList(startIndex, endIndex)
+            } else {
+                emptyList()
+            }
+
+            // Create a custom page result
+            org.springframework.data.domain.PageImpl(
+                slicedContent,
+                pageable,
+                totalElements
+            )
+        }
+
+        val totalPages = ((totalElements + validatedSize - 1) / validatedSize).toInt()
+        val currentPage = validatedOffset / validatedSize
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = currentPage,
+            size = validatedSize,
+            totalElements = totalElements,
+            totalPages = totalPages,
+            isFirst = validatedOffset == 0,
+            isLast = validatedOffset + validatedSize >= totalElements,
+            hasNext = validatedOffset + validatedSize < totalElements,
+            hasPrevious = validatedOffset > 0,
+            offset = validatedOffset
+        )
+    }
+
+    /**
+     * Validates offset and size parameters for offset-based pagination
+     */
+    private fun validateOffsetParams(offset: Int, size: Int): Pair<Int, Int> {
+        val validatedOffset = maxOf(0, offset) // Ensure offset is not negative
+        val validatedSize = when {
+            size <= 0 -> 10 // Default to 10 if size is 0 or negative
+            size > 100 -> 100 // Cap at 100 to prevent performance issues
+            else -> size
+        }
+        return Pair(validatedOffset, validatedSize)
+    }
+
+    fun getExpensesByUserIdAfterCursor(
+        userId: String,
+        lastExpenseId: String,
+        size: Int,
+        sortBy: String = "date",
+        isAsc: Boolean = false
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+
+        // Get the last expense to determine the cursor position
+        val lastExpense = expenseRepository.findById(lastExpenseId).orElse(null)
+            ?: throw ExpenseNotFoundException("Last expense with ID '$lastExpenseId' not found")
+
+        // Verify the expense belongs to the user
+        if (lastExpense.userId != userId) {
+            throw ExpenseAccessDeniedException("Access denied to expense '$lastExpenseId'")
+        }
+
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        // Get expenses after the cursor based on the sort field
+        val result = when (sortBy) {
+            "date" -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndDateGreaterThanOrderByDateAsc(userId, lastExpense.date, pageable)
+                } else {
+                    expenseRepository.findByUserIdAndDateLessThanOrderByDateDesc(userId, lastExpense.date, pageable)
+                }
+            }
+            "amount" -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndAmountGreaterThanOrderByAmountAsc(userId, lastExpense.amount, pageable)
+                } else {
+                    expenseRepository.findByUserIdAndAmountLessThanOrderByAmountDesc(userId, lastExpense.amount, pageable)
+                }
+            }
+            "expenseCreatedOn" -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(userId, lastExpense.expenseCreatedOn, pageable)
+                } else {
+                    expenseRepository.findByUserIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(userId, lastExpense.expenseCreatedOn, pageable)
+                }
+            }
+            else -> {
+                // Default to date-based cursor
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndDateGreaterThanOrderByDateAsc(userId, lastExpense.date, pageable)
+                } else {
+                    expenseRepository.findByUserIdAndDateLessThanOrderByDateDesc(userId, lastExpense.date, pageable)
+                }
+            }
+        }
+
+        // Get total count for pagination metadata
+        val totalElements = expenseRepository.countByUserId(userId)
+
+        // For cursor-based pagination, we calculate if there are more items
+        val hasMore = result.content.size == validatedSize
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0, // Page concept doesn't apply to cursor-based pagination
+            size = validatedSize,
+            totalElements = totalElements,
+            totalPages = -1, // Not applicable for cursor-based pagination
+            isFirst = false, // Not the first page since we're using a cursor
+            isLast = !hasMore,
+            hasNext = hasMore,
+            hasPrevious = true, // There are previous items since we have a cursor
+            lastExpenseId = result.content.lastOrNull()?.expenseId // Include last expense ID for next cursor
+        )
     }
 }

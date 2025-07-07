@@ -12,5 +12,7 @@ data class PagedResponse<T>(
     val isFirst: Boolean,
     val isLast: Boolean,
     val hasNext: Boolean,
-    val hasPrevious: Boolean
+    val hasPrevious: Boolean,
+    val offset: Int? = null, // For offset-based pagination
+    val lastExpenseId: String? = null // For cursor-based pagination
 )
