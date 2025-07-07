@@ -30,6 +30,31 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     fun findByUserIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
     fun findByUserIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
 
+    // Methods for getting expenses since a timestamp (for sync operations)
+    fun findByUserIdAndLastModifiedOnGreaterThan(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndExpenseCreatedOnGreaterThan(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateGreaterThan(userId: String, date: Long, pageable: Pageable): Page<Expense>
+
+    // Methods for getting expenses since a date (inclusive)
+    fun findByUserIdAndDateGreaterThanEqual(userId: String, date: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndLastModifiedOnGreaterThanEqual(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndExpenseCreatedOnGreaterThanEqual(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateGreaterThanEqualOrderByAmount(userId: String, date: Long, pageable: Pageable): Page<Expense>
+
+    // Combined methods for cursor-based pagination with timestamp filtering
+    fun findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnGreaterThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnLessThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndExpenseCreatedOnGreaterThanAndExpenseCreatedOnGreaterThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndExpenseCreatedOnGreaterThanAndExpenseCreatedOnLessThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateGreaterThanAndDateGreaterThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateGreaterThanAndDateLessThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
+
+    // Combined methods for cursor-based pagination with date filtering
+    fun findByUserIdAndDateGreaterThanEqualAndDateGreaterThan(userId: String, minDate: Long, cursorDate: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateGreaterThanEqualAndDateLessThan(userId: String, minDate: Long, cursorDate: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateGreaterThanEqualAndLastModifiedOnGreaterThan(userId: String, minDate: Long, cursorModified: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateGreaterThanEqualAndLastModifiedOnLessThan(userId: String, minDate: Long, cursorModified: Long, pageable: Pageable): Page<Expense>
+
     @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId AND e.date >= :startDate AND e.date <= :endDate")
     fun sumExpensesByUserIdAndDateRange(@Param("userId") userId: String, @Param("startDate") startDate: Long, @Param("endDate") endDate: Long): Long
 }

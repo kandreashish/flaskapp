@@ -486,4 +486,256 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             lastExpenseId = result.content.lastOrNull()?.expenseId // Include last expense ID for next cursor
         )
     }
+
+    fun getExpensesSince(
+        userId: String,
+        lastModified: Long,
+        size: Int,
+        sortBy: String = "lastModifiedOn",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        val result = when (sortBy) {
+            "lastModifiedOn" -> expenseRepository.findByUserIdAndLastModifiedOnGreaterThan(userId, lastModified, pageable)
+            "expenseCreatedOn" -> expenseRepository.findByUserIdAndExpenseCreatedOnGreaterThan(userId, lastModified, pageable)
+            "date" -> expenseRepository.findByUserIdAndDateGreaterThan(userId, lastModified, pageable)
+            else -> expenseRepository.findByUserIdAndLastModifiedOnGreaterThan(userId, lastModified, pageable)
+        }
+
+        val totalElements = expenseRepository.countByUserId(userId)
+        val hasMore = result.content.size == validatedSize
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0,
+            size = validatedSize,
+            totalElements = totalElements,
+            totalPages = -1, // Not applicable for time-based queries
+            isFirst = true,
+            isLast = !hasMore,
+            hasNext = hasMore,
+            hasPrevious = false,
+            lastExpenseId = result.content.lastOrNull()?.expenseId
+        )
+    }
+
+    fun getExpensesSinceWithCursor(
+        userId: String,
+        lastModified: Long,
+        lastExpenseId: String,
+        size: Int,
+        sortBy: String = "lastModifiedOn",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        // Get the last expense to determine cursor position
+        val lastExpense = expenseRepository.findById(lastExpenseId).orElse(null)
+            ?: throw ExpenseNotFoundException("Last expense with ID '$lastExpenseId' not found")
+
+        if (lastExpense.userId != userId) {
+            throw ExpenseAccessDeniedException("Access denied to expense '$lastExpenseId'")
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        // Get expenses after the cursor that are also after the lastModified timestamp
+        val result = when (sortBy) {
+            "lastModifiedOn" -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnGreaterThan(
+                        userId, lastModified, lastExpense.lastModifiedOn, pageable
+                    )
+                } else {
+                    expenseRepository.findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnLessThan(
+                        userId, lastModified, lastExpense.lastModifiedOn, pageable
+                    )
+                }
+            }
+            "expenseCreatedOn" -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndExpenseCreatedOnGreaterThanAndExpenseCreatedOnGreaterThan(
+                        userId, lastModified, lastExpense.expenseCreatedOn, pageable
+                    )
+                } else {
+                    expenseRepository.findByUserIdAndExpenseCreatedOnGreaterThanAndExpenseCreatedOnLessThan(
+                        userId, lastModified, lastExpense.expenseCreatedOn, pageable
+                    )
+                }
+            }
+            "date" -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndDateGreaterThanAndDateGreaterThan(
+                        userId, lastModified, lastExpense.date, pageable
+                    )
+                } else {
+                    expenseRepository.findByUserIdAndDateGreaterThanAndDateLessThan(
+                        userId, lastModified, lastExpense.date, pageable
+                    )
+                }
+            }
+            else -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnGreaterThan(
+                        userId, lastModified, lastExpense.lastModifiedOn, pageable
+                    )
+                } else {
+                    expenseRepository.findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnLessThan(
+                        userId, lastModified, lastExpense.lastModifiedOn, pageable
+                    )
+                }
+            }
+        }
+
+        val totalElements = expenseRepository.countByUserId(userId)
+        val hasMore = result.content.size == validatedSize
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0,
+            size = validatedSize,
+            totalElements = totalElements,
+            totalPages = -1,
+            isFirst = false,
+            isLast = !hasMore,
+            hasNext = hasMore,
+            hasPrevious = true,
+            lastExpenseId = result.content.lastOrNull()?.expenseId
+        )
+    }
+
+    fun getExpensesSinceDate(
+        userId: String,
+        sinceTimestamp: Long,
+        size: Int,
+        sortBy: String = "date",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        val result = when (sortBy) {
+            "date" -> expenseRepository.findByUserIdAndDateGreaterThanEqual(userId, sinceTimestamp, pageable)
+            "lastModifiedOn" -> expenseRepository.findByUserIdAndLastModifiedOnGreaterThanEqual(userId, sinceTimestamp, pageable)
+            "expenseCreatedOn" -> expenseRepository.findByUserIdAndExpenseCreatedOnGreaterThanEqual(userId, sinceTimestamp, pageable)
+            "amount" -> expenseRepository.findByUserIdAndDateGreaterThanEqualOrderByAmount(userId, sinceTimestamp, pageable)
+            else -> expenseRepository.findByUserIdAndDateGreaterThanEqual(userId, sinceTimestamp, pageable)
+        }
+
+        val totalElements = expenseRepository.countByUserId(userId)
+        val hasMore = result.content.size == validatedSize
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0,
+            size = validatedSize,
+            totalElements = totalElements,
+            totalPages = -1,
+            isFirst = true,
+            isLast = !hasMore,
+            hasNext = hasMore,
+            hasPrevious = false,
+            lastExpenseId = result.content.lastOrNull()?.expenseId
+        )
+    }
+
+    fun getExpensesSinceDateWithCursor(
+        userId: String,
+        sinceTimestamp: Long,
+        lastExpenseId: String,
+        size: Int,
+        sortBy: String = "date",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        val lastExpense = expenseRepository.findById(lastExpenseId).orElse(null)
+            ?: throw ExpenseNotFoundException("Last expense with ID '$lastExpenseId' not found")
+
+        if (lastExpense.userId != userId) {
+            throw ExpenseAccessDeniedException("Access denied to expense '$lastExpenseId'")
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        val result = when (sortBy) {
+            "date" -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndDateGreaterThanEqualAndDateGreaterThan(
+                        userId, sinceTimestamp, lastExpense.date, pageable
+                    )
+                } else {
+                    expenseRepository.findByUserIdAndDateGreaterThanEqualAndDateLessThan(
+                        userId, sinceTimestamp, lastExpense.date, pageable
+                    )
+                }
+            }
+            "lastModifiedOn" -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndDateGreaterThanEqualAndLastModifiedOnGreaterThan(
+                        userId, sinceTimestamp, lastExpense.lastModifiedOn, pageable
+                    )
+                } else {
+                    expenseRepository.findByUserIdAndDateGreaterThanEqualAndLastModifiedOnLessThan(
+                        userId, sinceTimestamp, lastExpense.lastModifiedOn, pageable
+                    )
+                }
+            }
+            else -> {
+                if (isAsc) {
+                    expenseRepository.findByUserIdAndDateGreaterThanEqualAndDateGreaterThan(
+                        userId, sinceTimestamp, lastExpense.date, pageable
+                    )
+                } else {
+                    expenseRepository.findByUserIdAndDateGreaterThanEqualAndDateLessThan(
+                        userId, sinceTimestamp, lastExpense.date, pageable
+                    )
+                }
+            }
+        }
+
+        val totalElements = expenseRepository.countByUserId(userId)
+        val hasMore = result.content.size == validatedSize
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0,
+            size = validatedSize,
+            totalElements = totalElements,
+            totalPages = -1,
+            isFirst = false,
+            isLast = !hasMore,
+            hasNext = hasMore,
+            hasPrevious = true,
+            lastExpenseId = result.content.lastOrNull()?.expenseId
+        )
+    }
 }

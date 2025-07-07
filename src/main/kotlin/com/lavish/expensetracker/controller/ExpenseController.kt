@@ -397,4 +397,84 @@ class ExpenseController(
             )
         )
     }
+
+    @GetMapping("/since")
+    fun getExpensesSince(
+        @RequestParam lastModified: Long, // Timestamp in milliseconds
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(required = false) lastExpenseId: String?, // For cursor-based pagination
+        @RequestParam(defaultValue = "lastModifiedOn") sortBy: String,
+        @RequestParam(defaultValue = "true") isAsc: Boolean
+    ): PagedResponse<ExpenseDto> {
+        val currentUserId = authUtil.getCurrentUserId()
+
+        // Validate pagination parameters
+        val validatedSize = when {
+            size <= 0 -> 10 // Default to 10 if size is 0 or negative
+            size > 100 -> 100 // Cap at 100 to prevent performance issues
+            else -> size
+        }
+
+        // Validate sortBy parameter for sync operations
+        val validSortFields = listOf(
+            "lastModifiedOn", "expenseCreatedOn", "date"
+        )
+        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "lastModifiedOn"
+
+        return if (lastExpenseId != null) {
+            // Use cursor-based pagination for subsequent requests
+            expenseService.getExpensesSinceWithCursor(
+                currentUserId, lastModified, lastExpenseId, validatedSize, safeSortBy, isAsc
+            )
+        } else {
+            // Initial request without cursor
+            expenseService.getExpensesSince(
+                currentUserId, lastModified, validatedSize, safeSortBy, isAsc
+            )
+        }
+    }
+
+    @GetMapping("/since-date")
+    fun getExpensesSinceDate(
+        @RequestParam date: String, // Date in YYYY-MM-DD format
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(required = false) lastExpenseId: String?,
+        @RequestParam(defaultValue = "date") sortBy: String,
+        @RequestParam(defaultValue = "true") isAsc: Boolean
+    ): PagedResponse<ExpenseDto> {
+        val currentUserId = authUtil.getCurrentUserId()
+
+        // Validate pagination parameters
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        // Parse date and convert to timestamp
+        val sinceTimestamp = try {
+            LocalDate.parse(date).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        } catch (e: Exception) {
+            throw ExpenseValidationException(
+                "Invalid date format. Use YYYY-MM-DD format",
+                listOf("Date parsing error: ${e.message}")
+            )
+        }
+
+        // Validate sortBy parameter
+        val validSortFields = listOf(
+            "date", "lastModifiedOn", "expenseCreatedOn", "amount"
+        )
+        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "date"
+
+        return if (lastExpenseId != null) {
+            expenseService.getExpensesSinceDateWithCursor(
+                currentUserId, sinceTimestamp, lastExpenseId, validatedSize, safeSortBy, isAsc
+            )
+        } else {
+            expenseService.getExpensesSinceDate(
+                currentUserId, sinceTimestamp, validatedSize, safeSortBy, isAsc
+            )
+        }
+    }
 }
