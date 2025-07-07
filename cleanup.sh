@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Kill any process running on port 8080
-echo "Checking for processes on port 8080..."
-PID=$(lsof -ti:8080)
+# Kill any process running on port 8081
+echo "Checking for processes on port 8081..."
+PID=$(lsof -ti:8081)
 if [ ! -z "$PID" ]; then
-    echo "Killing process $PID on port 8080..."
+    echo "Killing process $PID on port 8081..."
     kill -9 $PID
     sleep 2
 else
-    echo "No process found on port 8080"
+    echo "No process found on port 8081"
 fi
 
 # Clean up any locked database files
