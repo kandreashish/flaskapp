@@ -46,7 +46,7 @@ class ExpenseController(
             "description", "date", "userId", "expenseId"
         )
 
-        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "expenseCreatedOn"
+        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "date"
 
         return expenseService.getExpensesByUserIdWithOrder(currentUserId, page, size, safeSortBy, isAsc)
     }

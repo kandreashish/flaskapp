@@ -155,6 +155,45 @@ class HomeController {
 }
                 </div>
                 
+                <h2>🔧 Build Info Endpoints (No Authentication Required):</h2>
+                
+                <div class="endpoint">
+                    <span class="method get">GET</span> 
+                    /api/build/info
+                    <div class="description">Get detailed information about build JAR files</div>
+                    <div>Returns: JAR file details, sizes, timestamps, and manifest information</div>
+                </div>
+                
+                <div class="endpoint">
+                    <span class="method get">GET</span> 
+                    /api/build/manifest
+                    <div class="description">Get detailed manifest attributes for all JAR files</div>
+                    <div>Returns: Complete manifest information for each JAR file</div>
+                </div>
+                
+                <h2>📦 Sample Build Info Response:</h2>
+                <div class="sample-response">
+{
+  "buildDirectory": "/path/to/build/libs",
+  "jarFiles": [
+    {
+      "fileName": "expense-tracker-0.0.1-SNAPSHOT.jar",
+      "filePath": "/path/to/build/libs/expense-tracker-0.0.1-SNAPSHOT.jar",
+      "fileSize": 12345678,
+      "fileSizeFormatted": "11.8 MB",
+      "lastModified": "2025-07-07T10:30:00",
+      "manifestInfo": {
+        "Implementation-Title": "expense-tracker",
+        "Implementation-Version": "0.0.1-SNAPSHOT",
+        "Main-Class": "com.example.expensetracker.ExpenseTrackerApplicationKt"
+      }
+    }
+  ],
+  "totalJars": 2,
+  "buildTimestamp": 1720344600000
+}
+                </div>
+                
                 <h2>🗄️ Database Console:</h2>
                 <p><a href="/h2-console" target="_blank">H2 Database Console</a></p>
                 <p><strong>Connection Details:</strong></p>
