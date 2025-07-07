@@ -24,9 +24,7 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
             .csrf { it.disable() }  // Disable CSRF for REST API
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers("/").permitAll() // Allow home page without auth
-                    .requestMatchers("/api/auth/**").permitAll() // Allow all auth endpoints
-                    .requestMatchers("/api/build/**").permitAll() // Allow build info endpoints without auth
+                    .requestMatchers("/api/auth/login").permitAll()
                     .requestMatchers("/h2-console/**").permitAll() // Allow H2 console in dev
                     .requestMatchers("/api/home").permitAll()
                     .requestMatchers("/error").permitAll()
