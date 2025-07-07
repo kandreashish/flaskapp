@@ -6,7 +6,7 @@ services:
     image: expense-tracker:latest
     container_name: expense-tracker
     ports:
-      - "8080:8080"
+      - "3000:3000"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;AUTO_SERVER=FALSE;FILE_LOCK=NO;TRACE_LEVEL_FILE=0
@@ -21,7 +21,7 @@ services:
       - h2-data:/app/h2-data  # Changed to named volume
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
       interval: 45s
       timeout: 15s
       retries: 3

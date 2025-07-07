@@ -47,8 +47,8 @@ A modern Spring Boot application for managing personal and family expenses with 
    ```
 
 4. **Access the application:**
-   - API Documentation: http://localhost:8081
-   - H2 Database Console: http://localhost:8081/h2-console
+   - API Documentation: http://localhost:3000
+   - H2 Database Console: http://localhost:3000/h2-console
 
 ### 🧪 Test Credentials
 The application automatically creates test users on startup:
@@ -164,7 +164,7 @@ Authorization: Bearer {jwt_token}
 ### Application Properties
 ```properties
 # Server Configuration
-server.port=8081
+server.port=3000
 
 # Database Configuration
 spring.datasource.url=jdbc:h2:mem:expensedb
@@ -286,7 +286,7 @@ docker-compose down
 ### Docker Configuration
 
 The Docker Compose configuration includes:
-- **Port**: Application runs on port 8080
+- **Port**: Application runs on port 3000
 - **Environment**: Uses production profile (`SPRING_PROFILES_ACTIVE=prod`)
 - **Volumes**: H2 database data is persisted in `./data/h2`
 - **Health Check**: Monitors application health via `/actuator/health` endpoint
@@ -312,7 +312,7 @@ For local development without Docker:
 
 The application health can be monitored at:
 ```
-http://localhost:8080/actuator/health
+http://localhost:3000/actuator/health
 ```
 
 ## 🤝 Contributing
@@ -330,8 +330,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🆘 Support
 
 For support and questions:
-- Check the API documentation at http://localhost:8081
-- Review the H2 database at http://localhost:8081/h2-console
+- Check the API documentation at http://localhost:3000
+- Review the H2 database at http://localhost:3000/h2-console
 - Use the test credentials provided above
 
 ---

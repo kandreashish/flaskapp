@@ -55,7 +55,7 @@ RUN mkdir -p /app/h2-data && \
 USER 1000:1000
 
 # Expose port
-EXPOSE 8080
+EXPOSE 3000
 
 # Optimized JVM settings for Raspberry Pi (ARM64)
 ENTRYPOINT ["java", \

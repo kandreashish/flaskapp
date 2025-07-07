@@ -3,13 +3,13 @@
 # Health check script for the expense tracker application
 echo "=== Expense Tracker Health Check ==="
 
-# Check if port 8080 is in use
-PORT_CHECK=$(lsof -ti:8080)
+# Check if port 3000 is in use
+PORT_CHECK=$(lsof -ti:3000)
 if [ ! -z "$PORT_CHECK" ]; then
-    echo "✅ Application is running on port 8080 (PID: $PORT_CHECK)"
+    echo "✅ Application is running on port 3000 (PID: $PORT_CHECK)"
 
     # Test the server response
-    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080)
+    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
     if [ "$RESPONSE" -eq 403 ] || [ "$RESPONSE" -eq 200 ]; then
         echo "✅ Server is responding (HTTP $RESPONSE)"
     else
@@ -17,14 +17,14 @@ if [ ! -z "$PORT_CHECK" ]; then
     fi
 
     # Test login endpoint
-    LOGIN_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" -d '{}')
+    LOGIN_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3000/api/auth/login -H "Content-Type: application/json" -d '{}')
     if [ "$LOGIN_RESPONSE" -eq 400 ] || [ "$LOGIN_RESPONSE" -eq 401 ]; then
         echo "✅ Login endpoint is accessible (HTTP $LOGIN_RESPONSE)"
     else
         echo "⚠️  Login endpoint responded with HTTP $LOGIN_RESPONSE"
     fi
 else
-    echo "❌ No application running on port 8080"
+    echo "❌ No application running on port 3000"
 fi
 
 # Check database files

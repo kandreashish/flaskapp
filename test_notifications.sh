@@ -3,7 +3,7 @@
 # Test script for sending notifications via your expense tracker API
 
 # Base URL for your API
-BASE_URL="http://localhost:8080/api"
+BASE_URL="http://localhost:3000/api"
 
 # Example JWT token (replace with actual token)
 JWT_TOKEN="your_jwt_token_here"

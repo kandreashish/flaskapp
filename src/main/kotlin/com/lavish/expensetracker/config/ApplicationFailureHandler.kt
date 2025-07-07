@@ -23,7 +23,7 @@ class ApplicationFailureHandler : ApplicationListener<ApplicationFailedEvent> {
 
         // Log helpful recovery steps
         logger.info("Recovery suggestions:")
-        logger.info("1. Check if another instance is running: lsof -i :8080")
+        logger.info("1. Check if another instance is running: lsof -i :3000")
         logger.info("2. Clean database locks: ./cleanup.sh")
         logger.info("3. Restart application: ./start.sh")
     }
