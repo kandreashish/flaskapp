@@ -88,7 +88,7 @@ class AuthService(
                 name = firebaseUser.name?.ifEmpty { firebaseUser.email.substringBefore("@") },
                 email = firebaseUser.email,
                 firebaseUid = firebaseUser.uid,
-                familyId = generateFamilyId()
+                familyId = null
             )
             userRepository.save(newUser)
             newUser
@@ -155,17 +155,6 @@ class AuthService(
         } ?: run {
             logger.warn("User not found with Firebase UID: $firebaseUid")
             null
-        }
-    }
-
-    /**
-     * Generates a unique family ID.
-     *
-     * @return A unique family ID string
-     */
-    private fun generateFamilyId(): String {
-        return "FAM_${UUID.randomUUID().toString().substring(0, 8).uppercase()}".also {
-            logger.debug("Generated new family ID: $it")
         }
     }
 }
