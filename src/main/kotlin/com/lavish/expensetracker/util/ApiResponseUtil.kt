@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity
 object ApiResponseUtil {
 
     fun badRequest(message: String, validationErrors: List<String>? = null): ResponseEntity<ApiErrorResponse> {
-        return ResponseEntity.badRequest().body(
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
             ApiErrorResponse(
                 error = "BAD_REQUEST",
                 message = message,

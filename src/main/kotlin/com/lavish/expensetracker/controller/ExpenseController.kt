@@ -44,7 +44,7 @@ class ExpenseController(
         @RequestParam(defaultValue = "false") isAsc: Boolean
     ): PagedResponse<ExpenseDto> {
         val currentUserId = authUtil.getCurrentUserId()
-        logger.info("Getting expenses for user: $currentUserId, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
+        logger.info("Getting personal expenses for user: $currentUserId, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
 
         // Validate pagination parameters
         val validatedSize = when {
@@ -63,17 +63,84 @@ class ExpenseController(
 
         return if (lastExpenseId != null) {
             logger.debug("Using cursor-based pagination with lastExpenseId: $lastExpenseId")
-            // Use cursor-based pagination
-            expenseService.getExpensesByUserIdAfterCursor(
+            // Use cursor-based pagination for personal expenses only
+            expenseService.getPersonalExpensesByUserIdAfterCursor(
                 currentUserId, lastExpenseId, validatedSize, safeSortBy, isAsc
             )
         } else {
             logger.debug("Using traditional page-based pagination")
+            // Use traditional page-based pagination for first page - personal expenses only
+            val validatedPage = maxOf(0, page)
+            expenseService.getPersonalExpensesByUserIdWithOrder(currentUserId, validatedPage, validatedSize, safeSortBy, isAsc)
+        }
+    }
+
+    @GetMapping("/family")
+    fun getExpensesForFamily(
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(required = false) lastExpenseId: String?, // Cursor-based pagination
+        @RequestParam(defaultValue = "date") sortBy: String,
+        @RequestParam(defaultValue = "false") isAsc: Boolean
+    ): PagedResponse<ExpenseDto> {
+        val currentUserId = authUtil.getCurrentUserId()
+        logger.info("Getting family expenses for user: $currentUserId, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
+
+        // Get the user's family ID
+        val user = userService.findById(currentUserId)
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "User not found")
+
+        val familyId = user.familyId
+        if (familyId.isNullOrBlank()) {
+            logger.warn("User $currentUserId is not part of any family, returning empty family expenses")
+            // Return empty result if user is not part of any family
+            return PagedResponse(
+                content = emptyList(),
+                page = maxOf(0, page),
+                size = when {
+                    size <= 0 -> 10
+                    size > 100 -> 100
+                    else -> size
+                },
+                totalElements = 0,
+                totalPages = 0,
+                isFirst = true,
+                isLast = true,
+                hasNext = false,
+                hasPrevious = false
+            )
+        }
+
+        logger.debug("User $currentUserId belongs to family: $familyId")
+
+        // Validate pagination parameters
+        val validatedSize = when {
+            size <= 0 -> 10 // Default to 10 if size is 0 or negative
+            size > 100 -> 100 // Cap at 100 to prevent performance issues
+            else -> size
+        }
+
+        // Validate sortBy parameter to prevent SQL injection
+        val validSortFields = listOf(
+            "expenseCreatedOn", "lastModifiedOn", "amount", "category",
+            "description", "date", "userId", "expenseId"
+        )
+
+        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "date"
+
+        return if (lastExpenseId != null) {
+            logger.debug("Using cursor-based pagination for family expenses with lastExpenseId: $lastExpenseId")
+            // Use cursor-based pagination for family expenses (both familyId and userId based)
+            expenseService.getExpensesByFamilyIdAndUserFamilyAfterCursor(
+                familyId, lastExpenseId, validatedSize, safeSortBy, isAsc
+            )
+        } else {
+            logger.debug("Using traditional page-based pagination for family expenses")
             // Use traditional page-based pagination for first page
             val validatedPage = maxOf(0, page)
-            expenseService.getExpensesByUserIdWithOrder(currentUserId, validatedPage, validatedSize, safeSortBy, isAsc)
+            expenseService.getExpensesByFamilyIdAndUserFamilyWithOrder(familyId, validatedPage, validatedSize, safeSortBy, isAsc)
         }.also {
-            logger.info("Successfully retrieved ${it.content.size} expenses for user: $currentUserId")
+            logger.info("Successfully retrieved ${it.content.size} family expenses for user: $currentUserId, family: $familyId")
         }
     }
 
@@ -276,7 +343,7 @@ class ExpenseController(
         }
 
         // Validate family ID if provided
-        if (expense.familyId.isNotBlank() && expense.familyId.length < 3) {
+        if (expense.familyId?.isNotBlank() == true && expense.familyId.length < 3) {
             errors.add("Family ID format is invalid")
         }
 
@@ -284,7 +351,7 @@ class ExpenseController(
         return errors
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/detail/{id}")
     fun getExpenseById(@PathVariable id: String): ResponseEntity<ExpenseDto> {
         logger.info("Getting expense by ID: $id")
         return try {
@@ -406,26 +473,6 @@ class ExpenseController(
         val start = LocalDate.parse(startDate).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
         val end = LocalDate.parse(endDate).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
         return expenseService.getExpensesByUserIdAndDateRange(currentUserId, start, end, validatedPage, validatedSize)
-    }
-
-    @GetMapping("/family")
-    fun getFamilyExpenses(
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "10") size: Int
-    ): PagedResponse<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
-
-        // Validate pagination parameters
-        val validatedPage = maxOf(0, page) // Ensure page is not negative
-        val validatedSize = when {
-            size <= 0 -> 10 // Default to 10 if size is 0 or negative
-            size > 100 -> 100 // Cap at 100 to prevent performance issues
-            else -> size
-        }
-
-        // This would need to get the user's family ID first
-        // For now, we'll return the user's expenses
-        return expenseService.getExpensesByUserId(currentUserId, validatedPage, validatedSize)
     }
 
     // Simplified data class - now only needs expenseId since token is retrieved from DB

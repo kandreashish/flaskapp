@@ -25,7 +25,7 @@ data class ExpenseDto(
     val date: Long = System.currentTimeMillis(), // Use epoch timestamp
 
     @SerialName("family_id")
-    val familyId: String = "",
+    val familyId: String?,
 
     @SerialName("expenseCreatedOn")
     val expenseCreatedOn: Long,
