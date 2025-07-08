@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.exception
 
+import com.lavish.expensetracker.model.response.ApiErrorResponse
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -8,171 +9,107 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.DataAccessException
-import java.time.LocalDateTime
 
 @ControllerAdvice
 class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException::class)
-    fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = ex.statusCode.value(),
-            error = ex.statusCode.toString().split(" ").last(),
-            message = ex.reason ?: "An error occurred",
-            path = null
+    fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = ex.statusCode.toString().split(" ").last().uppercase(),
+            message = ex.reason ?: "An error occurred"
         )
         return ResponseEntity(errorResponse, ex.statusCode)
     }
 
     @ExceptionHandler(IllegalArgumentException::class)
-    fun handleIllegalArgumentException(ex: IllegalArgumentException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 400,
-            error = "Bad Request",
-            message = ex.message ?: "Invalid request parameters",
-            path = null
+    fun handleIllegalArgumentException(ex: IllegalArgumentException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "BAD_REQUEST",
+            message = ex.message ?: "Invalid request parameters"
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler(NoSuchElementException::class)
-    fun handleNoSuchElementException(ex: NoSuchElementException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 404,
-            error = "Not Found",
-            message = ex.message ?: "Resource not found",
-            path = null
+    fun handleNoSuchElementException(ex: NoSuchElementException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "NOT_FOUND",
+            message = ex.message ?: "Resource not found"
         )
         return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
     }
 
     @ExceptionHandler(Exception::class)
-    fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 500,
-            error = "Internal Server Error",
-            message = "An unexpected error occurred. Please try again later.",
-            path = null
+    fun handleGenericException(ex: Exception): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "INTERNAL_SERVER_ERROR",
+            message = "An unexpected error occurred. Please try again later."
         )
         return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
     @ExceptionHandler(ExpenseCreationException::class)
-    fun handleExpenseCreationException(ex: ExpenseCreationException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 500,
-            error = "Expense Creation Failed",
-            message = ex.message ?: "Failed to create expense. Please try again.",
-            path = null
+    fun handleExpenseCreationException(ex: ExpenseCreationException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "EXPENSE_CREATION_FAILED",
+            message = ex.message ?: "Failed to create expense. Please try again."
         )
         return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
     @ExceptionHandler(ExpenseValidationException::class)
-    fun handleExpenseValidationException(ex: ExpenseValidationException): ResponseEntity<ValidationErrorResponse> {
-        val errorResponse = ValidationErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 400,
-            error = "Validation Failed",
+    fun handleExpenseValidationException(ex: ExpenseValidationException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "VALIDATION_FAILED",
             message = ex.message ?: "Please fix the validation errors",
-            validationErrors = ex.validationErrors,
-            path = null
+            validationErrors = ex.validationErrors
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler(ExpenseNotFoundException::class)
-    fun handleExpenseNotFoundException(ex: ExpenseNotFoundException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 404,
-            error = "Expense Not Found",
-            message = ex.message ?: "The requested expense could not be found",
-            path = null
+    fun handleExpenseNotFoundException(ex: ExpenseNotFoundException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "EXPENSE_NOT_FOUND",
+            message = ex.message ?: "The requested expense could not be found"
         )
         return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
     }
 
     @ExceptionHandler(ExpenseAccessDeniedException::class)
-    fun handleExpenseAccessDeniedException(ex: ExpenseAccessDeniedException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 403,
-            error = "Access Denied",
-            message = ex.message ?: "You don't have permission to access this expense",
-            path = null
+    fun handleExpenseAccessDeniedException(ex: ExpenseAccessDeniedException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "ACCESS_DENIED",
+            message = ex.message ?: "You don't have permission to access this expense"
         )
         return ResponseEntity(errorResponse, HttpStatus.FORBIDDEN)
     }
 
-    @ExceptionHandler(DatabaseOperationException::class)
-    fun handleDatabaseOperationException(ex: DatabaseOperationException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 500,
-            error = "Database Operation Failed",
-            message = ex.message ?: "A database error occurred. Please try again later.",
-            path = null
-        )
-        return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
-    }
-
     @ExceptionHandler(DataIntegrityViolationException::class)
-    fun handleDataIntegrityViolationException(ex: DataIntegrityViolationException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 400,
-            error = "Data Integrity Violation",
-            message = "The operation violates data constraints. Please check your input data.",
-            path = null
+    fun handleDataIntegrityViolationException(ex: DataIntegrityViolationException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "DATA_INTEGRITY_VIOLATION",
+            message = "Data integrity constraint violation. Please check your input data."
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler(DataAccessException::class)
-    fun handleDataAccessException(ex: DataAccessException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 500,
-            error = "Database Access Error",
-            message = "Unable to access the database. Please try again later.",
-            path = null
+    fun handleDataAccessException(ex: DataAccessException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "DATABASE_ERROR",
+            message = "Database operation failed. Please try again later."
         )
         return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
-    fun handleHttpMessageNotReadableException(ex: HttpMessageNotReadableException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            timestamp = LocalDateTime.now().toString(),
-            status = 400,
-            error = "Invalid JSON Format",
-            message = "The request body contains invalid JSON or missing required fields. Please check your request format.",
-            path = null
+    fun handleHttpMessageNotReadableException(ex: HttpMessageNotReadableException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "INVALID_JSON",
+            message = "Invalid JSON format in request body"
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
 }
-
-data class ErrorResponse(
-    val timestamp: String,
-    val status: Int,
-    val error: String,
-    val message: String,
-    val path: String? = null,
-    val trace: String? = null // Optional for debugging purposes
-)
-
-data class ValidationErrorResponse(
-    val timestamp: String,
-    val status: Int,
-    val error: String,
-    val message: String,
-    val validationErrors: List<String>,
-    val path: String? = null
-)

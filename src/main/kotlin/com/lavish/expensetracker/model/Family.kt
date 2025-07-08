@@ -31,5 +31,8 @@ data class Family(
     val pendingJoinRequests: MutableList<String> = mutableListOf(),
 
     @Column(nullable = false)
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+
+    @Column(nullable = true)
+    var profilePhotoUrl: String? = null
 )

@@ -88,7 +88,8 @@ class AuthService(
                 name = firebaseUser.name?.ifEmpty { firebaseUser.email.substringBefore("@") },
                 email = firebaseUser.email,
                 firebaseUid = firebaseUser.uid,
-                familyId = null
+                familyId = null,
+                profilePic = firebaseUser.picture
             )
             userRepository.save(newUser)
             newUser
