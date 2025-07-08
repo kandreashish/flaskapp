@@ -71,7 +71,13 @@ class ExpenseController(
             logger.debug("Using traditional page-based pagination")
             // Use traditional page-based pagination for first page - personal expenses only
             val validatedPage = maxOf(0, page)
-            expenseService.getPersonalExpensesByUserIdWithOrder(currentUserId, validatedPage, validatedSize, safeSortBy, isAsc)
+            expenseService.getPersonalExpensesByUserIdWithOrder(
+                currentUserId,
+                validatedPage,
+                validatedSize,
+                safeSortBy,
+                isAsc
+            )
         }
     }
 
@@ -93,7 +99,7 @@ class ExpenseController(
         val familyId = user.familyId
         if (familyId.isNullOrBlank()) {
             logger.warn("User $currentUserId is not part of any family, returning empty family expenses")
-            // Return empty result if user is not part of any family
+            // Return an empty result if user is not part of any family
             return PagedResponse(
                 content = emptyList(),
                 page = maxOf(0, page),
@@ -138,7 +144,13 @@ class ExpenseController(
             logger.debug("Using traditional page-based pagination for family expenses")
             // Use traditional page-based pagination for first page
             val validatedPage = maxOf(0, page)
-            expenseService.getExpensesByFamilyIdAndUserFamilyWithOrder(familyId, validatedPage, validatedSize, safeSortBy, isAsc)
+            expenseService.getExpensesByFamilyIdAndUserFamilyWithOrder(
+                familyId,
+                validatedPage,
+                validatedSize,
+                safeSortBy,
+                isAsc
+            )
         }.also {
             logger.info("Successfully retrieved ${it.content.size} family expenses for user: $currentUserId, family: $familyId")
         }
@@ -161,12 +173,14 @@ class ExpenseController(
                             "message" to "Authentication required. Please provide a valid JWT token."
                         )
                     )
+
                     HttpStatus.FORBIDDEN -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                         mapOf(
                             "success" to false,
                             "message" to "User account not found or has been deactivated. Please re-authenticate."
                         )
                     )
+
                     else -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                         mapOf(
                             "success" to false,
@@ -227,7 +241,8 @@ class ExpenseController(
             // Send FCM notification to all user devices after creating expense
             logger.debug("Attempting to send FCM notifications")
             try {
-                val fcmTokens = userService.getAllFcmTokens(currentUserId)
+                val fcmTokens: List<String> =
+                    userService.getFamilyMembersFcmTokens(currentUserId).flatMap { userService.getAllFcmTokens(it.id) }.distinct()
                 logger.debug("Found ${fcmTokens.size} FCM tokens for user: $currentUserId")
                 if (fcmTokens.isNotEmpty()) {
                     val formattedAmount = "$${expense.amount}"
@@ -245,7 +260,10 @@ class ExpenseController(
                 }
             } catch (e: Exception) {
                 // Log notification error but don't fail the expense creation
-                logger.error("Failed to send push notification for expense ${createdExpense.expenseId}: ${e.message}", e)
+                logger.error(
+                    "Failed to send push notification for expense ${createdExpense.expenseId}: ${e.message}",
+                    e
+                )
             }
 
             logger.info("Expense creation completed successfully for user: $currentUserId, expenseId: ${createdExpense.expenseId}")
