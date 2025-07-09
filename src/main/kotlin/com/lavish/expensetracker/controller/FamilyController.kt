@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import java.util.*
+import kotlin.text.contains
+import kotlin.toString
 
 @RestController
 @RequestMapping("/api/family")
@@ -751,6 +753,96 @@ class FamilyController @Autowired constructor(
         } catch (ex: Exception) {
             logger.error("Exception in addMembersToFamily for user: ${authUtil.getCurrentUserId()}, memberIds: $memberIds", ex)
             ApiResponseUtil.internalServerError("An error occurred while adding members")
+        }
+    }
+
+    @PostMapping("/resend-invitation")
+    fun resendInvitation(
+        @RequestParam invitedMemberEmail: String
+    ): ResponseEntity<*> {
+        logger.info("Resending invitation to member with email: $invitedMemberEmail")
+        return try {
+            val currentUserId = authUtil.getCurrentUserId()
+            logger.info("Current user ID: $currentUserId")
+
+            val headUser = userRepository.findById(currentUserId).orElse(null)
+            if (headUser == null) {
+                logger.warn("User not found with ID: $currentUserId")
+                return ApiResponseUtil.notFound("User not found")
+            }
+            logger.info("Head user found: ${headUser.email}")
+
+            val familyId = headUser.familyId
+            if (familyId == null) {
+                logger.warn("User $currentUserId does not belong to any family")
+                return ApiResponseUtil.badRequest("User does not belong to a family")
+            }
+            logger.info("User belongs to family: $familyId")
+
+            val family = familyRepository.findById(familyId).orElse(null)
+            if (family == null) {
+                logger.warn("Family not found with ID: $familyId")
+                return ApiResponseUtil.notFound("Family not found")
+            }
+            logger.info("Family found: ${family.name}")
+
+            if (family.headId != currentUserId) {
+                logger.warn("User $currentUserId is not the family head. Head ID: ${family.headId}")
+                return ApiResponseUtil.forbidden("Only the family head can resend invitations")
+            }
+
+            if (!family.pendingMemberEmails.contains(invitedMemberEmail)) {
+                logger.warn("No pending invitation found for email: $invitedMemberEmail")
+                return ApiResponseUtil.notFound("No pending invitation found for this email")
+            }
+            logger.info("Pending invitation found for: $invitedMemberEmail")
+
+            val invitedUser = userRepository.findAll().find { it.email == invitedMemberEmail }
+            if (invitedUser == null) {
+                logger.warn("Invited user not found with email: $invitedMemberEmail")
+                return ApiResponseUtil.notFound("Invited user not found")
+            }
+            logger.info("Invited user found: ${invitedUser.id}")
+
+            if (invitedUser.familyId != null) {
+                logger.warn("Invited user $invitedMemberEmail already belongs to family: ${invitedUser.familyId}")
+                return ApiResponseUtil.conflict("Invited user already belongs to a family")
+            }
+
+            try {
+                pushNotificationService.sendNotification(
+                    invitedUser.fcmToken,
+                    "Family Invitation (Reminder)",
+                    "Reminder: You have been invited to join the family '${family.name}' by ${headUser.name}. Please accept the invitation to join."
+                )
+                logger.info("Invitation reminder notification sent to: $invitedMemberEmail")
+            } catch (ex: Exception) {
+                logger.error("Failed to send invitation reminder notification to: $invitedMemberEmail", ex)
+                return ApiResponseUtil.internalServerError("Failed to send invitation reminder")
+            }
+
+            // Save notification in database
+            val notification = Notification(
+                id = UUID.randomUUID().toString(),
+                title = "Family Invitation (Reminder)",
+                message = "Reminder: You have been invited to join the family '${family.name}' by ${headUser.name}. Please accept the invitation to join.",
+                time = System.currentTimeMillis(),
+                read = false,
+                familyId = family.familyId,
+                senderName = headUser.name ?: headUser.email,
+                senderId = headUser.id,
+                actionable = true,
+                createdAt = System.currentTimeMillis(),
+                type = NotificationType.FAMILY_INVITE
+            )
+            notificationRepository.save(notification)
+            logger.info("Invitation reminder notification saved for: $invitedMemberEmail")
+
+            logger.info("Invitation resent successfully to: $invitedMemberEmail")
+            ResponseEntity.ok(mapOf("message" to "Invitation reminder sent to $invitedMemberEmail"))
+        } catch (ex: Exception) {
+            logger.error("Exception in resendInvitation for email: $invitedMemberEmail", ex)
+            ApiResponseUtil.internalServerError("An error occurred while resending invitation")
         }
     }
 }
