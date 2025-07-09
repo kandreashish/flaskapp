@@ -845,4 +845,288 @@ class FamilyController @Autowired constructor(
             ApiResponseUtil.internalServerError("An error occurred while resending invitation")
         }
     }
+
+    @PostMapping("/cancel-invitation")
+    fun cancelInvitation(
+        @RequestParam invitedMemberEmail: String
+    ): ResponseEntity<*> {
+        logger.info("Canceling invitation for member with email: $invitedMemberEmail")
+        return try {
+            val currentUserId = authUtil.getCurrentUserId()
+            logger.info("Current user ID: $currentUserId")
+
+            val headUser = userRepository.findById(currentUserId).orElse(null)
+            if (headUser == null) {
+                logger.warn("User not found with ID: $currentUserId")
+                return ApiResponseUtil.notFound("User not found")
+            }
+            logger.info("Head user found: ${headUser.email}")
+
+            val familyId = headUser.familyId
+            if (familyId == null) {
+                logger.warn("User $currentUserId does not belong to any family")
+                return ApiResponseUtil.badRequest("User does not belong to a family")
+            }
+            logger.info("User belongs to family: $familyId")
+
+            val family = familyRepository.findById(familyId).orElse(null)
+            if (family == null) {
+                logger.warn("Family not found with ID: $familyId")
+                return ApiResponseUtil.notFound("Family not found")
+            }
+            logger.info("Family found: ${family.name}")
+
+            if (family.headId != currentUserId) {
+                logger.warn("User $currentUserId is not the family head. Head ID: ${family.headId}")
+                return ApiResponseUtil.forbidden("Only the family head can cancel invitations")
+            }
+
+            if (!family.pendingMemberEmails.contains(invitedMemberEmail)) {
+                logger.warn("No pending invitation found for email: $invitedMemberEmail")
+                return ApiResponseUtil.notFound("No pending invitation found for this email")
+            }
+            logger.info("Pending invitation found for: $invitedMemberEmail")
+
+            // Remove the email from pending invitations
+            val updatedFamily = family.copy(
+                pendingMemberEmails = (family.pendingMemberEmails - invitedMemberEmail).toMutableList()
+            )
+            familyRepository.save(updatedFamily)
+            logger.info("Invitation canceled successfully for: $invitedMemberEmail")
+
+            // Send notification to the invited user about cancellation
+            val invitedUser = userRepository.findAll().find { it.email == invitedMemberEmail }
+            if (invitedUser != null) {
+                try {
+                    pushNotificationService.sendNotification(
+                        invitedUser.fcmToken,
+                        "Family Invitation Canceled",
+                        "The invitation to join the family '${family.name}' has been canceled."
+                    )
+                    logger.info("Cancellation notification sent to: $invitedMemberEmail")
+                } catch (ex: Exception) {
+                    logger.error("Failed to send cancellation notification to: $invitedMemberEmail", ex)
+                }
+
+                // Save notification in database
+                val notification = Notification(
+                    id = UUID.randomUUID().toString(),
+                    title = "Family Invitation Canceled",
+                    message = "The invitation to join the family '${family.name}' has been canceled.",
+                    time = System.currentTimeMillis(),
+                    read = false,
+                    familyId = family.familyId,
+                    senderName = headUser.name ?: headUser.email,
+                    senderId = headUser.id,
+                    actionable = false,
+                    createdAt = System.currentTimeMillis(),
+                    type = NotificationType.FAMILY_INVITE
+                )
+                notificationRepository.save(notification)
+                logger.info("Cancellation notification saved for: $invitedMemberEmail")
+            }
+
+            ResponseEntity.ok(mapOf("message" to "Invitation canceled successfully for $invitedMemberEmail"))
+        } catch (ex: Exception) {
+            logger.error("Exception in cancelInvitation for email: $invitedMemberEmail", ex)
+            ApiResponseUtil.internalServerError("An error occurred while canceling invitation")
+        }
+    }
+
+    @PostMapping("/reject-join-request")
+    fun rejectJoinRequest(
+        @RequestParam requesterEmail: String
+    ): ResponseEntity<*> {
+        logger.info("Rejecting join request from user with email: $requesterEmail")
+        return try {
+            val currentUserId = authUtil.getCurrentUserId()
+            logger.info("Current user ID: $currentUserId")
+
+            val headUser = userRepository.findById(currentUserId).orElse(null)
+            if (headUser == null) {
+                logger.warn("User not found with ID: $currentUserId")
+                return ApiResponseUtil.notFound("User not found")
+            }
+            logger.info("Head user found: ${headUser.email}")
+
+            val familyId = headUser.familyId
+            if (familyId == null) {
+                logger.warn("User $currentUserId does not belong to any family")
+                return ApiResponseUtil.badRequest("User does not belong to a family")
+            }
+            logger.info("User belongs to family: $familyId")
+
+            val family = familyRepository.findById(familyId).orElse(null)
+            if (family == null) {
+                logger.warn("Family not found with ID: $familyId")
+                return ApiResponseUtil.notFound("Family not found")
+            }
+            logger.info("Family found: ${family.name}")
+
+            if (family.headId != currentUserId) {
+                logger.warn("User $currentUserId is not the family head. Head ID: ${family.headId}")
+                return ApiResponseUtil.forbidden("Only the family head can reject join requests")
+            }
+
+            if (!family.pendingJoinRequests.contains(requesterEmail)) {
+                logger.warn("No pending join request found for email: $requesterEmail")
+                return ApiResponseUtil.notFound("No pending join request found for this email")
+            }
+            logger.info("Pending join request found for: $requesterEmail")
+
+            // Remove the email from pending join requests
+            val updatedFamily = family.copy(
+                pendingJoinRequests = (family.pendingJoinRequests - requesterEmail).toMutableList()
+            )
+            familyRepository.save(updatedFamily)
+            logger.info("Join request rejected successfully for: $requesterEmail")
+
+            // Send notification to the requester about rejection
+            val requesterUser = userRepository.findAll().find { it.email == requesterEmail }
+            if (requesterUser != null) {
+                try {
+                    pushNotificationService.sendNotification(
+                        requesterUser.fcmToken,
+                        "Family Join Request Rejected",
+                        "Your request to join the family '${family.name}' has been rejected."
+                    )
+                    logger.info("Rejection notification sent to: $requesterEmail")
+                } catch (ex: Exception) {
+                    logger.error("Failed to send rejection notification to: $requesterEmail", ex)
+                }
+
+                // Save notification in database
+                val notification = Notification(
+                    id = UUID.randomUUID().toString(),
+                    title = "Family Join Request Rejected",
+                    message = "Your request to join the family '${family.name}' has been rejected.",
+                    time = System.currentTimeMillis(),
+                    read = false,
+                    familyId = family.familyId,
+                    senderName = headUser.name ?: headUser.email,
+                    senderId = headUser.id,
+                    actionable = false,
+                    createdAt = System.currentTimeMillis(),
+                    type = NotificationType.FAMILY_INVITE
+                )
+                notificationRepository.save(notification)
+                logger.info("Rejection notification saved for: $requesterEmail")
+            }
+
+            ResponseEntity.ok(mapOf("message" to "Join request rejected successfully for $requesterEmail"))
+        } catch (ex: Exception) {
+            logger.error("Exception in rejectJoinRequest for email: $requesterEmail", ex)
+            ApiResponseUtil.internalServerError("An error occurred while rejecting join request")
+        }
+    }
+
+    @PostMapping("/remove-member")
+    fun removeFamilyMember(
+        @RequestParam memberEmail: String
+    ): ResponseEntity<*> {
+        logger.info("Family head attempting to remove member with email: $memberEmail")
+        return try {
+            val headId = authUtil.getCurrentUserId()
+            logger.info("Current user ID (head): $headId")
+
+            val headUser = userRepository.findById(headId).orElse(null)
+            if (headUser == null) {
+                logger.warn("Head user not found with ID: $headId")
+                return ApiResponseUtil.notFound("Head user not found")
+            }
+            logger.info("Head user found: ${headUser.email}")
+
+            val familyId = headUser.familyId
+            if (familyId == null) {
+                logger.warn("Head user $headId does not belong to any family")
+                return ApiResponseUtil.badRequest("User does not belong to a family")
+            }
+            logger.info("Head user belongs to family: $familyId")
+
+            val family = familyRepository.findById(familyId).orElse(null)
+            if (family == null) {
+                logger.warn("Family not found with ID: $familyId")
+                return ApiResponseUtil.notFound("Family not found")
+            }
+            logger.info("Family found: ${family.name}")
+
+            if (family.headId != headId) {
+                logger.warn("User $headId is not the family head. Head ID: ${family.headId}")
+                return ApiResponseUtil.forbidden("Only the family head can remove members")
+            }
+
+            val memberToRemove = userRepository.findAll().find { it.email == memberEmail }
+            if (memberToRemove == null) {
+                logger.warn("Member to remove not found with email: $memberEmail")
+                return ApiResponseUtil.notFound("Member not found")
+            }
+            logger.info("Member to remove found: ${memberToRemove.id}")
+
+            if (memberToRemove.familyId != familyId) {
+                logger.warn("Member $memberEmail does not belong to family $familyId")
+                return ApiResponseUtil.badRequest("Member does not belong to this family")
+            }
+
+            if (memberToRemove.id == headId) {
+                logger.warn("Family head cannot remove themselves")
+                return ApiResponseUtil.badRequest("Family head cannot remove themselves. Use leave family instead.")
+            }
+
+            if (!family.membersIds.contains(memberToRemove.id)) {
+                logger.warn("Member ${memberToRemove.id} is not in the family members list")
+                return ApiResponseUtil.badRequest("Member is not part of this family")
+            }
+
+            // Remove member from family
+            val newMembers = family.membersIds.toMutableList().apply { remove(memberToRemove.id) }
+            logger.info("Removing member ${memberToRemove.id} from family. New member count: ${newMembers.size}")
+
+            val updatedFamily = family.copy(
+                membersIds = newMembers,
+                updatedAt = System.currentTimeMillis()
+            )
+            familyRepository.save(updatedFamily)
+            logger.info("Family $familyId updated with member removed")
+
+            // Update the removed member's family association
+            val updatedMember = memberToRemove.copy(familyId = null, updatedAt = System.currentTimeMillis())
+            userRepository.save(updatedMember)
+            logger.info("Member ${memberToRemove.id} family association removed")
+
+            // Send push notification to the removed member
+            try {
+                pushNotificationService.sendNotification(
+                    memberToRemove.fcmToken,
+                    "Removed from Family",
+                    "You have been removed from the family '${family.name}' by the family head."
+                )
+                logger.info("Removal notification sent to removed member: $memberEmail")
+            } catch (ex: Exception) {
+                logger.error("Failed to send removal notification to member: $memberEmail", ex)
+            }
+
+            // Save notification in database for the removed member
+            val notification = Notification(
+                id = UUID.randomUUID().toString(),
+                title = "Removed from Family",
+                message = "You have been removed from the family '${family.name}' by the family head.",
+                time = System.currentTimeMillis(),
+                read = false,
+                familyId = family.familyId, // Keep the original family ID for reference
+                senderName = headUser.name ?: headUser.email,
+                senderId = headUser.id,
+                actionable = false,
+                createdAt = System.currentTimeMillis(),
+                type = NotificationType.OTHER
+            )
+            notificationRepository.save(notification)
+            logger.info("Removal notification saved for removed member: $memberEmail")
+
+            logger.info("Family member removal completed successfully for: $memberEmail")
+            ResponseEntity.ok(mapOf("message" to "Member $memberEmail removed from family successfully"))
+        } catch (ex: Exception) {
+            logger.error("Exception in removeFamilyMember for member: $memberEmail", ex)
+            ApiResponseUtil.internalServerError("An error occurred while removing family member")
+        }
+    }
 }
