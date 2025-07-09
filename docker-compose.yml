@@ -19,6 +19,7 @@ services:
       - JAVA_OPTS=-Xms128m -Xmx384m -XX:+UseG1GC -XX:G1HeapRegionSize=8m
     volumes:
       - h2-data:/app/h2-data  # Changed to named volume
+      - logs-data:/app/logs   # Mount logs directory
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
@@ -35,4 +36,6 @@ volumes:
   h2-data:  # Add this
     driver: local
   gradle-cache:
+    driver: local
+  logs-data:
     driver: local

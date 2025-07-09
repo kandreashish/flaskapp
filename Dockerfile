@@ -47,7 +47,7 @@ RUN groupadd -g 1000 appgroup && \
 COPY --from=build /app/build/libs/*.jar app.jar
 
 # Create data directory and set ownership BEFORE switching users
-RUN mkdir -p /app/h2-data && \
+RUN mkdir -p /app/h2-data /app/logs && \
     chown -R 1000:1000 /app && \
     chmod -R 755 /app
 
