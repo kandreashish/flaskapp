@@ -3,8 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      platforms:
-        - linux/arm64
     image: expense-tracker:latest
     container_name: expense-tracker
     platform: linux/arm64
