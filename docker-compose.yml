@@ -3,8 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      platforms:
+        - linux/arm64
     image: expense-tracker:latest
     container_name: expense-tracker
+    platform: linux/arm64
     ports:
       - "3000:3000"
     environment:
@@ -17,9 +20,12 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_SQL_INIT_MODE=always
       - JAVA_OPTS=-Xms128m -Xmx384m -XX:+UseG1GC -XX:G1HeapRegionSize=8m
+      - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=DEBUG
+      - LOGGING_LEVEL_ROOT=INFO
+      - LOGGING_FILE_NAME=/app/logs/expense-tracker.log
     volumes:
       - h2-data:/app/h2-data  # Changed to named volume
-      - logs-data:/app/logs   # Mount logs directory
+      - ./logs:/app/logs:rw   # Bind mount for easier log access on Raspberry Pi
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
@@ -31,11 +37,10 @@ services:
     cpus: 0.8
     security_opt:
       - no-new-privileges:true
+    init: true
 
 volumes:
   h2-data:  # Add this
     driver: local
   gradle-cache:
-    driver: local
-  logs-data:
     driver: local

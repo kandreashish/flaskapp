@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # Stage 1: Dependencies cache layer
-FROM eclipse-temurin:17-jdk AS dependencies
+FROM --platform=$TARGETPLATFORM eclipse-temurin:17-jdk AS dependencies
 WORKDIR /app
 
 # Copy only dependency-related files
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/root/.gradle \
     ./gradlew dependencies --no-daemon --console=plain
 
 # Stage 2: Build application
-FROM dependencies AS build
+FROM --platform=$TARGETPLATFORM dependencies AS build
 WORKDIR /app
 
 # Copy source code (this layer changes frequently)
@@ -30,12 +30,15 @@ RUN --mount=type=cache,target=/root/.gradle \
     ./gradlew bootJar --no-daemon --parallel --build-cache --console=plain
 
 # Stage 3: Final runtime image optimized for ARM64/Raspberry Pi
-FROM eclipse-temurin:17-jre-jammy AS runtime
+FROM --platform=$TARGETPLATFORM eclipse-temurin:17-jre-jammy AS runtime
 WORKDIR /app
 
-# Install minimal dependencies for ARM64
+# Install minimal dependencies for ARM64 with better logging support
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        tini \
+        procps && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -46,10 +49,12 @@ RUN groupadd -g 1000 appgroup && \
 # Copy the built JAR from build stage
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Create data directory and set ownership BEFORE switching users
-RUN mkdir -p /app/h2-data /app/logs && \
+# Create directories with proper permissions for ARM64
+RUN mkdir -p /app/h2-data /app/logs /app/tmp && \
     chown -R 1000:1000 /app && \
-    chmod -R 755 /app
+    chmod -R 755 /app && \
+    # Ensure logs directory is writable
+    chmod 777 /app/logs
 
 # Switch to non-root user with consistent UID
 USER 1000:1000
@@ -57,14 +62,16 @@ USER 1000:1000
 # Expose port
 EXPOSE 3000
 
-# Optimized JVM settings for Raspberry Pi (ARM64)
-ENTRYPOINT ["java", \
+# Use tini as init system for better signal handling on ARM64
+ENTRYPOINT ["tini", "--", "java", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=70.0", \
     "-XX:+UseG1GC", \
-    "-XX:G1HeapRegionSize=16m", \
+    "-XX:G1HeapRegionSize=8m", \
     "-XX:+UseStringDeduplication", \
     "-XX:+OptimizeStringConcat", \
     "-Djava.security.egd=file:/dev/./urandom", \
     "-Dspring.jmx.enabled=false", \
+    "-Djava.io.tmpdir=/app/tmp", \
+    "-Dlogback.configurationFile=classpath:logback-spring.xml", \
     "-jar", "app.jar"]
