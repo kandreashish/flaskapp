@@ -62,7 +62,7 @@ fun ExpenseDto.toEntity() = Expense(
     category = this.category,
     description = this.description,
     date = this.date,
-    familyId = this.familyId.takeIf { it.isNotEmpty() },
+    familyId = this.familyId.takeIf { it?.isNotEmpty() == true },
     expenseCreatedOn = this.expenseCreatedOn,
     createdBy = this.createdBy,
     modifiedBy = this.modifiedBy,

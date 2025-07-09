@@ -44,6 +44,10 @@ class UserService(
         return userDeviceService.getActiveDeviceTokens(userId)
     }
 
+    fun getFamilyMembersFcmTokens(familyId: String): List<ExpenseUser> {
+        return userRepository.findByFamilyId(familyId)
+    }
+
     @Transactional
     fun removeDevice(userId: String, fcmToken: String): Boolean {
         return userDeviceService.deactivateDevice(userId, fcmToken)

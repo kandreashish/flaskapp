@@ -29,5 +29,8 @@ data class ExpenseUser(
     var updatedAt: Long = System.currentTimeMillis(),
 
     @Column(name = "fcm_token")
-    var fcmToken: String? = null
+    var fcmToken: String? = null,
+
+    @Column(name = "profile_pic", nullable = true)
+    var profilePic: String? = null
 )
