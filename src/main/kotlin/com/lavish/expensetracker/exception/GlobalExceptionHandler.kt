@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.DataAccessException
+import org.springframework.web.servlet.NoHandlerFoundException
 
 @ControllerAdvice
 class GlobalExceptionHandler {
@@ -111,5 +112,14 @@ class GlobalExceptionHandler {
             message = "Invalid JSON format in request body"
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
+    }
+
+    @ExceptionHandler(NoHandlerFoundException::class)
+    fun handleNoHandlerFoundException(ex: NoHandlerFoundException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "NOT_FOUND",
+            message = "API endpoint not found: ${ex.requestURL}"
+        )
+        return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
     }
 }
