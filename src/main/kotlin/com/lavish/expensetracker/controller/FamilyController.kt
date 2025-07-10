@@ -223,7 +223,8 @@ class FamilyController @Autowired constructor(
                     pushNotificationService.sendNotification(
                         headUser.fcmToken,
                         "Family Member Left",
-                        "${user.name ?: user.email} has left the family '${family.name}'."
+                        "${user.name ?: user.email} has left the family '${family.name}'.",
+                        NotificationType.OTHER
                     )
                     logger.info("Push notification sent to family head: ${family.headId}")
                 } catch (ex: Exception) {
@@ -242,7 +243,8 @@ class FamilyController @Autowired constructor(
                     senderId = user.id,
                     actionable = false,
                     createdAt = System.currentTimeMillis(),
-                    type = NotificationType.OTHER
+                    type = NotificationType.OTHER,
+                    familyAliasName = family.aliasName,
                 )
                 notificationRepository.save(notification)
                 logger.info("Notification saved for family head: ${family.headId}")
@@ -363,7 +365,8 @@ class FamilyController @Autowired constructor(
                 pushNotificationService.sendNotification(
                     invitedUser.fcmToken,
                     "Family Invitation",
-                    "You have been invited to join the family '${family.name}' by ${headUser.name}. Please accept the invitation to join."
+                    "You have been invited to join the family '${family.name}' by ${headUser.name}. Please accept the invitation to join.",
+                    NotificationType.FAMILY_INVITE
                 )
                 logger.info("Invitation notification sent to: $invitedMemberEmail")
             } catch (ex: Exception) {
@@ -431,7 +434,8 @@ class FamilyController @Autowired constructor(
                     pushNotificationService.sendNotification(
                         headUser.fcmToken,
                         "Join Request",
-                        "${user.name ?: user.email} (${user.email}) has requested to join your family '${family.name}'."
+                        "${user.name ?: user.email} (${user.email}) has requested to join your family '${family.name}'.",
+                        NotificationType.FAMILY_JOIN
                     )
                     logger.info("Join request notification sent to family head: ${family.headId}")
                 } catch (ex: Exception) {
@@ -450,7 +454,8 @@ class FamilyController @Autowired constructor(
                     senderId = user.id,
                     actionable = false,
                     createdAt = System.currentTimeMillis(),
-                    type = NotificationType.FAMILY_JOIN
+                    type = NotificationType.FAMILY_JOIN,
+                    familyAliasName = family.aliasName,
                 )
                 notificationRepository.save(notification)
                 logger.info("Join request notification saved for family head: ${family.headId}")
@@ -558,7 +563,8 @@ class FamilyController @Autowired constructor(
                 senderId = headUser.id,
                 actionable = false,
                 createdAt = System.currentTimeMillis(),
-                type = NotificationType.FAMILY_JOIN
+                type = NotificationType.FAMILY_JOIN,
+                familyAliasName = family.aliasName,
             )
             notificationRepository.save(notification)
             logger.info("Join request acceptance notification saved for: $requesterEmail")
@@ -649,7 +655,8 @@ class FamilyController @Autowired constructor(
                     senderId = user.id,
                     actionable = false,
                     createdAt = System.currentTimeMillis(),
-                    type = NotificationType.FAMILY_JOIN
+                    type = NotificationType.FAMILY_JOIN,
+                    familyAliasName = family.aliasName,
                 )
                 notificationRepository.save(notification)
                 logger.info("Invitation acceptance notification saved for family head: ${family.headId}")
@@ -813,7 +820,8 @@ class FamilyController @Autowired constructor(
                 pushNotificationService.sendNotification(
                     invitedUser.fcmToken,
                     "Family Invitation (Reminder)",
-                    "Reminder: You have been invited to join the family '${family.name}' by ${headUser.name}. Please accept the invitation to join."
+                    "Reminder: You have been invited to join the family '${family.name}' by ${headUser.name}. Please accept the invitation to join.",
+                    NotificationType.FAMILY_INVITE
                 )
                 logger.info("Invitation reminder notification sent to: $invitedMemberEmail")
             } catch (ex: Exception) {
@@ -833,7 +841,8 @@ class FamilyController @Autowired constructor(
                 senderId = headUser.id,
                 actionable = true,
                 createdAt = System.currentTimeMillis(),
-                type = NotificationType.FAMILY_INVITE
+                type = NotificationType.FAMILY_INVITE,
+                familyAliasName = family.aliasName,
             )
             notificationRepository.save(notification)
             logger.info("Invitation reminder notification saved for: $invitedMemberEmail")
@@ -920,7 +929,8 @@ class FamilyController @Autowired constructor(
                     senderId = headUser.id,
                     actionable = false,
                     createdAt = System.currentTimeMillis(),
-                    type = NotificationType.FAMILY_INVITE
+                    type = NotificationType.FAMILY_INVITE,
+                    familyAliasName = family.aliasName,
                 )
                 notificationRepository.save(notification)
                 logger.info("Cancellation notification saved for: $invitedMemberEmail")
@@ -1007,7 +1017,8 @@ class FamilyController @Autowired constructor(
                     senderId = headUser.id,
                     actionable = false,
                     createdAt = System.currentTimeMillis(),
-                    type = NotificationType.FAMILY_INVITE
+                    type = NotificationType.FAMILY_INVITE,
+                    familyAliasName = family.aliasName,
                 )
                 notificationRepository.save(notification)
                 logger.info("Rejection notification saved for: $requesterEmail")
@@ -1112,7 +1123,8 @@ class FamilyController @Autowired constructor(
                 message = "You have been removed from the family '${family.name}' by the family head.",
                 time = System.currentTimeMillis(),
                 read = false,
-                familyId = family.familyId, // Keep the original family ID for reference
+                familyId = family.familyId,
+                familyAliasName = family.aliasName,// Keep the original family ID for reference
                 senderName = headUser.name ?: headUser.email,
                 senderId = headUser.id,
                 actionable = false,

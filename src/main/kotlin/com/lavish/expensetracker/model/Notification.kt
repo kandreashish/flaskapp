@@ -21,6 +21,7 @@ data class Notification(
     val time: Long = 0L,
     val read: Boolean = false,
     val familyId: String,
+    val familyAliasName: String,
     val senderName: String,
     val senderId: String,
     val actionable: Boolean = false,
