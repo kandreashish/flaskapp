@@ -37,6 +37,9 @@ services:
     security_opt:
       - no-new-privileges:true
     init: true
+    # ADD THIS SECTION - This is the key fix
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   h2-data:  # Add this
