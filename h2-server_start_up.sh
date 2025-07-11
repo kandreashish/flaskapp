@@ -8,7 +8,7 @@ DB_NAME="expensedb"
 H2_PORT=9092
 WEB_PORT=8082
 H2_USER="h2user"
-DB_PASSWORD="ashish123"
+DB_PASSWORD="ashish123"  # CHANGE THIS!
 DATA_DIR="/var/lib/h2-data"
 H2_JAR="/opt/h2/h2.jar"
 LOG_FILE="/var/log/h2-server.log"
@@ -126,10 +126,13 @@ setup_environment() {
     sudo chown -R "$H2_USER:$H2_USER" "$DATA_DIR"
     sudo chmod 750 "$DATA_DIR"
 
-    # Create and configure log file
+    # Create log directory if it doesn't exist
+    sudo mkdir -p "$(dirname "$LOG_FILE")"
+
+    # Create and configure log file with proper permissions
     sudo touch "$LOG_FILE"
     sudo chown "$H2_USER:$H2_USER" "$LOG_FILE"
-    sudo chmod 644 "$LOG_FILE"
+    sudo chmod 664 "$LOG_FILE"
 
     # Create PID file directory
     sudo mkdir -p "$(dirname "$PID_FILE")"
@@ -145,19 +148,25 @@ start_h2_server() {
     echo "• Web Console: http://localhost:$WEB_PORT"
     echo "• Log File: $LOG_FILE"
 
-    # Clear previous log content
+    # Clear previous log content and ensure proper permissions
     sudo truncate -s 0 "$LOG_FILE"
+    sudo chown "$H2_USER:$H2_USER" "$LOG_FILE"
+    sudo chmod 664 "$LOG_FILE"
 
-    # Start server in background
-    sudo -u "$H2_USER" nohup java -cp "$H2_JAR" org.h2.tools.Server \
-        -tcp -tcpPort "$H2_PORT" -tcpAllowOthers -tcpPassword "$DB_PASSWORD" \
-        -web -webPort "$WEB_PORT" -webAllowOthers \
-        -baseDir "$DATA_DIR" \
-        -ifNotExists \
-        > "$LOG_FILE" 2>&1 &
+    # Start server in background with proper user context
+    sudo -u "$H2_USER" bash -c "
+        nohup java -cp '$H2_JAR' org.h2.tools.Server \
+            -tcp -tcpPort $H2_PORT -tcpAllowOthers -tcpPassword '$DB_PASSWORD' \
+            -web -webPort $WEB_PORT -webAllowOthers \
+            -baseDir '$DATA_DIR' \
+            -ifNotExists \
+            > '$LOG_FILE' 2>&1 &
+        echo \$!
+    " > /tmp/h2_pid.tmp
 
     # Get the process ID
-    local SERVER_PID=$!
+    local SERVER_PID=$(cat /tmp/h2_pid.tmp)
+    rm -f /tmp/h2_pid.tmp
 
     # Wait for server to start
     sleep 5
