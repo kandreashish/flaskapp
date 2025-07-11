@@ -21,6 +21,7 @@ services:
       - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=DEBUG
       - LOGGING_LEVEL_ROOT=INFO
       - LOGGING_FILE_NAME=/app/logs/expense-tracker.log
+      - TINI_SUBREAPER=1
     volumes:
       - h2-data:/app/h2-data  # Changed to named volume
       - ./logs:/app/logs:rw   # Bind mount for easier log access on Raspberry Pi
