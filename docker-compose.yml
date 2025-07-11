@@ -11,8 +11,8 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_DATASOURCE_URL=jdbc:h2:tcp://host.docker.internal:9092//var/lib/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw;
-      - SPRING_DATASOURCE_USERNAME=h2user
-      - SPRING_DATASOURCE_PASSWORD=ashish123
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=
       - SPRING_H2_CONSOLE_ENABLED=true
       - SPRING_H2_CONSOLE_PATH=/h2-console
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
