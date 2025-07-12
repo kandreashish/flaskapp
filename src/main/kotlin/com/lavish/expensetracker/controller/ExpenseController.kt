@@ -190,7 +190,7 @@ class ExpenseController(
                 }
             }
 
-            logger.debug("Current user ID: $currentUserId")
+            logger.debug("Current user1 ID: $currentUserId")
 
             // Check if user exists before proceeding (additional check)
             logger.debug("Validating user existence for ID: $currentUserId")
@@ -223,7 +223,8 @@ class ExpenseController(
                 createdBy = currentUserId,
                 modifiedBy = currentUserId,
                 expenseCreatedOn = System.currentTimeMillis(),
-                lastModifiedOn = System.currentTimeMillis()
+                lastModifiedOn = System.currentTimeMillis(),
+                updatedUserAlias = user.aliasName
             )
 
             logger.debug("Attempting to save expense to database")
@@ -241,8 +242,14 @@ class ExpenseController(
             // Send FCM notification to all user devices after creating expense
             logger.debug("Attempting to send FCM notifications")
             try {
-                val fcmTokens: List<String> =
-                    userService.getFamilyMembersFcmTokens(currentUserId).flatMap { userService.getAllFcmTokens(it.id) }.distinct()
+                val fcmTokens: List<String> = if(createdExpense.familyId.isNullOrBlank()) {
+                    logger.debug("User $currentUserId does not belong to any family, sending notification only to personal devices")
+                    listOfNotNull(user.fcmToken)
+                } else {
+                    logger.debug("User $currentUserId belongs to family: ${createdExpense.familyId}, sending notification to family members")
+                    userService.getFamilyMembersFcmTokens(createdExpense.familyId).flatMap { userService.getAllFcmTokens(it.id) }.distinct()
+                }
+
                 logger.debug("Found ${fcmTokens.size} FCM tokens for user: $currentUserId")
                 if (fcmTokens.isNotEmpty()) {
                     val formattedAmount = "$${expense.amount}"
