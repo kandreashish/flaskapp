@@ -29,6 +29,12 @@ class ExpenseRepositoryImpl : ExpenseRepository {
         return expenses.remove(id) != null
     }
 
+    override fun deleteByFamilyId(familyId: String): Int {
+        val toDelete = expenses.values.filter { it.familyId == familyId }
+        toDelete.forEach { expenses.remove(it.expenseId) }
+        return toDelete.size
+    }
+
     override fun findByCategory(category: String, page: Int, size: Int): PagedResponse<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { it.category == category }
             .sortedByDescending { it.expenseCreatedOn }
