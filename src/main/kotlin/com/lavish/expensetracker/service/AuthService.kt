@@ -89,10 +89,32 @@ class AuthService(
                 email = firebaseUser.email,
                 firebaseUid = firebaseUser.uid,
                 familyId = null,
-                profilePic = firebaseUser.picture
+                profilePic = firebaseUser.picture,
+                aliasName = generateUniqueAliasName()
             )
             userRepository.save(newUser)
             newUser
+        }
+    }
+
+    fun generateUniqueAliasName(): String {
+        logger.debug("Generating unique alias name")
+        return try {
+            val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+            var alias: String
+            var attempts = 0
+            do {
+                alias = (1..6)
+                    .map { chars.random() }
+                    .joinToString("")
+                attempts++
+                logger.debug("Generated alias attempt $attempts: $alias")
+            } while (userRepository.findAll().any { it.aliasName == alias })
+            logger.info("Unique alias generated: $alias after $attempts attempts")
+            alias
+        } catch (ex: Exception) {
+            logger.error("Exception in generateUniqueAliasName", ex)
+            throw ex
         }
     }
 

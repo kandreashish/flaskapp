@@ -131,14 +131,14 @@ class FamilyController @Autowired constructor(
         logger.info("Creating family with name: $familyName")
         return try {
             val userId = authUtil.getCurrentUserId()
-            logger.info("Current user ID: $userId")
+            logger.info("Current user11 ID: $userId")
 
             val user = userRepository.findById(userId).orElse(null)
             if (user == null) {
                 logUserNotFound(userId, "family creation")
                 return ApiResponseUtil.notFound("User not found")
             }
-            logger.info("User found: ${user.email}")
+            logger.info("User found11: ${user.email}")
 
             if (user.familyId != null) {
                 logUserAlreadyInFamily(userId, user.familyId, "family creation")
@@ -201,14 +201,14 @@ class FamilyController @Autowired constructor(
         logger.info("User attempting to join family with alias: $aliasName")
         return try {
             val userId = authUtil.getCurrentUserId()
-            logger.info("Current user ID: $userId")
+            logger.info("Current12 user ID: $userId")
 
             val user = userRepository.findById(userId).orElse(null)
             if (user == null) {
                 logUserNotFound(userId, "family join")
                 return ApiResponseUtil.notFound("User not found")
             }
-            logger.info("User found: ${user.email}")
+            logger.info("User found12: ${user.email}")
 
             if (user.familyId != null) {
                 logUserAlreadyInFamily(userId, user.familyId, "family join")
@@ -232,11 +232,11 @@ class FamilyController @Autowired constructor(
                 updatedAt = System.currentTimeMillis()
             )
             familyRepository.save(updatedFamily)
-            logger.info("Family ${family.familyId} updated with new member: $userId")
+            logger.info("Family12 ${family.familyId} updated with new member: $userId")
 
             val updatedUser = user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis())
             userRepository.save(updatedUser)
-            logger.info("User $userId updated with family ID: ${family.familyId}")
+            logger.info("User12 $userId updated with family ID: ${family.familyId}")
 
             logger.info("User $userId successfully joined family ${family.familyId}")
             ResponseEntity.ok(updatedFamily)
@@ -364,21 +364,21 @@ class FamilyController @Autowired constructor(
         logger.info("Getting family details")
         return try {
             val currentUserId = authUtil.getCurrentUserId()
-            logger.info("Current user ID: $currentUserId")
+            logger.info("Current user 2 ID: $currentUserId")
 
             val user = userRepository.findById(currentUserId).orElse(null)
             if (user == null) {
                 logUserNotFound(currentUserId, "get family details")
                 return ApiResponseUtil.notFound("User not found")
             }
-            logger.info("User found: ${user.email}")
+            logger.info("User found:24 ${user.email}")
 
             val familyId = user.familyId
             if (familyId == null) {
                 logUserNotInFamily(currentUserId, "get family details")
                 return ApiResponseUtil.badRequest("User does not belong to a family")
             }
-            logger.info("User belongs to family: $familyId")
+            logger.info("User belongs 3 to family: $familyId")
 
             val family = familyRepository.findById(familyId).orElse(null)
             if (family == null) {
@@ -392,7 +392,7 @@ class FamilyController @Autowired constructor(
 
             val response = mapOf(
                 "family" to family,
-                "members" to members
+                "members" to members,
             )
 
             logger.info("Family details retrieved successfully for user: $currentUserId")
@@ -410,7 +410,7 @@ class FamilyController @Autowired constructor(
         logger.info("Inviting member with email: $invitedMemberEmail")
         return try {
             val currentUserId = authUtil.getCurrentUserId()
-            logger.info("Current user ID: $currentUserId")
+            logger.info("Current user12 ID: $currentUserId")
 
             val headUser = userRepository.findById(currentUserId).orElse(null)
             if (headUser == null) {
@@ -424,14 +424,14 @@ class FamilyController @Autowired constructor(
                 logUserNotInFamily(currentUserId, "invite member")
                 return ApiResponseUtil.badRequest("User does not belong to a family")
             }
-            logger.info("User belongs to family: $familyId")
+            logger.info("User belongs12 to family: $familyId")
 
             val family = familyRepository.findById(familyId).orElse(null)
             if (family == null) {
                 logFamilyNotFound(familyId, "invite member")
                 return ApiResponseUtil.notFound("Family not found")
             }
-            logger.info("Family found: ${family.name}")
+            logger.info("Family found32: ${family.name}")
 
             if (family.headId != currentUserId) {
                 logNotFamilyHead(currentUserId, family.headId, "invite member")
@@ -470,7 +470,7 @@ class FamilyController @Autowired constructor(
                     data = mapOf(
                         "alias_name" to family.aliasName,
                         "family_name" to family.name,
-                        "sender_name" to headUser.email,
+                        "invited_member_email" to headUser.email,
                         "sender_id" to headUser.id,
                         "type" to NotificationType.FAMILY_INVITE.name
                     )
@@ -545,7 +545,7 @@ class FamilyController @Autowired constructor(
                         mapOf(
                             "alias_name" to family.aliasName,
                             "family_name" to family.name,
-                            "requesterEmail" to user.email,
+                            "requester_email" to user.email,
                             "sender_id" to userId,
                             "type" to NotificationType.FAMILY_JOIN.name
                         ),

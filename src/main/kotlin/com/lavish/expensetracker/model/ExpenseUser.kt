@@ -16,6 +16,9 @@ data class ExpenseUser(
     @Column(unique = true, nullable = false)
     val email: String,
 
+    @Column(name ="alias_name", unique = true)
+    var aliasName: String,
+
     @Column(name = "firebase_uid", unique = true)
     var firebaseUid: String? = null,
 
