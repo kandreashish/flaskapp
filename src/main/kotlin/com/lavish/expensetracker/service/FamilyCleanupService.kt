@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.service
 
+import com.lavish.expensetracker.repository.ExpenseRepository
 import com.lavish.expensetracker.repository.ExpenseUserRepository
 import com.lavish.expensetracker.repository.FamilyRepository
 import org.slf4j.LoggerFactory
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class FamilyCleanupService(
     private val userRepository: ExpenseUserRepository,
+    private val expenseRepository: ExpenseRepository,
     private val familyRepository: FamilyRepository
 ) {
 
@@ -36,6 +38,7 @@ class FamilyCleanupService(
 
                 // Check if the family exists in the database
                 val familyExists = familyRepository.existsById(familyId)
+                val deletedExpensesCount = expenseRepository.deleteByFamilyId(familyId)
 
                 if (!familyExists) {
                     logger.warn("Found orphaned family reference for user ${user.id} (${user.email}). FamilyId: $familyId does not exist in database")
@@ -51,6 +54,7 @@ class FamilyCleanupService(
                     cleanedUpCount++
 
                     logger.info("Cleaned up orphaned family reference for user ${user.id} (${user.email})")
+                    logger.info("Deleted $deletedExpensesCount expenses associated with familyId: $familyId")
                 }
             }
 

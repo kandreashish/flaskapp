@@ -10,6 +10,7 @@ interface ExpenseRepository {
     fun findById(id: String): ExpenseDto?
     fun save(expense: ExpenseDto): ExpenseDto
     fun deleteById(id: String): Boolean
+    fun deleteByFamilyId(familyId: String): Int
     fun findByCategory(category: String, page: Int, size: Int): PagedResponse<ExpenseDto>
     fun findByDateBetween(startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto>
     fun findByUserId(userId: String, page: Int, size: Int): PagedResponse<ExpenseDto>
