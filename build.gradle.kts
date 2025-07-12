@@ -47,3 +47,16 @@ tasks.withType<KotlinCompile> {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// ✅ Performance Enhancements for Raspberry Pi
+tasks.withType<JavaCompile> {
+    options.isIncremental = true // Speeds up rebuilds
+}
+
+tasks.withType<Jar> {
+    enabled = true // Ensure bootJar is the only jar built
+}
+
+tasks.withType<org.springframework.boot.gradle.tasks.bundling.BootJar> {
+    launchScript() // Adds launch script for easier container startup
+}
