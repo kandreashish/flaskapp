@@ -143,7 +143,8 @@ class AuthService(
                 profilePic = firebaseUser.picture,
                 createdAt = user.createdAt,
                 updatedAt = user.updatedAt,
-                aliasName = user.aliasName
+                aliasName = user.aliasName,
+                firebaseUid = user.firebaseUid
             ),
             token = token,
             refreshToken = refreshToken
