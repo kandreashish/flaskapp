@@ -1,12 +1,16 @@
 package com.lavish.expensetracker.controller
 
-import com.lavish.expensetracker.model.auth.*
+import com.google.api.client.auth.oauth2.RefreshTokenRequest
+import com.google.firebase.auth.FirebaseAuthException
+import com.lavish.expensetracker.model.ExpenseUser
+import com.lavish.expensetracker.model.auth.AuthResponseBase
+import com.lavish.expensetracker.model.auth.FailureAuthResponse
+import com.lavish.expensetracker.model.auth.FirebaseLoginRequest
+import com.lavish.expensetracker.model.auth.SuccessAuthResponse
 import com.lavish.expensetracker.service.AuthService
 import com.lavish.expensetracker.service.JwtService
 import com.lavish.expensetracker.service.RefreshTokenService
 import com.lavish.expensetracker.util.AuthUtil
-import com.google.api.client.auth.oauth2.RefreshTokenRequest
-import com.google.firebase.auth.FirebaseAuthException
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -41,7 +45,7 @@ class AuthController(
         return try {
             logger.debug("Processing Firebase login request")
             val response = authService.firebaseLogin(loginRequest)
-            
+
             if (response is SuccessAuthResponse && response.success) {
                 logger.info("Successful login for user: ${response.user?.email}")
                 ResponseEntity.ok(response)
@@ -79,23 +83,16 @@ class AuthController(
      * @return ResponseEntity containing the user's information
      */
     @GetMapping("/me")
-    fun getCurrentUser(): ResponseEntity<UserInfo> {
+    fun getCurrentUser(): ResponseEntity<ExpenseUser> {
         return try {
             logger.debug("Fetching current user info")
             val currentUserId = authUtil.getCurrentUserId()
             val user = authService.getUserById(currentUserId)
                 ?: throw UsernameNotFoundException("User not found with ID: $currentUserId")
-                
-            val userInfo = UserInfo(
-                id = user.id,
-                name = user.name ?: "",
-                email = user.email,
-                familyId = user.familyId
-            )
-            
+
             logger.debug("Successfully fetched user info for user ID: ${user.id}")
-            ResponseEntity.ok(userInfo)
-            
+            ResponseEntity.ok(user)
+
         } catch (e: UsernameNotFoundException) {
             logger.warn("User not found: ${e.message}")
             throw ResponseStatusException(HttpStatus.NOT_FOUND, e.message, e)
@@ -107,7 +104,7 @@ class AuthController(
                 e
             )
         }
-        }
+    }
 
     @PostMapping("/logout")
     fun logout(): ResponseEntity<Any> {
@@ -146,11 +143,15 @@ class AuthController(
                 message = "Token refreshed successfully",
                 token = newJwtToken,
                 refreshToken = newRefreshToken,
-                user = UserInfo(
+                user = ExpenseUser(
                     id = user.id,
                     name = user.name ?: "",
                     email = user.email,
-                    familyId = user.familyId
+                    familyId = user.familyId,
+                    profilePic = user.profilePic ?: "",
+                    createdAt = user.createdAt,
+                    updatedAt = user.updatedAt,
+                    aliasName = user.aliasName,
                 )
             )
 
@@ -183,11 +184,13 @@ class AuthController(
             val userId = jwtService.extractUserId(token)
 
             if (isValid && userId != null) {
-                ResponseEntity.ok(mapOf(
-                    "valid" to true,
-                    "userId" to userId,
-                    "expiresIn" to (jwtService.getTokenExpirationTime(token) ?: 0)
-                ))
+                ResponseEntity.ok(
+                    mapOf(
+                        "valid" to true,
+                        "userId" to userId,
+                        "expiresIn" to (jwtService.getTokenExpirationTime(token) ?: 0)
+                    )
+                )
             } else {
                 ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(mapOf("valid" to false, "message" to "Token expired or invalid"))

@@ -135,12 +135,15 @@ class AuthService(
         return SuccessAuthResponse(
             success = true,
             message = "Authentication successful",
-            user = UserInfo(
+            user = ExpenseUser(
                 id = user.id,
                 name = user.name?.ifEmpty { firebaseUser.name },
                 email = user.email,
                 familyId = user.familyId,
-                profilePicture = firebaseUser.picture
+                profilePic = firebaseUser.picture,
+                createdAt = user.createdAt,
+                updatedAt = user.updatedAt,
+                aliasName = user.aliasName
             ),
             token = token,
             refreshToken = refreshToken
