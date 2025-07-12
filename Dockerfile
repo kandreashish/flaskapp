@@ -25,6 +25,11 @@ WORKDIR /app
 # Copy source code (this layer changes frequently)
 COPY src ./src
 
+# Build with Gradle cache but without build directory cache to avoid conflicts
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew bootJar --no-daemon --parallel --build-cache --console=plain \
+    -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true \
+
 # Stage 3: Final runtime image optimized for ARM64/Raspberry Pi
 FROM --platform=$TARGETPLATFORM eclipse-temurin:17-jre-jammy AS runtime
 WORKDIR /app
