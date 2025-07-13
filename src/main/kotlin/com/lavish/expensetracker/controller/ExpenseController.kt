@@ -360,7 +360,6 @@ class ExpenseController(
     ): PagedResponse<ExpenseDto> {
         val currentUser = getCurrentUserWithValidation()
         logger.info("Getting personal expenses for user: ${currentUser.id}, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
-
         val params = PaginationParams(page, size, lastExpenseId, sortBy, isAsc)
         return executeWithPagination(params) { validatedParams ->
             if (validatedParams.lastExpenseId != null) {
@@ -391,6 +390,29 @@ class ExpenseController(
         logger.info("Getting family expenses for user: ${currentUser.id}, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
 
         val familyId = currentUser.familyId
+
+        if (!familyId.isNullOrBlank()) {
+            val family = familyRepository.findById(familyId).orElse(null)
+            if (family == null) {
+                logger.warn("User ${currentUser.id} attempted to access expenses for non-existent family: ${familyId}")
+                throw ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "The specified family does not exist"
+                )
+            }
+
+            if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                logger.warn("User ${currentUser.id} attempted to access expenses for family ${familyId} but is not a member")
+                throw ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "Cannot access expenses for a family you are not a member of"
+                )
+            }
+
+            logger.debug("Family membership validated for user ${currentUser.id} in family ${familyId}")
+        }
+
+
         if (familyId.isNullOrBlank()) {
             logger.warn("ExpenseUser ${currentUser.id} is not part of any family, returning empty family expenses")
             val validatedParams = validatePaginationParams(page, size, lastExpenseId, sortBy, isAsc)
