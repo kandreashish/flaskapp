@@ -7,6 +7,7 @@ import com.lavish.expensetracker.exception.ExpenseNotFoundException
 import com.lavish.expensetracker.exception.ExpenseValidationException
 import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.model.ExpenseUser
+import com.lavish.expensetracker.model.NotificationType
 import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.service.ExpenseService
 import com.lavish.expensetracker.service.UserDeviceService
@@ -82,9 +83,12 @@ class ExpenseController(
                 HttpStatus.UNAUTHORIZED -> ResponseStatusException(
                     HttpStatus.UNAUTHORIZED, "Authentication required. Please provide a valid JWT token."
                 )
+
                 HttpStatus.FORBIDDEN -> ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "ExpenseUser account not found or has been deactivated. Please re-authenticate."
+                    HttpStatus.BAD_REQUEST,
+                    "ExpenseUser account not found or has been deactivated. Please re-authenticate."
                 )
+
                 else -> ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Authentication failed: ${e.reason}"
                 )
@@ -149,6 +153,7 @@ class ExpenseController(
             expense.date <= 0 -> errors.add("Date is required and must be a valid timestamp")
             expense.date > currentTime + ONE_DAY_MILLIS ->
                 errors.add("Date cannot be more than 1 day in the future")
+
             expense.date < currentTime - TEN_YEARS_MILLIS ->
                 errors.add("Date cannot be more than 10 years in the past")
         }
@@ -190,34 +195,132 @@ class ExpenseController(
                         currentUser.familyId.isNotBlank())
     }
 
-    private fun sendExpenseNotification(expense: ExpenseDto, user: ExpenseUser, amount: Int, description: String) {
+    private fun sendExpenseNotification(
+        type: NotificationType,
+        title: String,
+        body: String,
+        expense: ExpenseDto,
+        user: ExpenseUser,
+        amount: Int,
+        description: String
+    ) {
         try {
-            val fcmTokens: List<String> = if (expense.familyId.isNullOrBlank()) {
-                logger.debug("ExpenseUser ${user.id} does not belong to any family, sending notification only to personal devices")
-                listOfNotNull(user.fcmToken)
-            } else {
-                logger.debug("ExpenseUser ${user.id} belongs to family: ${expense.familyId}, sending notification to family members")
-                userService.getFamilyMembersFcmTokens(expense.familyId)
-                    .flatMap { userService.getAllFcmTokens(it.id) }.distinct()
+            val fcmTokens = getFcmTokensForNotification(expense, user)
+
+            if (fcmTokens.isEmpty()) {
+                logger.debug("No FCM tokens found for notification - user: ${user.id}, family: ${expense.familyId}")
+                return
             }
 
-            logger.debug("Found ${fcmTokens.size} FCM tokens for user: ${user.id}")
-            if (fcmTokens.isNotEmpty()) {
-                val formattedAmount = "$$amount"
-                val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
-                    fcmTokens, formattedAmount, description, user.name
-                )
-                logger.info("FCM notifications sent successfully to ${fcmTokens.size - invalidTokens.size}. Invalid tokens: ${invalidTokens.size}")
+            sendNotificationToTokens(
+                type = type,
+                title = title,
+                body = body,
+                fcmTokens = fcmTokens,
+                amount = amount,
+                description = description
+            )
 
-                if (invalidTokens.isNotEmpty()) {
-                    logger.debug("Cleaning up ${invalidTokens.size} invalid FCM tokens")
-                    userDeviceService.removeInvalidTokens(invalidTokens)
-                }
+        } catch (e: Exception) {
+            logger.error(
+                "Failed to send expense notification for user ${user.id}, expense ${expense.expenseId}: ${e.message}",
+                e
+            )
+        }
+    }
+
+    private fun getFcmTokensForNotification(expense: ExpenseDto, user: ExpenseUser): List<String> {
+        return try {
+            if (expense.familyId.isNullOrBlank()) {
+                // Personal expense - notify only the user's devices
+                logger.debug("Personal expense notification for user: ${user.id}")
+                getUserFcmTokens(user.id)
             } else {
-                logger.debug("No FCM tokens found for user: ${user.id}")
+                // Family expense - notify all family members
+                logger.debug("Family expense notification for family: ${expense.familyId}")
+                getFamilyFcmTokens(expense.familyId)
             }
         } catch (e: Exception) {
-            logger.error("Failed to send push notification: ${e.message}", e)
+            logger.error("Error retrieving FCM tokens for user ${user.id}, family ${expense.familyId}: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    private fun getUserFcmTokens(userId: String): List<String> {
+        return try {
+            userService.getAllFcmTokens(userId).filter { it.isNotBlank() }
+        } catch (e: Exception) {
+            logger.error("Error getting FCM tokens for user $userId: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    private fun getFamilyFcmTokens(familyId: String): List<String> {
+        return try {
+            userService.getFamilyMembersFcmTokens(familyId)
+                .map { familyMember ->
+                    try {
+                        userService.getAllFcmTokens(familyMember.id)
+                    } catch (e: Exception) {
+                        logger.warn("Failed to get tokens for family member ${familyMember.id}: ${e.message}")
+                        emptyList()
+                    }
+                }
+                .flatten()
+                .distinct()
+                .filter { it.isNotBlank() }
+        } catch (e: Exception) {
+            logger.error("Error getting family FCM tokens for family $familyId: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    private fun sendNotificationToTokens(
+        type: NotificationType,
+        title: String,
+        body: String,
+        fcmTokens: List<String>,
+        amount: Int,
+        description: String
+    ) {
+        try {
+            logger.debug("Sending notification to ${fcmTokens.size} FCM tokens")
+
+            val formattedAmount = formatAmount(amount)
+            val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
+                title, body, type,
+                fcmTokens, formattedAmount, description
+            )
+
+            val successfulNotifications = fcmTokens.size - invalidTokens.size
+            logger.info("Expense notification sent to $successfulNotifications devices. Invalid tokens: ${invalidTokens.size}")
+
+            if (invalidTokens.isNotEmpty()) {
+                cleanupInvalidTokens(invalidTokens)
+            }
+
+        } catch (e: Exception) {
+            logger.error("Error sending notifications to FCM tokens: ${e.message}", e)
+            throw e
+        }
+    }
+
+    private fun formatAmount(amount: Int): String {
+        return try {
+            "$$amount"
+        } catch (e: Exception) {
+            logger.warn("Error formatting amount $amount: ${e.message}")
+            "$0"
+        }
+    }
+
+    private fun cleanupInvalidTokens(invalidTokens: List<String>) {
+        try {
+            logger.debug("Cleaning up ${invalidTokens.size} invalid FCM tokens")
+            userDeviceService.removeInvalidTokens(invalidTokens)
+            logger.debug("Successfully removed invalid FCM tokens")
+        } catch (e: Exception) {
+            logger.error("Failed to cleanup invalid FCM tokens: ${e.message}", e)
         }
     }
 
@@ -347,7 +450,15 @@ class ExpenseController(
             logger.info("Successfully created expense with ID: ${createdExpense.expenseId}")
 
             // Send FCM notification
-            sendExpenseNotification(createdExpense, currentUser, expense.amount, "Expense created: ${expense.description}")
+            sendExpenseNotification(
+                type = NotificationType.EXPENSE_CREATED,
+                title = "Expense Created",
+                body = "New expense: ${expense.description} - $${expense.amount}",
+                expense = createdExpense,
+                user = currentUser,
+                amount = expense.amount,
+                description = expense.description
+            )
 
             logger.info("Expense creation completed successfully for user: ${currentUser.id}, expenseId: ${createdExpense.expenseId}")
             ResponseEntity.status(HttpStatus.CREATED).body(
@@ -420,7 +531,15 @@ class ExpenseController(
             )
 
             // Send FCM notification
-            sendExpenseNotification(updatedExpense, currentUser, expense.amount, "Expense updated: ${expense.description}")
+            sendExpenseNotification(
+                type = NotificationType.EXPENSE_UPDATED,
+                title = "Expense Updated",
+                body = "Updated expense: ${expense.description} - $${expense.amount}",
+                expense = updatedExpense,
+                user = currentUser,
+                amount = expense.amount,
+                description = expense.description
+            )
 
             logger.info("Successfully updated expense $id for user ${currentUser.id}")
             ResponseEntity.ok(updatedExpense)
@@ -452,7 +571,15 @@ class ExpenseController(
             }
 
             if (expenseService.deleteExpense(id)) {
-                sendExpenseNotification( existingExpense, currentUser, existingExpense.amount, "Expense deleted: ${existingExpense.description}")
+                sendExpenseNotification(
+                    type = NotificationType.EXPENSE_DELETED,
+                    title = "Expense Deleted",
+                    body = "Deleted expense: ${existingExpense.description} - $${existingExpense.amount}",
+                    expense = existingExpense,
+                    user = currentUser,
+                    amount = existingExpense.amount,
+                    description = existingExpense.description
+                )
                 logger.info("Successfully deleted expense $id for user ${currentUser.id} (original owner: ${existingExpense.userId})")
                 ResponseEntity.noContent().build()
             } else {

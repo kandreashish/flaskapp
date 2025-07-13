@@ -9,7 +9,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 
 enum class NotificationType {
-    FAMILY_JOIN, FAMILY_INVITE, EXPENSE_ADDED, OTHER
+    FAMILY_JOIN, FAMILY_INVITE, EXPENSE_CREATED, EXPENSE_DELETED, EXPENSE_UPDATED, OTHER
 }
 
 @Entity

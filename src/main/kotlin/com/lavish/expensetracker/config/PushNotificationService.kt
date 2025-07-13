@@ -122,10 +122,12 @@ class PushNotificationService {
     }
 
     fun sendExpenseNotificationToMultiple(
+        title: String,
+        body: String,
+        type: NotificationType,
         tokens: List<String>,
         amount: String?,
-        description: String,
-        name: String?
+        description: String
     ): List<String> {
         if (tokens.isEmpty()) return emptyList()
 
@@ -133,12 +135,12 @@ class PushNotificationService {
             .addAllTokens(tokens)
             .setNotification(
                 Notification.builder()
-                    .setTitle("New Expense Added")
-                    .setBody("$name added a new expense")
+                    .setTitle(title)
+                    .setBody(body)
                     .build()
             )
-            .putData("type", "expense")
-            .putData("title", "New Expense Added")
+            .putData("type", type.name)
+            .putData("title", title)
             .putData("body", description)
             .putData("amount", amount ?: "₹0.00")
             .build()
