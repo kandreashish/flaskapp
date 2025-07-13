@@ -207,7 +207,7 @@ class ExpenseController(
                 val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
                     fcmTokens, formattedAmount, description, user.name
                 )
-                logger.info("FCM notifications sent successfully. Invalid tokens: ${invalidTokens.size}")
+                logger.info("FCM notifications sent successfully to ${fcmTokens.size - invalidTokens.size}. Invalid tokens: ${invalidTokens.size}")
 
                 if (invalidTokens.isNotEmpty()) {
                     logger.debug("Cleaning up ${invalidTokens.size} invalid FCM tokens")
@@ -347,7 +347,7 @@ class ExpenseController(
             logger.info("Successfully created expense with ID: ${createdExpense.expenseId}")
 
             // Send FCM notification
-            sendExpenseNotification(createdExpense, currentUser, expense.amount, expense.description)
+            sendExpenseNotification(createdExpense, currentUser, expense.amount, "Expense created: ${expense.description}")
 
             logger.info("Expense creation completed successfully for user: ${currentUser.id}, expenseId: ${createdExpense.expenseId}")
             ResponseEntity.status(HttpStatus.CREATED).body(
@@ -420,12 +420,12 @@ class ExpenseController(
             )
 
             // Send FCM notification
-            sendExpenseNotification(updatedExpense, currentUser, expense.amount, expense.description)
+            sendExpenseNotification(updatedExpense, currentUser, expense.amount, "Expense updated: ${expense.description}")
 
             logger.info("Successfully updated expense $id for user ${currentUser.id}")
             ResponseEntity.ok(updatedExpense)
         } catch (e: ExpenseValidationException) {
-            logger.error("Expense validation exception: ${e.message}")
+            logger.error("Expense validation1 exception: ${e.message}")
             throw e
         } catch (e: NoSuchElementException) {
             logger.error("Expense not found for update: $id")
@@ -452,6 +452,7 @@ class ExpenseController(
             }
 
             if (expenseService.deleteExpense(id)) {
+                sendExpenseNotification( existingExpense, currentUser, existingExpense.amount, "Expense deleted: ${existingExpense.description}")
                 logger.info("Successfully deleted expense $id for user ${currentUser.id} (original owner: ${existingExpense.userId})")
                 ResponseEntity.noContent().build()
             } else {
