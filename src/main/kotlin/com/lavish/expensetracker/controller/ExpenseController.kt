@@ -412,20 +412,11 @@ class ExpenseController(
             logger.debug("Family membership validated for user ${currentUser.id} in family ${familyId}")
         }
 
-
         if (familyId.isNullOrBlank()) {
             logger.warn("ExpenseUser ${currentUser.id} is not part of any family, returning empty family expenses")
-            val validatedParams = validatePaginationParams(page, size, lastExpenseId, sortBy, isAsc)
-            return PagedResponse(
-                content = emptyList(),
-                page = validatedParams.page,
-                size = validatedParams.size,
-                totalElements = 0,
-                totalPages = 0,
-                isFirst = true,
-                isLast = true,
-                hasNext = false,
-                hasPrevious = false
+            throw ResponseStatusException(
+                HttpStatus.PRECONDITION_FAILED,
+                "you are not a member of any family, cannot fetch family expenses"
             )
         }
 
