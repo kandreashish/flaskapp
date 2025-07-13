@@ -1,9 +1,11 @@
 package com.lavish.expensetracker.controller
 
 import com.lavish.expensetracker.model.Notification
+import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.util.AuthUtil
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.domain.PageRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.util.*
@@ -14,11 +16,52 @@ class NotificationController @Autowired constructor(
     private val notificationRepository: NotificationRepository,
     private val authUtil: AuthUtil
 ) {
+    companion object {
+        private const val DEFAULT_SIZE = 10
+        private const val MAX_SIZE = 100
+    }
+
     @GetMapping
-    fun getAllNotifications(): ResponseEntity<List<Notification>> {
+    fun getAllNotifications(
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(required = false) lastNotificationId: String?
+    ): PagedResponse<Notification> {
         val userId = authUtil.getCurrentUserId()
-        val notifications = notificationRepository.findAllBySenderId(userId)
-        return ResponseEntity.ok(notifications)
+
+        // Validate size parameter
+        val validatedSize = when {
+            size <= 0 -> DEFAULT_SIZE
+            size > MAX_SIZE -> MAX_SIZE
+            else -> size
+        }
+
+        val pageable = PageRequest.of(0, validatedSize)
+
+        val result = if (lastNotificationId != null) {
+            // Cursor-based pagination: get notifications after the cursor
+            val cursorNotification = notificationRepository.findById(lastNotificationId)
+                .orElseThrow { RuntimeException("Cursor notification not found with id: $lastNotificationId") }
+
+            notificationRepository.findBySenderIdAndCreatedAtLessThanOrderByCreatedAtDesc(
+                userId, cursorNotification.createdAt, pageable
+            )
+        } else {
+            // First page: get latest notifications
+            notificationRepository.findBySenderIdOrderByCreatedAtDesc(userId, pageable)
+        }
+
+        return PagedResponse(
+            content = result.content,
+            page = 0,
+            size = validatedSize,
+            totalElements = result.totalElements,
+            totalPages = result.totalPages,
+            isFirst = lastNotificationId == null,
+            isLast = result.isLast,
+            hasNext = result.hasNext(),
+            hasPrevious = result.hasPrevious(),
+            lastExpenseId = if (result.content.isNotEmpty()) result.content.last().id else null
+        )
     }
 
     @GetMapping("/{id}")
