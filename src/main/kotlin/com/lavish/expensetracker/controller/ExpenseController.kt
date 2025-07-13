@@ -9,6 +9,7 @@ import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.model.NotificationType
 import com.lavish.expensetracker.model.PagedResponse
+import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.service.ExpenseService
 import com.lavish.expensetracker.service.UserDeviceService
 import com.lavish.expensetracker.service.UserService
@@ -29,7 +30,8 @@ class ExpenseController(
     private val authUtil: AuthUtil,
     @Autowired private val pushNotificationService: PushNotificationService,
     private val userService: UserService,
-    private val userDeviceService: UserDeviceService
+    private val userDeviceService: UserDeviceService,
+    private val familyRepository: FamilyRepository
 ) {
     private val logger = LoggerFactory.getLogger(ExpenseController::class.java)
 
@@ -442,6 +444,34 @@ class ExpenseController(
                 throw ExpenseValidationException("Expense validation failed", validationErrors)
             }
 
+            // Validate family membership if familyId is provided
+            if (!expense.familyId.isNullOrBlank()) {
+                val family = familyRepository.findById(expense.familyId).orElse(null)
+                if (family == null) {
+                    logger.warn("User ${currentUser.id} attempted to add expense to non-existent family: ${expense.familyId}")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "Family not found",
+                            "error" to "The specified family does not exist"
+                        )
+                    )
+                }
+
+                if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                    logger.warn("User ${currentUser.id} attempted to add expense to family ${expense.familyId} but is not a member")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "You are not part of this family",
+                            "error" to "Cannot add expense to a family you are not a member of"
+                        )
+                    )
+                }
+
+                logger.debug("Family membership validated for user ${currentUser.id} in family ${expense.familyId}")
+            }
+
             val currentTime = System.currentTimeMillis()
             val expenseWithUser = expense.copy(
                 userId = currentUser.id,
@@ -498,7 +528,7 @@ class ExpenseController(
         logger.info("Getting expense by ID: $id")
         return try {
             val currentUser = getCurrentUserWithValidation()
-            logger.debug("Current user ID: ${currentUser.id}")
+            logger.debug("Current user2 ID: ${currentUser.id}")
 
             val expense = expenseService.getExpenseById(id)
             val validatedExpense = validateExpenseAccess(expense, currentUser, id)
@@ -518,11 +548,11 @@ class ExpenseController(
     }
 
     @PutMapping("/{id}")
-    fun updateExpense(@PathVariable id: String, @RequestBody expense: ExpenseDto): ResponseEntity<ExpenseDto> {
+    fun updateExpense(@PathVariable id: String, @RequestBody expense: ExpenseDto): ResponseEntity<Any> {
         logger.info("Updating expense with ID: $id")
         return try {
             val currentUser = getCurrentUserWithValidation()
-            logger.debug("Current user ID: ${currentUser.id}")
+            logger.debug("Current user3 ID: ${currentUser.id}")
 
             val existingExpense = expenseService.getExpenseById(id)
             validateExpenseAccess(existingExpense, currentUser, id)
@@ -531,6 +561,33 @@ class ExpenseController(
             val validationErrors = validateExpenseData(expense)
             if (validationErrors.isNotEmpty()) {
                 throw ExpenseValidationException("Expense validation failed", validationErrors)
+            }
+
+            if (!expense.familyId.isNullOrBlank()) {
+                val family = familyRepository.findById(expense.familyId).orElse(null)
+                if (family == null) {
+                    logger.warn("User1 ${currentUser.id} attempted to update expense to non-existent family: ${expense.familyId}")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "Family not found",
+                            "error" to "The specified family does not exist"
+                        )
+                    )
+                }
+
+                if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                    logger.warn("User ${currentUser.id} attempted to update expense to family ${expense.familyId} but is not a member")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "You are not part of this family",
+                            "error" to "Cannot update expense to a family you are not a member of"
+                        )
+                    )
+                }
+
+                logger.debug("Family membership validated for user ${currentUser.id} in family ${expense.familyId}")
             }
 
             logger.debug("Updating expense $id with new data")
@@ -558,7 +615,7 @@ class ExpenseController(
         } catch (e: ExpenseValidationException) {
             logger.error("Expense validation1 exception: ${e.message}")
             throw e
-        } catch (e: NoSuchElementException) {
+        } catch (_: NoSuchElementException) {
             logger.error("Expense not found for update: $id")
             ResponseEntity.notFound().build()
         } catch (e: Exception) {
@@ -568,11 +625,11 @@ class ExpenseController(
     }
 
     @DeleteMapping("/{id}")
-    fun deleteExpense(@PathVariable id: String): ResponseEntity<Void> {
+    fun deleteExpense(@PathVariable id: String): ResponseEntity<Any> {
         logger.info("Deleting expense with ID: $id")
         return try {
             val currentUser = getCurrentUserWithValidation()
-            logger.debug("Current user ID: ${currentUser.id}")
+            logger.debug("Current user1 ID: ${currentUser.id}")
 
             val existingExpense = expenseService.getExpenseById(id)
                 ?: return ResponseEntity.notFound().build()
@@ -580,6 +637,34 @@ class ExpenseController(
             if (!canDeleteExpense(existingExpense, currentUser)) {
                 logger.warn("Access denied for user ${currentUser.id} trying to delete expense $id (owner: ${existingExpense.userId})")
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+            }
+
+
+            if (!existingExpense.familyId.isNullOrBlank()) {
+                val family = familyRepository.findById(existingExpense.familyId).orElse(null)
+                if (family == null) {
+                    logger.warn("User ${currentUser.id} attempted to update expense to non-existent family: ${existingExpense.familyId}")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "Family not found",
+                            "error" to "The specified family does not exist"
+                        )
+                    )
+                }
+
+                if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                    logger.warn("User ${currentUser.id} attempted to update expense to family ${existingExpense.familyId} but is not a member")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "You are not part of this family",
+                            "error" to "Cannot update expense to a family you are not a member of"
+                        )
+                    )
+                }
+
+                logger.debug("Family membership validated for user ${currentUser.id} in family ${existingExpense.familyId}")
             }
 
             if (expenseService.deleteExpense(id)) {
