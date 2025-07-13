@@ -172,17 +172,29 @@ class ExpenseController(
         return errors
     }
 
-    private fun validateExpenseAccess(expense: ExpenseDto?, currentUserId: String, expenseId: String): ExpenseDto {
+    private fun validateExpenseAccess(expense: ExpenseDto?, currentUser: ExpenseUser, expenseId: String): ExpenseDto {
         if (expense == null) {
             throw ExpenseNotFoundException("Expense with ID '$expenseId' not found")
         }
 
-        if (expense.userId != currentUserId) {
-            logger.warn("Access denied for user $currentUserId trying to access expense $expenseId owned by ${expense.userId}")
-            throw ExpenseAccessDeniedException("You don't have permission to view this expense")
+        // Allow access if user is the expense owner
+        if (expense.userId == currentUser.id) {
+            return expense
         }
 
-        return expense
+        // Allow access if both users are in the same family
+        if (currentUser.familyId != null && currentUser.familyId.isNotBlank()) {
+            val expenseOwner = userService.findById(expense.userId)
+            if (expenseOwner != null &&
+                expenseOwner.familyId == currentUser.familyId &&
+                expenseOwner.familyId.isNotBlank()) {
+                logger.debug("Family member ${currentUser.id} accessing expense $expenseId owned by ${expense.userId} in family ${currentUser.familyId}")
+                return expense
+            }
+        }
+
+        logger.warn("Access denied for user ${currentUser.id} trying to access expense $expenseId owned by ${expense.userId}")
+        throw ExpenseAccessDeniedException("You don't have permission to view this expense")
     }
 
     private fun canDeleteExpense(expense: ExpenseDto, currentUser: ExpenseUser): Boolean {
@@ -489,7 +501,7 @@ class ExpenseController(
             logger.debug("Current user ID: ${currentUser.id}")
 
             val expense = expenseService.getExpenseById(id)
-            val validatedExpense = validateExpenseAccess(expense, currentUser.id, id)
+            val validatedExpense = validateExpenseAccess(expense, currentUser, id)
 
             logger.info("Successfully retrieved expense $id for user ${currentUser.id}")
             ResponseEntity.ok(validatedExpense)
@@ -513,7 +525,7 @@ class ExpenseController(
             logger.debug("Current user ID: ${currentUser.id}")
 
             val existingExpense = expenseService.getExpenseById(id)
-            validateExpenseAccess(existingExpense, currentUser.id, id)
+            validateExpenseAccess(existingExpense, currentUser, id)
 
             // Validate the updated expense data
             val validationErrors = validateExpenseData(expense)
@@ -632,7 +644,7 @@ class ExpenseController(
         val currentUser = getCurrentUserWithValidation()
 
         val expense = expenseService.getExpenseById(request.expenseId)
-        validateExpenseAccess(expense, currentUser.id, request.expenseId)
+        validateExpenseAccess(expense, currentUser, request.expenseId)
 
         val fcmTokens = userService.getAllFcmTokens(currentUser.id)
         if (fcmTokens.isEmpty()) {
