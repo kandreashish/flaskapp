@@ -224,7 +224,7 @@ class ExpenseController(
                 modifiedBy = currentUserId,
                 expenseCreatedOn = System.currentTimeMillis(),
                 lastModifiedOn = System.currentTimeMillis(),
-                updatedUserAlias = user.aliasName
+                updatedUserAlias = user.profilePic ?: user.name ?: "Unknown User"
             )
 
             logger.debug("Attempting to save expense to database")
@@ -242,12 +242,13 @@ class ExpenseController(
             // Send FCM notification to all user devices after creating expense
             logger.debug("Attempting to send FCM notifications")
             try {
-                val fcmTokens: List<String> = if(createdExpense.familyId.isNullOrBlank()) {
+                val fcmTokens: List<String> = if (createdExpense.familyId.isNullOrBlank()) {
                     logger.debug("User $currentUserId does not belong to any family, sending notification only to personal devices")
                     listOfNotNull(user.fcmToken)
                 } else {
                     logger.debug("User $currentUserId belongs to family: ${createdExpense.familyId}, sending notification to family members")
-                    userService.getFamilyMembersFcmTokens(createdExpense.familyId).flatMap { userService.getAllFcmTokens(it.id) }.distinct()
+                    userService.getFamilyMembersFcmTokens(createdExpense.familyId)
+                        .flatMap { userService.getAllFcmTokens(it.id) }.distinct()
                 }
 
                 logger.debug("Found ${fcmTokens.size} FCM tokens for user: $currentUserId")
@@ -444,17 +445,42 @@ class ExpenseController(
         logger.debug("Current user ID: $currentUserId")
 
         val existingExpense = expenseService.getExpenseById(id)
+        if (existingExpense == null) {
+            logger.error("Expense $id not found")
+            return ResponseEntity.notFound().build()
+        }
 
-        if (existingExpense?.userId != currentUserId) {
-            logger.warn("Access denied for user $currentUserId trying to delete expense $id")
+        // Check if user can delete this expense (either their own or family member's)
+        val currentUser = userService.findById(currentUserId)
+        if (currentUser == null) {
+            logger.warn("Current user $currentUserId not found")
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
+
+        val expenseOwner = userService.findById(existingExpense.userId)
+        if (expenseOwner == null) {
+            logger.warn("Expense owner ${existingExpense.userId} not found")
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
+
+        // Allow deletion if:
+        // 1. User is deleting their own expense, OR
+        // 2. User and expense owner are in the same family
+        val canDelete = existingExpense.userId == currentUserId ||
+                       (currentUser.familyId != null &&
+                        currentUser.familyId == expenseOwner.familyId &&
+                        currentUser.familyId.isNotBlank())
+
+        if (!canDelete) {
+            logger.warn("Access denied for user $currentUserId trying to delete expense $id (owner: ${existingExpense.userId})")
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         }
 
         return if (expenseService.deleteExpense(id)) {
-            logger.info("Successfully deleted expense $id for user $currentUserId")
+            logger.info("Successfully deleted expense $id for user $currentUserId (original owner: ${existingExpense.userId})")
             ResponseEntity.noContent().build()
         } else {
-            logger.error("Failed to delete expense $id - not found")
+            logger.error("Failed to delete expense $id - deletion failed")
             ResponseEntity.notFound().build()
         }
     }
