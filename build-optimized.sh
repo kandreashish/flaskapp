@@ -3,6 +3,9 @@
 # Optimized build script for Raspberry Pi
 # This script implements several strategies to speed up JAR builds
 
+echo "🚀 taking git pull to ensure latest changes are applied..."
+git pull
+
 set -e
 
 echo "🚀 Starting optimized build for Raspberry Pi..."
