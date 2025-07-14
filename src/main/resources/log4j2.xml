@@ -9,6 +9,7 @@
             <PatternLayout pattern="${LOG_PATTERN}"/>
         </Console>
 
+        <!-- File logging (optional - can be disabled for containers) -->
         <RollingFile name="FileAppender" fileName="/app/logs/expense-tracker.log"
                      filePattern="/app/logs/expense-tracker-%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout pattern="${LOG_PATTERN}"/>
@@ -21,15 +22,17 @@
     </Appenders>
 
     <Loggers>
+        <!-- Console-only logging for containerized environments -->
         <Logger name="com.lavish.expensetracker.controller" level="DEBUG" additivity="false">
             <AppenderRef ref="ConsoleAppender"/>
+            <!-- Remove FileAppender reference for console-only logging -->
             <AppenderRef ref="FileAppender"/>
         </Logger>
 
         <Root level="INFO">
             <AppenderRef ref="ConsoleAppender"/>
+            <!-- Remove FileAppender reference for console-only logging -->
             <AppenderRef ref="FileAppender"/>
         </Root>
     </Loggers>
 </Configuration>
-

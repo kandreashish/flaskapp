@@ -3,11 +3,6 @@
 FROM --platform=$TARGETPLATFORM eclipse-temurin:17-jdk-jammy AS dependencies
 WORKDIR /app
 
-# Install build essentials for ARM64
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy only dependency-related files
 COPY gradlew .
 COPY gradlew.bat .
@@ -60,14 +55,15 @@ RUN groupadd -g 1000 appgroup && \
 # Copy the built JAR from build stage
 COPY --from=build /app/build/libs/*-SNAPSHOT.jar app.jar
 
-# Create directories with proper permissions
+# Create directories with proper permissions BEFORE switching users
 RUN mkdir -p /app/h2-data /app/logs /app/tmp && \
-    chown -R 1000:1000 /app && \
+    chown -R appuser:appgroup /app && \
     chmod -R 755 /app && \
-    chmod 777 /app/logs
+    chmod 755 /app/logs && \
+    chmod 666 /app/logs/* 2>/dev/null || true
 
 # Switch to non-root user
-USER 1000:1000
+USER appuser:appgroup
 
 # Expose port
 EXPOSE 3000
