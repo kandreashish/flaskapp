@@ -20,18 +20,31 @@ repositories {
     mavenCentral()
 }
 
+// Exclude unnecessary transitive dependencies to reduce build size
+configurations.all {
+    exclude(group = "org.springframework.boot", module = "spring-boot-starter-logging")
+    exclude(group = "ch.qos.logback", module = "logback-classic")
+}
+
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa") {
+        exclude(group = "org.apache.tomcat", module = "tomcat-jdbc")
+    }
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-    implementation("com.google.firebase:firebase-admin:9.5.0")
+    implementation("com.google.firebase:firebase-admin:9.5.0") {
+        exclude(group = "com.google.guava", module = "guava")
+    }
     implementation("io.jsonwebtoken:jjwt-api:0.12.3")
     implementation("io.jsonwebtoken:jjwt-impl:0.12.3")
     implementation("io.jsonwebtoken:jjwt-jackson:0.12.3")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+
+    // Use lighter logging
+    implementation("org.springframework.boot:spring-boot-starter-log4j2")
 
     // Swagger/OpenAPI dependencies
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
@@ -46,22 +59,36 @@ tasks.withType<KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs += "-Xjsr305=strict"
         jvmTarget = "17"
+        // Optimize for build speed on ARM
+        freeCompilerArgs += listOf(
+            "-Xuse-k2",
+            "-Xbackend-threads=2"
+        )
     }
 }
 
-tasks.withType<Test> {
-    useJUnitPlatform()
-}
-
-// ✅ Performance Enhancements for Raspberry Pi
+// ✅ Enhanced Performance for Raspberry Pi
 tasks.withType<JavaCompile> {
-    options.isIncremental = true // Speeds up rebuilds
+    options.isIncremental = true
+    options.isFork = true
+    options.forkOptions.jvmArgs = listOf("-Xmx512m")
 }
 
 tasks.withType<Jar> {
-    enabled = true // Ensure bootJar is the only jar built
+    enabled = true
+    archiveClassifier.set("plain")
 }
 
 tasks.withType<org.springframework.boot.gradle.tasks.bundling.BootJar> {
-    launchScript() // Adds launch script for easier container startup
+    launchScript()
+    // Optimize JAR creation
+    isZip64 = true
+    archiveClassifier.set("")
+}
+
+// Add build cache configuration
+tasks.withType<Test> {
+    useJUnitPlatform()
+    maxParallelForks = 1 // Limit for Raspberry Pi
+    systemProperty("file.encoding", "UTF-8")
 }

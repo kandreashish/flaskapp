@@ -8,6 +8,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Add build args for better caching
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      # Use BuildKit for faster builds
+      target: runtime
     ports:
       - "3000:3000"
     environment:
@@ -19,7 +24,8 @@ services:
       - SPRING_H2_CONSOLE_PATH=/h2-console
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_SQL_INIT_MODE=always
-      - JAVA_OPTS=-Xms128m -Xmx384m -XX:+UseG1GC -XX:G1HeapRegionSize=8m
+      # Optimized JVM settings for Raspberry Pi
+      - JAVA_OPTS=-Xms256m -Xmx448m -XX:+UseG1GC -XX:G1HeapRegionSize=4m -XX:+UseStringDeduplication
       - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=DEBUG
       - LOGGING_LEVEL_ROOT=INFO
       - LOGGING_FILE_NAME=/app/logs/expense-tracker.log
@@ -27,18 +33,23 @@ services:
     volumes:
       - h2-data:/app/h2-data
       - ./logs:/app/logs:rw
+      # Add Gradle cache volume for faster rebuilds
+      - gradle-cache:/root/.gradle
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
     deploy:
       resources:
         limits:
-          cpus: '0.9'
-          memory: 512M
+          cpus: '1.5'  # Increased for better build performance
+          memory: 768M  # Increased for build process
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     security_opt:
       - no-new-privileges:true
     init: true
