@@ -20,7 +20,7 @@ repositories {
     mavenCentral()
 }
 
-// Exclude unnecessary transitive dependencies to reduce build size
+// Exclude only unnecessary logging dependencies, keep Guava for Firebase
 configurations.all {
     exclude(group = "org.springframework.boot", module = "spring-boot-starter-logging")
     exclude(group = "ch.qos.logback", module = "logback-classic")
@@ -35,9 +35,11 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-    implementation("com.google.firebase:firebase-admin:9.5.0") {
-        exclude(group = "com.google.guava", module = "guava")
-    }
+
+    // Firebase with explicit Guava dependency to prevent conflicts
+    implementation("com.google.firebase:firebase-admin:9.5.0")
+    implementation("com.google.guava:guava:32.1.3-jre") // Explicit Guava version compatible with Firebase
+
     implementation("io.jsonwebtoken:jjwt-api:0.12.3")
     implementation("io.jsonwebtoken:jjwt-impl:0.12.3")
     implementation("io.jsonwebtoken:jjwt-jackson:0.12.3")
