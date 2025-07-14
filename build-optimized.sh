@@ -21,7 +21,7 @@ docker system prune -f --volumes
 
 # Pre-warm Gradle daemon and download dependencies
 echo "📦 Pre-warming Gradle and downloading dependencies..."
-./gradlew --daemon dependencies --parallel --build-cache
+./gradlew --daemon dependencies --parallel --build-cache --quiet
 
 # Build with optimized settings
 echo "🔨 Building JAR with optimized settings..."
