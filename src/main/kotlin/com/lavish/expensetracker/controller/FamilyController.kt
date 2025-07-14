@@ -83,6 +83,12 @@ class FamilyController @Autowired constructor(
         val requesterEmail: String
     )
 
+    data class CancelInvitationRequest(
+        @field:NotBlank(message = "Email is required")
+        @field:Email(message = "Valid email is required")
+        val invitedMemberEmail: String
+    )
+
     // Validation helper methods
     private fun validateFamilyName(familyName: String): String? {
         return when {
@@ -952,6 +958,85 @@ class FamilyController @Autowired constructor(
             headUser.name ?: headUser.email,
             headUser.id,
             NotificationType.OTHER,
+            family.aliasName
+        )
+        notificationRepository.save(notification)
+    }
+
+    @PostMapping("/cancel-invitation")
+    fun cancelInvitation(@Valid @RequestBody request: CancelInvitationRequest): ResponseEntity<*> {
+        logger.info("Cancelling invitation for member with email: ${request.invitedMemberEmail}")
+
+        return try {
+            validateEmail(request.invitedMemberEmail)?.let { error ->
+                return ApiResponseUtil.badRequest(error)
+            }
+
+            val currentUserId = authUtil.getCurrentUserId()
+            val headUser = userRepository.findById(currentUserId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(currentUserId, "cancel invitation"))
+
+            val familyId = headUser.familyId
+                ?: return ApiResponseUtil.badRequest(logUserNotInFamily(currentUserId, "cancel invitation"))
+
+            val family = familyRepository.findById(familyId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logFamilyNotFound(familyId, "cancel invitation"))
+
+            if (family.headId != currentUserId) {
+                return ApiResponseUtil.forbidden(logNotFamilyHead(currentUserId, family.headId, "cancel invitation"))
+            }
+
+            if (!family.pendingMemberEmails.contains(request.invitedMemberEmail)) {
+                return ApiResponseUtil.notFound("No pending invitation found for this email")
+            }
+
+            val updatedFamily = family.copy(
+                pendingMemberEmails = (family.pendingMemberEmails - request.invitedMemberEmail).toMutableList(),
+                updatedAt = System.currentTimeMillis()
+            )
+            familyRepository.save(updatedFamily)
+
+            // Notify the user about cancellation
+            val invitedUser = findUserByEmail(request.invitedMemberEmail)
+            if (invitedUser != null) {
+                notifyInvitationCancelled(invitedUser, family, headUser)
+            }
+
+            logger.info("Invitation cancelled successfully")
+            ResponseEntity.ok(mapOf("message" to "Invitation cancelled successfully"))
+        } catch (ex: Exception) {
+            logger.error("Exception in cancelInvitation", ex)
+            ApiResponseUtil.internalServerError("An error occurred while cancelling invitation")
+        }
+    }
+
+    private fun notifyInvitationCancelled(user: Any, family: Family, headUser: Any) {
+        val title = "Invitation Cancelled"
+        val message = "The invitation to join the family '${family.name}' has been cancelled."
+
+        val data = mapOf(
+            "alias_name" to family.aliasName,
+            "family_name" to family.name,
+            "sender_name" to (headUser as com.lavish.expensetracker.model.ExpenseUser).email,
+            "sender_id" to headUser.id,
+            "type" to NotificationType.FAMILY_INVITE.name
+        )
+
+        sendPushNotification(
+            (user as com.lavish.expensetracker.model.ExpenseUser).fcmToken,
+            title,
+            message,
+            data,
+            user.email
+        )
+
+        val notification = createNotification(
+            title,
+            message,
+            family.familyId,
+            headUser.name ?: headUser.email,
+            headUser.id,
+            NotificationType.FAMILY_INVITE,
             family.aliasName
         )
         notificationRepository.save(notification)
