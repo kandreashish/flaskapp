@@ -75,6 +75,7 @@ fi
 
 # Start the application with docker-compose
 echo "🚀 Starting application with docker-compose..."
+docker-compose down
 docker-compose up
 
 echo "🎉 All done! Your application is now running."
