@@ -31,18 +31,12 @@ echo "🔨 Building JAR with optimized settings..."
   -Dorg.gradle.jvmargs="-Xmx768m -XX:MaxMetaspaceSize=256m" \
   -Dkotlin.compiler.execution.strategy=in-process
 
-# Build Docker image with BuildKit optimizations
+# Build Docker image with simplified cache (compatible with default driver)
 echo "🐳 Building Docker image..."
-docker buildx build \
+docker build \
   --platform linux/arm64 \
-  --cache-from type=local,src=/tmp/.buildx-cache \
-  --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
   --tag expense-tracker:latest \
   .
-
-# Move cache to avoid infinite growth
-rm -rf /tmp/.buildx-cache
-mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
 echo "✅ Build completed successfully!"
 echo "📊 Build artifacts:"
