@@ -19,11 +19,7 @@ echo "🧹 Cleaning up previous builds..."
 docker system prune -f --volumes
 ./gradlew clean
 
-# Pre-warm Gradle daemon and download dependencies
-echo "📦 Pre-warming Gradle and downloading dependencies..."
-./gradlew --daemon dependencies --parallel --build-cache --quiet
-
-# Build with optimized settings
+# Build with optimized settings (removed dependency tree logging)
 echo "🔨 Building JAR with optimized settings..."
 ./gradlew bootJar \
   --daemon \
@@ -31,6 +27,7 @@ echo "🔨 Building JAR with optimized settings..."
   --build-cache \
   --max-workers=2 \
   --console=plain \
+  --quiet \
   -Dorg.gradle.jvmargs="-Xmx768m -XX:MaxMetaspaceSize=256m" \
   -Dkotlin.compiler.execution.strategy=in-process
 
