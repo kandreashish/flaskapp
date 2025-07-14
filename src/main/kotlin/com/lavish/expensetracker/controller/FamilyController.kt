@@ -10,14 +10,12 @@ import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.util.ApiResponseUtil
 import com.lavish.expensetracker.util.AuthUtil
 import io.swagger.v3.oas.annotations.Operation
-import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
-import io.swagger.v3.oas.annotations.media.ExampleObject
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
-import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
@@ -105,7 +103,7 @@ class FamilyController @Autowired constructor(
 
     data class BasicFamilySuccessResponse(
         val message: String,
-        val family: Family
+        val family: Map<String, Any>
     )
 
     // Validation helper methods
@@ -409,8 +407,15 @@ class FamilyController @Autowired constructor(
 
                 userRepository.save(user.copy(familyId = null, updatedAt = System.currentTimeMillis()))
                 logger.info("User $userId successfully left family $familyId")
+                val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
 
-                ResponseEntity.ok(BasicFamilySuccessResponse("Left family successfully", updatedFamily))
+                val response = mapOf(
+                    "family" to updatedFamily,
+                    "members" to members
+                )
+
+
+                ResponseEntity.ok(BasicFamilySuccessResponse("Left family successfully", response))
             }
         } catch (ex: Exception) {
             logger.error("Exception in leaveFamily", ex)
@@ -510,8 +515,15 @@ class FamilyController @Autowired constructor(
             // Send invitation notification
             sendInvitationNotification(invitedUser, family, headUser)
 
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to updatedFamily,
+                "members" to members
+            )
+
             logger.info("Member invitation completed successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation sent to ${request.invitedMemberEmail} and is pending acceptance", updatedFamily))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation sent to ${request.invitedMemberEmail} and is pending acceptance", response))
         } catch (ex: Exception) {
             logger.error("Exception in inviteMember", ex)
             ApiResponseUtil.internalServerError("An error occurred while inviting member")
@@ -641,9 +653,15 @@ class FamilyController @Autowired constructor(
 
             // Notify family head
             notifyFamilyHeadOfJoinRequest(family, user)
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to family,
+                "members" to members
+            )
 
             logger.info("Join request completed successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Join request sent to family head", updatedFamily))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Join request sent to family head", response))
         } catch (ex: Exception) {
             logger.error("Exception in requestToJoinFamily", ex)
             ApiResponseUtil.internalServerError("An error occurred while requesting to join family")
@@ -739,6 +757,7 @@ class FamilyController @Autowired constructor(
                 pendingJoinRequests = (family.pendingJoinRequests - request.requesterEmail).toMutableList(),
                 updatedAt = System.currentTimeMillis()
             )
+
             familyRepository.save(updatedFamily)
 
             userRepository.save(userToAdd.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
@@ -746,8 +765,15 @@ class FamilyController @Autowired constructor(
             // Notify the user
             notifyJoinRequestAccepted(userToAdd, family, headUser)
 
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to family,
+                "members" to members
+            )
+
             logger.info("Join request accepted successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("User added to family and notified", updatedFamily))
+            ResponseEntity.ok(BasicFamilySuccessResponse("User added to family and notified", response))
         } catch (ex: Exception) {
             logger.error("Exception in acceptJoinRequest", ex)
             ApiResponseUtil.internalServerError("An error occurred while accepting join request")
@@ -853,9 +879,15 @@ class FamilyController @Autowired constructor(
 
             // Notify the head
             notifyInvitationAccepted(user, family)
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to updatedFamily,
+                "members" to members
+            )
 
             logger.info("Family invitation accepted successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Joined family and head notified", updatedFamily))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Joined family and head notified", response))
         } catch (ex: Exception) {
             logger.error("Exception in acceptFamilyInvitation", ex)
             ApiResponseUtil.internalServerError("An error occurred while accepting invitation")
@@ -939,9 +971,15 @@ class FamilyController @Autowired constructor(
             if (requesterUser != null) {
                 notifyJoinRequestRejected(requesterUser, family, headUser)
             }
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to updatedFamily,
+                "members" to members
+            )
 
             logger.info("Join request rejected successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Join request rejected successfully", updatedFamily))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Join request rejected successfully", response))
         } catch (ex: Exception) {
             logger.error("Exception in rejectJoinRequest", ex)
             ApiResponseUtil.internalServerError("An error occurred while rejecting join request")
@@ -1038,9 +1076,16 @@ class FamilyController @Autowired constructor(
 
             // Notify the removed member
             notifyMemberRemoved(memberToRemove, family, headUser)
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to updatedFamily,
+                "members" to members
+            )
+
 
             logger.info("Member removed successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Member removed from family successfully", updatedFamily))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Member removed from family successfully", response))
         } catch (ex: Exception) {
             logger.error("Exception in removeFamilyMember", ex)
             ApiResponseUtil.internalServerError("An error occurred while removing family member")
@@ -1127,9 +1172,15 @@ class FamilyController @Autowired constructor(
             if (invitedUser != null) {
                 notifyInvitationCancelled(invitedUser, family, headUser)
             }
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to updatedFamily,
+                "members" to members
+            )
 
             logger.info("Invitation cancelled successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation cancelled successfully", updatedFamily))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation cancelled successfully", response))
         } catch (ex: Exception) {
             logger.error("Exception in cancelInvitation", ex)
             ApiResponseUtil.internalServerError("An error occurred while cancelling invitation")
@@ -1184,7 +1235,14 @@ class FamilyController @Autowired constructor(
             sendInvitationNotification(invitedUser, family, headUser)
 
             logger.info("Invitation resent successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation resent to ${request.invitedMemberEmail} successfully", family))
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to family,
+                "members" to members
+            )
+
+            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation resent to ${request.invitedMemberEmail} successfully", response))
         } catch (ex: Exception) {
             logger.error("Exception in resendInvitation", ex)
             ApiResponseUtil.internalServerError("An error occurred while resending invitation")
