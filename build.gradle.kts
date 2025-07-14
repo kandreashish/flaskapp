@@ -58,14 +58,11 @@ dependencies {
 }
 
 tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs += "-Xjsr305=strict"
-        jvmTarget = "17"
-        // Optimize for build speed on ARM
-        freeCompilerArgs += listOf(
-            "-language-version 2.0",
-            "-Xbackend-threads=2"
-        )
+    compilerOptions {
+        freeCompilerArgs.addAll("-Xjsr305=strict")
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        // Now with Kotlin 2.2.0, we can properly use language version 2.0 features
+        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
     }
 }
 
