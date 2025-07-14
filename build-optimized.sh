@@ -14,9 +14,12 @@ echo "🚀 Starting optimized build for Raspberry Pi..."
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
-# Clean up previous builds to free space
+# Clean up previous builds to free space (optimized to preserve caches)
 echo "🧹 Cleaning up previous builds..."
-docker system prune -f --volumes
+# Remove only stopped containers and dangling images (preserve volumes and cache)
+docker container prune -f
+docker image prune -f --filter "dangling=true"
+# Only remove build artifacts, not gradle cache
 ./gradlew clean
 
 # Build with optimized settings (removed dependency tree logging)
