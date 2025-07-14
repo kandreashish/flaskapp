@@ -31,6 +31,14 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
                     .requestMatchers("/h2-console/**").permitAll() // H2 console
                     .requestMatchers("/error").permitAll() // Error page
                     .requestMatchers("/actuator/health").permitAll() // Health check
+
+                    // Swagger/OpenAPI endpoints
+                    .requestMatchers("/v3/api-docs/**").permitAll()
+                    .requestMatchers("/swagger-ui/**").permitAll()
+                    .requestMatchers("/swagger-ui.html").permitAll()
+                    .requestMatchers("/swagger-resources/**").permitAll()
+                    .requestMatchers("/webjars/**").permitAll()
+
                     // All other requests require authentication
                     .anyRequest().authenticated()
             }

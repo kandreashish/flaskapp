@@ -9,6 +9,15 @@ import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.util.ApiResponseUtil
 import com.lavish.expensetracker.util.AuthUtil
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
+import io.swagger.v3.oas.annotations.tags.Tag
+import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
@@ -21,6 +30,11 @@ import java.util.*
 
 @RestController
 @RequestMapping("/api/family")
+@Tag(
+    name = "Family Management",
+    description = "Complete family management API including creation, member management, invitations, and join requests"
+)
+@SecurityRequirement(name = "Bearer Authentication")
 class FamilyController @Autowired constructor(
     private val familyRepository: FamilyRepository,
     private val userRepository: ExpenseUserRepository,
@@ -87,6 +101,11 @@ class FamilyController @Autowired constructor(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
         val invitedMemberEmail: String
+    )
+
+    data class BasicFamilySuccessResponse(
+        val message: String,
+        val family: Family
     )
 
     // Validation helper methods
@@ -204,6 +223,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/create")
+    @Operation(summary = "Create a new family", description = "Allows a user to create a new family with a unique name")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Family created successfully", content = [Content(mediaType = "application/json", schema = Schema(implementation = Family::class))]),
+            ApiResponse(responseCode = "400", description = "Invalid input", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, user already in family", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun createFamily(@Valid @RequestBody request: CreateFamilyRequest): ResponseEntity<*> {
         logger.info("Creating family with name: ${request.familyName}")
 
@@ -272,6 +301,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/join")
+    @Operation(summary = "Join an existing family", description = "Allows a user to join a family using the family's alias")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Successfully joined the family", content = [Content(mediaType = "application/json", schema = Schema(implementation = Family::class))]),
+            ApiResponse(responseCode = "400", description = "Invalid input", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, family is full or user already in family", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun joinFamily(@Valid @RequestBody request: JoinFamilyRequest): ResponseEntity<*> {
         logger.info("User attempting to join family with alias: ${request.aliasName}")
 
@@ -321,6 +360,15 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/leave")
+    @Operation(summary = "Leave the current family", description = "Allows a user to leave their current family")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Successfully left the family", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "400", description = "Invalid request", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun leaveFamily(): ResponseEntity<*> {
         logger.info("User attempting to leave family")
 
@@ -344,26 +392,26 @@ class FamilyController @Autowired constructor(
             if (newMembers.isEmpty()) {
                 familyRepository.delete(family)
                 logger.info("Family $familyId deleted as no members remain")
+                ResponseEntity.ok(mapOf("message" to "Left family successfully - family deleted as no members remain"))
             } else {
                 val newHeadId = if (family.headId == userId) newMembers.first() else family.headId
-                familyRepository.save(
-                    family.copy(
-                        membersIds = newMembers,
-                        headId = newHeadId,
-                        updatedAt = System.currentTimeMillis()
-                    )
+                val updatedFamily = family.copy(
+                    membersIds = newMembers,
+                    headId = newHeadId,
+                    updatedAt = System.currentTimeMillis()
                 )
+                familyRepository.save(updatedFamily)
 
                 // Notify family head if user is leaving
                 if (family.headId != userId) {
                     notifyFamilyHead(family, user, "has left the family")
                 }
+
+                userRepository.save(user.copy(familyId = null, updatedAt = System.currentTimeMillis()))
+                logger.info("User $userId successfully left family $familyId")
+
+                ResponseEntity.ok(BasicFamilySuccessResponse("Left family successfully", updatedFamily))
             }
-
-            userRepository.save(user.copy(familyId = null, updatedAt = System.currentTimeMillis()))
-            logger.info("User $userId successfully left family $familyId")
-
-            ResponseEntity.ok(mapOf("message" to "Left family successfully"))
         } catch (ex: Exception) {
             logger.error("Exception in leaveFamily", ex)
             ApiResponseUtil.internalServerError("An error occurred while leaving family")
@@ -371,6 +419,15 @@ class FamilyController @Autowired constructor(
     }
 
     @GetMapping("/details")
+    @Operation(summary = "Get family details", description = "Retrieves the details of the current user's family")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Family details retrieved successfully", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "400", description = "Invalid request", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun getFamilyDetails(): ResponseEntity<*> {
         logger.info("Getting family details")
 
@@ -401,6 +458,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/invite")
+    @Operation(summary = "Invite a member to the family", description = "Sends an invitation to a user to join the family")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Invitation sent successfully", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "400", description = "Invalid email format", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, user already in family or invitation pending", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun inviteMember(@Valid @RequestBody request: InviteMemberRequest): ResponseEntity<*> {
         logger.info("Inviting member with email: ${request.invitedMemberEmail}")
 
@@ -444,7 +511,7 @@ class FamilyController @Autowired constructor(
             sendInvitationNotification(invitedUser, family, headUser)
 
             logger.info("Member invitation completed successfully")
-            ResponseEntity.ok(mapOf("message" to "Invitation sent to ${request.invitedMemberEmail} and is pending acceptance"))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation sent to ${request.invitedMemberEmail} and is pending acceptance", updatedFamily))
         } catch (ex: Exception) {
             logger.error("Exception in inviteMember", ex)
             ApiResponseUtil.internalServerError("An error occurred while inviting member")
@@ -517,6 +584,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/request-join")
+    @Operation(summary = "Request to join a family", description = "Allows a user to request joining a family by sending a join request")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Join request sent successfully", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "400", description = "Invalid alias name", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, user already in family or request pending", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun requestToJoinFamily(@Valid @RequestBody request: JoinFamilyRequest): ResponseEntity<*> {
         logger.info("User requesting to join family with alias: ${request.aliasName}")
 
@@ -566,7 +643,7 @@ class FamilyController @Autowired constructor(
             notifyFamilyHeadOfJoinRequest(family, user)
 
             logger.info("Join request completed successfully")
-            ResponseEntity.ok(mapOf("message" to "Join request sent to family head"))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Join request sent to family head", updatedFamily))
         } catch (ex: Exception) {
             logger.error("Exception in requestToJoinFamily", ex)
             ApiResponseUtil.internalServerError("An error occurred while requesting to join family")
@@ -603,6 +680,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/accept-join-request")
+    @Operation(summary = "Accept a join request", description = "Allows the family head to accept a join request from a user")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Join request accepted and user added to family", content = [Content(mediaType = "application/json", schema = Schema(implementation = Family::class))]),
+            ApiResponse(responseCode = "400", description = "Invalid email format", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, user already in family or request not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun acceptJoinRequest(@Valid @RequestBody request: AcceptJoinRequestRequest): ResponseEntity<*> {
         logger.info("Accepting join request for: ${request.requesterEmail}")
 
@@ -660,7 +747,7 @@ class FamilyController @Autowired constructor(
             notifyJoinRequestAccepted(userToAdd, family, headUser)
 
             logger.info("Join request accepted successfully")
-            ResponseEntity.ok(mapOf("message" to "User added to family and notified"))
+            ResponseEntity.ok(BasicFamilySuccessResponse("User added to family and notified", updatedFamily))
         } catch (ex: Exception) {
             logger.error("Exception in acceptJoinRequest", ex)
             ApiResponseUtil.internalServerError("An error occurred while accepting join request")
@@ -700,6 +787,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/accept-invitation")
+    @Operation(summary = "Accept a family invitation", description = "Allows a user to accept an invitation to join a family")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Invitation accepted and user joined the family", content = [Content(mediaType = "application/json", schema = Schema(implementation = Family::class))]),
+            ApiResponse(responseCode = "400", description = "Invalid alias name", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, user already in family or invitation not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun acceptFamilyInvitation(@Valid @RequestBody request: JoinFamilyRequest): ResponseEntity<*> {
         logger.info("Accepting family invitation for alias: ${request.aliasName}")
 
@@ -758,13 +855,12 @@ class FamilyController @Autowired constructor(
             notifyInvitationAccepted(user, family)
 
             logger.info("Family invitation accepted successfully")
-            ResponseEntity.ok(mapOf("message" to "Joined family and head notified"))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Joined family and head notified", updatedFamily))
         } catch (ex: Exception) {
             logger.error("Exception in acceptFamilyInvitation", ex)
             ApiResponseUtil.internalServerError("An error occurred while accepting invitation")
         }
     }
-
 
     private fun notifyInvitationAccepted(user: Any, family: Family) {
         val headUser = userRepository.findById(family.headId).orElse(null) ?: return
@@ -790,12 +886,22 @@ class FamilyController @Autowired constructor(
             userName,
             user.id,
             NotificationType.FAMILY_JOIN,
-            family.aliasName,
+            family.aliasName
         )
         notificationRepository.save(notification)
     }
 
     @PostMapping("/reject-join-request")
+    @Operation(summary = "Reject a join request", description = "Allows the family head to reject a join request from a user")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Join request rejected successfully", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "400", description = "Invalid email format", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, request not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun rejectJoinRequest(@Valid @RequestBody request: RejectJoinRequestRequest): ResponseEntity<*> {
         logger.info("Rejecting join request for: ${request.requesterEmail}")
 
@@ -835,7 +941,7 @@ class FamilyController @Autowired constructor(
             }
 
             logger.info("Join request rejected successfully")
-            ResponseEntity.ok(mapOf("message" to "Join request rejected successfully"))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Join request rejected successfully", updatedFamily))
         } catch (ex: Exception) {
             logger.error("Exception in rejectJoinRequest", ex)
             ApiResponseUtil.internalServerError("An error occurred while rejecting join request")
@@ -875,6 +981,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/remove-member")
+    @Operation(summary = "Remove a member from the family", description = "Allows the family head to remove a member from the family")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Member removed successfully", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "400", description = "Invalid email format", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, member not in family", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun removeFamilyMember(@Valid @RequestBody request: RemoveMemberRequest): ResponseEntity<*> {
         logger.info("Removing member with email: ${request.memberEmail}")
 
@@ -924,7 +1040,7 @@ class FamilyController @Autowired constructor(
             notifyMemberRemoved(memberToRemove, family, headUser)
 
             logger.info("Member removed successfully")
-            ResponseEntity.ok(mapOf("message" to "Member removed from family successfully"))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Member removed from family successfully", updatedFamily))
         } catch (ex: Exception) {
             logger.error("Exception in removeFamilyMember", ex)
             ApiResponseUtil.internalServerError("An error occurred while removing family member")
@@ -964,6 +1080,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/cancel-invitation")
+    @Operation(summary = "Cancel an invitation", description = "Allows the family head to cancel a pending invitation")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Invitation cancelled successfully", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "400", description = "Invalid email format", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, no pending invitation found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun cancelInvitation(@Valid @RequestBody request: CancelInvitationRequest): ResponseEntity<*> {
         logger.info("Cancelling invitation for member with email: ${request.invitedMemberEmail}")
 
@@ -1003,7 +1129,7 @@ class FamilyController @Autowired constructor(
             }
 
             logger.info("Invitation cancelled successfully")
-            ResponseEntity.ok(mapOf("message" to "Invitation cancelled successfully"))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation cancelled successfully", updatedFamily))
         } catch (ex: Exception) {
             logger.error("Exception in cancelInvitation", ex)
             ApiResponseUtil.internalServerError("An error occurred while cancelling invitation")
@@ -1011,6 +1137,16 @@ class FamilyController @Autowired constructor(
     }
 
     @PostMapping("/resend-invitation")
+    @Operation(summary = "Resend an invitation", description = "Allows the family head to resend a pending invitation")
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "Invitation resent successfully", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "400", description = "Invalid email format", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "404", description = "User or family not found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "409", description = "Conflict, no pending invitation found", content = [Content(mediaType = "application/json")]),
+            ApiResponse(responseCode = "500", description = "Internal server error", content = [Content(mediaType = "application/json")])
+        ]
+    )
     fun resendInvitation(@Valid @RequestBody request: InviteMemberRequest): ResponseEntity<*> {
         logger.info("Resending invitation for member with email: ${request.invitedMemberEmail}")
 
@@ -1048,7 +1184,7 @@ class FamilyController @Autowired constructor(
             sendInvitationNotification(invitedUser, family, headUser)
 
             logger.info("Invitation resent successfully")
-            ResponseEntity.ok(mapOf("message" to "Invitation resent to ${request.invitedMemberEmail} successfully"))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation resent to ${request.invitedMemberEmail} successfully", family))
         } catch (ex: Exception) {
             logger.error("Exception in resendInvitation", ex)
             ApiResponseUtil.internalServerError("An error occurred while resending invitation")
