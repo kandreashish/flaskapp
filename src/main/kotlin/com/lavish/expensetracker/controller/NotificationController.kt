@@ -3,6 +3,7 @@ package com.lavish.expensetracker.controller
 import com.lavish.expensetracker.model.Notification
 import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.repository.NotificationRepository
+import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.util.AuthUtil
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.domain.PageRequest
@@ -14,6 +15,7 @@ import java.util.*
 @RequestMapping("/api/notifications")
 class NotificationController @Autowired constructor(
     private val notificationRepository: NotificationRepository,
+    private val familyRepository: FamilyRepository,
     private val authUtil: AuthUtil
 ) {
     companion object {
@@ -27,6 +29,13 @@ class NotificationController @Autowired constructor(
         @RequestParam(required = false) lastNotificationId: String?
     ): PagedResponse<Notification> {
         val userId = authUtil.getCurrentUserId()
+
+        // Get user's family - notifications are family-based
+        val family = familyRepository.findByMembersIdsContains(userId)
+            ?: familyRepository.findByHeadId(userId)
+            ?: throw RuntimeException("User is not a member of any family")
+
+        val familyId = family.familyId
 
         // Validate size parameter
         val validatedSize = when {
@@ -42,12 +51,12 @@ class NotificationController @Autowired constructor(
             val cursorNotification = notificationRepository.findById(lastNotificationId)
                 .orElseThrow { RuntimeException("Cursor notification not found with id: $lastNotificationId") }
 
-            notificationRepository.findBySenderIdAndCreatedAtLessThanOrderByCreatedAtDesc(
-                userId, cursorNotification.createdAt, pageable
+            notificationRepository.findByFamilyIdAndCreatedAtLessThanOrderByCreatedAtDesc(
+                familyId, cursorNotification.createdAt, pageable
             )
         } else {
-            // First page: get latest notifications
-            notificationRepository.findBySenderIdOrderByCreatedAtDesc(userId, pageable)
+            // First page: get latest notifications for the user's family
+            notificationRepository.findByFamilyIdOrderByCreatedAtDesc(familyId, pageable)
         }
 
         return PagedResponse(
