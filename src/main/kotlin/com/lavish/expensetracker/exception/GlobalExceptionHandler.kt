@@ -45,7 +45,7 @@ class GlobalExceptionHandler {
     fun handleGenericException(ex: Exception): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
             error = "INTERNAL_SERVER_ERROR",
-            message = "An unexpected error occurred. Please try again later."
+            message = ex.message ?: "An unexpected error occurred. Please try again later."
         )
         return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
     }
@@ -100,7 +100,7 @@ class GlobalExceptionHandler {
     fun handleDataAccessException(ex: DataAccessException): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
             error = "DATABASE_ERROR",
-            message = "Database operation failed. Please try again later."
+            message = ex.message ?: "Database operation failed. Please try again later."
         )
         return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
     }
@@ -109,7 +109,7 @@ class GlobalExceptionHandler {
     fun handleHttpMessageNotReadableException(ex: HttpMessageNotReadableException): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
             error = "INVALID_JSON",
-            message = "Invalid JSON format in request body"
+            message = ex.message ?: "Invalid JSON format in request body"
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
@@ -118,7 +118,7 @@ class GlobalExceptionHandler {
     fun handleNoHandlerFoundException(ex: NoHandlerFoundException): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
             error = "NOT_FOUND",
-            message = "API endpoint not found: ${ex.requestURL}"
+            message = ex.message ?: "API endpoint not found: ${ex.requestURL}"
         )
         return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
     }

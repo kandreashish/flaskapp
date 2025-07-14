@@ -2,6 +2,8 @@ package com.lavish.expensetracker.repository
 
 import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.model.PagedResponse
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Repository
 
 @Repository
@@ -18,4 +20,7 @@ interface ExpenseRepository {
     // New authentication-aware methods
     fun findByUserIdAndCategory(userId: String, category: String, page: Int, size: Int): PagedResponse<ExpenseDto>
     fun findByUserIdAndDateBetween(userId: String, startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto>
+
+    // Missing method for family expenses with Spring Data pagination
+    fun findByFamilyIdOrUserFamilyId(familyId: String, pageable: Pageable): Page<ExpenseDto>
 }
