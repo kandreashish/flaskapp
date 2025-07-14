@@ -1010,6 +1010,51 @@ class FamilyController @Autowired constructor(
         }
     }
 
+    @PostMapping("/resend-invitation")
+    fun resendInvitation(@Valid @RequestBody request: InviteMemberRequest): ResponseEntity<*> {
+        logger.info("Resending invitation for member with email: ${request.invitedMemberEmail}")
+
+        return try {
+            validateEmail(request.invitedMemberEmail)?.let { error ->
+                return ApiResponseUtil.badRequest(error)
+            }
+
+            val currentUserId = authUtil.getCurrentUserId()
+            val headUser = userRepository.findById(currentUserId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(currentUserId, "resend invitation"))
+
+            val familyId = headUser.familyId
+                ?: return ApiResponseUtil.badRequest(logUserNotInFamily(currentUserId, "resend invitation"))
+
+            val family = familyRepository.findById(familyId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logFamilyNotFound(familyId, "resend invitation"))
+
+            if (family.headId != currentUserId) {
+                return ApiResponseUtil.forbidden(logNotFamilyHead(currentUserId, family.headId, "resend invitation"))
+            }
+
+            if (!family.pendingMemberEmails.contains(request.invitedMemberEmail)) {
+                return ApiResponseUtil.notFound("No pending invitation found for this email. Please send a new invitation instead.")
+            }
+
+            val invitedUser = findUserByEmail(request.invitedMemberEmail)
+                ?: return ApiResponseUtil.notFound("Invited user not found")
+
+            if (invitedUser.familyId != null) {
+                return ApiResponseUtil.conflict("Invited user already belongs to a family")
+            }
+
+            // Resend invitation notification
+            sendInvitationNotification(invitedUser, family, headUser)
+
+            logger.info("Invitation resent successfully")
+            ResponseEntity.ok(mapOf("message" to "Invitation resent to ${request.invitedMemberEmail} successfully"))
+        } catch (ex: Exception) {
+            logger.error("Exception in resendInvitation", ex)
+            ApiResponseUtil.internalServerError("An error occurred while resending invitation")
+        }
+    }
+
     private fun notifyInvitationCancelled(user: Any, family: Family, headUser: Any) {
         val title = "Invitation Cancelled"
         val message = "The invitation to join the family '${family.name}' has been cancelled."
