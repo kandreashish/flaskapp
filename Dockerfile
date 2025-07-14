@@ -72,7 +72,7 @@ USER 1000:1000
 # Expose port
 EXPOSE 3000
 
-# Optimized JVM settings for Raspberry Pi
+# Fixed JVM settings for Java 17 on Raspberry Pi
 ENTRYPOINT ["tini", "--", "java", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=75.0", \
@@ -80,8 +80,6 @@ ENTRYPOINT ["tini", "--", "java", \
     "-XX:G1HeapRegionSize=4m", \
     "-XX:+UseStringDeduplication", \
     "-XX:+OptimizeStringConcat", \
-    "-XX:+UnlockExperimentalVMOptions", \
-    "-XX:+UseCGroupMemoryLimitForHeap", \
     "-Djava.security.egd=file:/dev/./urandom", \
     "-Dspring.jmx.enabled=false", \
     "-Djava.io.tmpdir=/app/tmp", \
