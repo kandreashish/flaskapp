@@ -507,9 +507,9 @@ class ExpenseController(
 
             // Send FCM notification
             sendExpenseNotification(
-                type = NotificationType.EXPENSE_CREATED,
-                title = "Expense Created",
-                body = "New expense: ${expense.description} - $${expense.amount}",
+                type = NotificationType.EXPENSE_ADDED,
+                title = "New Expense Added",
+                body = "${currentUser.name} added expense: ${expense.description} - $${expense.amount}",
                 expense = createdExpense,
                 user = currentUser,
                 amount = expense.amount,
@@ -617,7 +617,7 @@ class ExpenseController(
             sendExpenseNotification(
                 type = NotificationType.EXPENSE_UPDATED,
                 title = "Expense Updated",
-                body = "Updated expense: ${expense.description} - $${expense.amount}",
+                body = "${currentUser.name} updated expense: ${expense.description} - $${expense.amount}",
                 expense = updatedExpense,
                 user = currentUser,
                 amount = expense.amount,
@@ -685,7 +685,7 @@ class ExpenseController(
                 sendExpenseNotification(
                     type = NotificationType.EXPENSE_DELETED,
                     title = "Expense Deleted",
-                    body = "Deleted expense: ${existingExpense.description} - $${existingExpense.amount}",
+                    body = "${currentUser.name} deleted expense: ${existingExpense.description} - $${existingExpense.amount}",
                     expense = existingExpense,
                     user = currentUser,
                     amount = existingExpense.amount,

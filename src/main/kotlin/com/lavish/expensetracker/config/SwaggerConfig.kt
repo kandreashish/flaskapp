@@ -17,6 +17,7 @@ class SwaggerConfig {
     @Bean
     fun customOpenAPI(): OpenAPI {
         return OpenAPI()
+            .openapi("3.0.3")  // Add the required OpenAPI version
             .info(
                 Info()
                     .title("Family Expense Tracker API")

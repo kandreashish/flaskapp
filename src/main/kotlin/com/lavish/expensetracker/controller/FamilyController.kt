@@ -660,7 +660,7 @@ class FamilyController @Autowired constructor(
             "invited_member_email" to headUser.email,
             "sender_name" to (headUser.name ?: ""),
             "sender_id" to headUser.id,
-            "type" to NotificationType.FAMILY_INVITE.name
+            "type" to NotificationType.JOIN_FAMILY_INVITATION.name
         )
 
         sendPushNotification(
@@ -677,7 +677,7 @@ class FamilyController @Autowired constructor(
             family.familyId,
             headUser.name ?: headUser.email,
             headUser.id,
-            NotificationType.FAMILY_INVITE,
+            NotificationType.JOIN_FAMILY_INVITATION,
             family.aliasName,
             true
         )
@@ -752,6 +752,7 @@ class FamilyController @Autowired constructor(
         logger.info("User requesting to join family with alias: ${request.aliasName}")
 
         return try {
+            // Validate alias name
             validateAliasName(request.aliasName)?.let { error ->
                 return ApiResponseUtil.badRequest(error)
             }
@@ -823,7 +824,7 @@ class FamilyController @Autowired constructor(
             "requester_email" to user.email,
             "sender_id" to user.id,
             "sender_name" to userName,
-            "type" to NotificationType.FAMILY_JOIN.name
+            "type" to NotificationType.JOIN_FAMILY_REQUEST.name
         )
 
         sendPushNotification(headUser.fcmToken, title, message, data, headUser.email)
@@ -834,7 +835,7 @@ class FamilyController @Autowired constructor(
             family.familyId,
             userName,
             user.id,
-            NotificationType.FAMILY_JOIN,
+            NotificationType.JOIN_FAMILY_REQUEST,
             family.aliasName
         )
         notificationRepository.save(notification)
@@ -956,7 +957,7 @@ class FamilyController @Autowired constructor(
             "sender_email" to (headUser as ExpenseUser).email,
             "sender_id" to headUser.id,
             "sender_name" to (headUser.name ?: ""),
-            "type" to NotificationType.FAMILY_JOIN.name
+            "type" to NotificationType.JOIN_FAMILY_REQUEST_ACCEPTED.name
         )
 
         sendPushNotification(
@@ -973,7 +974,7 @@ class FamilyController @Autowired constructor(
             family.familyId,
             headUser.name ?: headUser.email,
             headUser.id,
-            NotificationType.FAMILY_JOIN,
+            NotificationType.JOIN_FAMILY_REQUEST_ACCEPTED,
             family.aliasName
         )
         notificationRepository.save(notification)
@@ -1067,8 +1068,12 @@ class FamilyController @Autowired constructor(
 
             userRepository.save(user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
 
+            // Get the family head user for notification
+            val headUser = userRepository.findById(family.headId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(family.headId, "accept family invitation"))
+
             // Notify the head
-            notifyInvitationAccepted(user, family)
+            notifyInvitationAccepted(user, family, headUser)
             val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
 
             val response = mapOf(
@@ -1084,10 +1089,8 @@ class FamilyController @Autowired constructor(
         }
     }
 
-    private fun notifyInvitationAccepted(user: Any, family: Family) {
-        val headUser = userRepository.findById(family.headId).orElse(null) ?: return
-        val userName = (user as ExpenseUser).name ?: user.email
-
+    private fun notifyInvitationAccepted(user: ExpenseUser, family: Family, headUser: ExpenseUser) {
+        val userName = user.name ?: user.email
         val title = "Invitation Accepted"
         val message = "$userName (${user.email}) has accepted your invitation to join the family '${family.name}'."
 
@@ -1097,7 +1100,7 @@ class FamilyController @Autowired constructor(
             "family_name" to family.name,
             "sender_email" to user.email,
             "sender_id" to user.id,
-            "type" to NotificationType.FAMILY_JOIN.name
+            "type" to NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED.name
         )
 
         sendPushNotification(headUser.fcmToken, title, message, data, headUser.email)
@@ -1108,7 +1111,7 @@ class FamilyController @Autowired constructor(
             family.familyId,
             userName,
             user.id,
-            NotificationType.FAMILY_JOIN,
+            NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED,
             family.aliasName
         )
         notificationRepository.save(notification)
@@ -1210,7 +1213,7 @@ class FamilyController @Autowired constructor(
             "sender_email" to (headUser as ExpenseUser).email,
             "sender_name" to (headUser.name ?: ""),
             "sender_id" to headUser.id,
-            "type" to NotificationType.FAMILY_INVITE.name
+            "type" to NotificationType.JOIN_FAMILY_REQUEST_REJECTED.name
         )
 
         sendPushNotification(
@@ -1227,7 +1230,7 @@ class FamilyController @Autowired constructor(
             family.familyId,
             headUser.name ?: headUser.email,
             headUser.id,
-            NotificationType.FAMILY_INVITE,
+            NotificationType.JOIN_FAMILY_REQUEST_REJECTED,
             family.aliasName
         )
         notificationRepository.save(notification)
@@ -1340,7 +1343,7 @@ class FamilyController @Autowired constructor(
             "sender_email" to (headUser as ExpenseUser).email,
             "sender_name" to (headUser.name ?: ""),
             "sender_id" to headUser.id,
-            "type" to NotificationType.OTHER.name
+            "type" to NotificationType.FAMILY_MEMBER_REMOVED.name
         )
 
         sendPushNotification(
@@ -1357,7 +1360,7 @@ class FamilyController @Autowired constructor(
             family.familyId,
             headUser.name ?: headUser.email,
             headUser.id,
-            NotificationType.OTHER,
+            NotificationType.FAMILY_MEMBER_REMOVED,
             family.aliasName
         )
         notificationRepository.save(notification)
@@ -1543,7 +1546,7 @@ class FamilyController @Autowired constructor(
             "sender_email" to (headUser as ExpenseUser).email,
             "sender_name" to (headUser.name ?: ""),
             "sender_id" to headUser.id,
-            "type" to NotificationType.FAMILY_INVITE.name
+            "type" to NotificationType.JOIN_FAMILY_INVITATION_CANCELLED.name
         )
 
         sendPushNotification(
@@ -1560,9 +1563,128 @@ class FamilyController @Autowired constructor(
             family.familyId,
             headUser.name ?: headUser.email,
             headUser.id,
-            NotificationType.FAMILY_INVITE,
+            NotificationType.JOIN_FAMILY_INVITATION_CANCELLED,
             family.aliasName
         )
         notificationRepository.save(notification)
     }
+
+    @PostMapping("/reject-invitation")
+    @Operation(
+        summary = "Reject a family invitation",
+        description = "Allows a user to reject an invitation to join a family"
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Invitation rejected successfully",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "400",
+                description = "Bad request or user not invited to this family",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "404",
+                description = "User or family not found",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "500",
+                description = "Internal server error",
+                content = [Content(mediaType = "application/json")]
+            )
+        ]
+    )
+    fun rejectInvitation(@Valid @RequestBody request: JoinFamilyRequest): ResponseEntity<*> {
+        logger.info("Rejecting family invitation for alias: ${request.aliasName}")
+
+        return try {
+            val userId = authUtil.getCurrentUserId()
+            val user = userRepository.findById(userId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "reject family invitation"))
+
+            // Check if user is already in a family
+            if (user.familyId != null) {
+                return ApiResponseUtil.badRequest("User is already part of a family")
+            }
+
+            // Find the family by alias
+            val family = familyRepository.findAll().find { it.aliasName == request.aliasName }
+                ?: return ApiResponseUtil.notFound(
+                    logFamilyNotFoundByAlias(
+                        request.aliasName,
+                        "reject family invitation"
+                    )
+                )
+
+            // Check if the user has a pending invitation for this family
+            if (!family.pendingMemberEmails.contains(user.email)) {
+                return ApiResponseUtil.badRequest("No pending invitation found for this user")
+            }
+
+            // Remove the user's email from pending invitations
+            val updatedFamily = family.copy(
+                pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
+                updatedAt = System.currentTimeMillis()
+            )
+            familyRepository.save(updatedFamily)
+
+            // Get family head user for notification
+            val headUser = userRepository.findById(family.headId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(family.headId, "reject family invitation"))
+
+            // Notify the family head about the rejection
+            sendInvitationRejectedNotification(user, updatedFamily, headUser)
+
+            val response = mapOf(
+                "message" to "Family invitation rejected successfully",
+                "familyName" to family.name,
+                "aliasName" to family.aliasName
+            )
+
+            logger.info("Family invitation rejected successfully")
+            ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation rejected successfully", response))
+
+        } catch (ex: Exception) {
+            logger.error("Exception in rejectInvitation", ex)
+            ApiResponseUtil.internalServerError("An error occurred while rejecting invitation")
+        }
+    }
+
+    // Helper method for sending invitation rejection notifications
+    private fun sendInvitationRejectedNotification(user: ExpenseUser, family: Family, headUser: ExpenseUser) {
+        val userName = user.name ?: user.email
+        val title = "Invitation Rejected"
+        val message = "$userName (${user.email}) has rejected your invitation to join the family '${family.name}'."
+
+        val data = mapOf(
+            "type" to "invitation_rejected",
+            "familyId" to family.familyId,
+            "familyName" to family.name,
+            "rejectedUserEmail" to user.email,
+            "rejectedUserName" to userName
+        )
+
+        pushNotificationService.sendNotificationWithData(
+            headUser.fcmToken,
+            title,
+            message,
+            data
+        )
+
+        val notification = createNotification(
+            title,
+            message,
+            family.familyId,
+            userName,
+            user.id,
+            NotificationType.JOIN_FAMILY_INVITATION_REJECTED,
+            family.aliasName
+        )
+        notificationRepository.save(notification)
+    }
+
 }
