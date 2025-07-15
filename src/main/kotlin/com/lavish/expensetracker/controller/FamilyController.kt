@@ -185,7 +185,7 @@ class FamilyController @Autowired constructor(
         actionable: Boolean = false
     ): Notification {
         return Notification(
-            id = UUID.randomUUID().toString(),
+            id = "${UUID.randomUUID()}-${System.currentTimeMillis()}", // More unique ID
             title = title,
             message = message,
             time = System.currentTimeMillis(),
@@ -671,17 +671,23 @@ class FamilyController @Autowired constructor(
             invitedUser.email
         )
 
-        val notification = createNotification(
-            title,
-            message,
-            family.familyId,
-            headUser.name ?: headUser.email,
-            headUser.id,
-            NotificationType.JOIN_FAMILY_INVITATION,
-            family.aliasName,
-            true
-        )
-        notificationRepository.save(notification)
+        try {
+            val notification = createNotification(
+                title,
+                message,
+                family.familyId,
+                headUser.name ?: headUser.email,
+                headUser.id,
+                NotificationType.JOIN_FAMILY_INVITATION,
+                family.aliasName,
+                true
+            )
+            notificationRepository.save(notification)
+            logger.info("Notification saved successfully for invitation")
+        } catch (ex: Exception) {
+            logger.error("Failed to save notification for invitation: ${ex.message}", ex)
+            // Don't fail the entire invitation process if notification saving fails
+        }
     }
 
     // Helper method for notifying family head
@@ -1103,14 +1109,20 @@ class FamilyController @Autowired constructor(
             "type" to NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED.name
         )
 
-        sendPushNotification(headUser.fcmToken, title, message, data, headUser.email)
+        sendPushNotification(
+            (user as ExpenseUser).fcmToken,
+            title,
+            message,
+            data,
+            user.email
+        )
 
         val notification = createNotification(
             title,
             message,
             family.familyId,
-            userName,
-            user.id,
+            headUser.name ?: headUser.email,
+            headUser.id,
             NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED,
             family.aliasName
         )
