@@ -450,7 +450,8 @@ class FamilyController @Autowired constructor(
             if (newMembers.isEmpty()) {
                 familyRepository.delete(family)
                 logger.info("Family $familyId deleted as no members remain")
-                ResponseEntity.ok(mapOf("message" to "Left family successfully - family deleted as no members remain"))
+                userRepository.save(user.copy(familyId = null, updatedAt = System.currentTimeMillis()))
+                ResponseEntity.ok(mapOf("message" to "Family deleted"))
             } else {
                 val newHeadId = if (family.headId == userId) newMembers.first() else family.headId
                 val updatedFamily = family.copy(
@@ -459,13 +460,11 @@ class FamilyController @Autowired constructor(
                     updatedAt = System.currentTimeMillis()
                 )
                 familyRepository.save(updatedFamily)
-
                 // Notify family head if user is leaving
                 if (family.headId != userId) {
                     notifyFamilyHead(family, user, "has left the family")
                 }
 
-                userRepository.save(user.copy(familyId = null, updatedAt = System.currentTimeMillis()))
                 logger.info("User $userId successfully left family $familyId")
                 val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
 
@@ -473,10 +472,10 @@ class FamilyController @Autowired constructor(
                     "family" to updatedFamily,
                     "members" to members
                 )
-
-
+                userRepository.save(user.copy(familyId = null, updatedAt = System.currentTimeMillis()))
                 ResponseEntity.ok(BasicFamilySuccessResponse("Left family successfully", response))
             }
+
         } catch (ex: Exception) {
             logger.error("Exception in leaveFamily", ex)
             ApiResponseUtil.internalServerError("An error occurred while leaving family")
