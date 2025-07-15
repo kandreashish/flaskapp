@@ -171,7 +171,7 @@ class FamilyController @Autowired constructor(
 
     // Optimized database operations
     private fun findUserByEmail(email: String) = userRepository.findAll().find { it.email == email }
-    private fun findFamilyByAlias(aliasName: String) = familyRepository.findAll().find { it.aliasName == aliasName }
+    private fun findFamilyByAlias(aliasName: String) = familyRepository.findByAliasName(aliasName)
 
     // Optimized notification creation
     private fun createNotification(

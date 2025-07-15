@@ -8,5 +8,6 @@ import org.springframework.stereotype.Repository
 interface FamilyRepository : JpaRepository<Family, String> {
     fun findByHeadId(headId: String): Family?
     fun findByMembersIdsContains(memberId: String): Family?
+    fun findByAliasName(aliasName: String): Family?
 }
 
