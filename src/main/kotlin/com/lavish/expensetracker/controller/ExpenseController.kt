@@ -189,7 +189,8 @@ class ExpenseController(
             val expenseOwner = userService.findById(expense.userId)
             if (expenseOwner != null &&
                 expenseOwner.familyId == currentUser.familyId &&
-                expenseOwner.familyId.isNotBlank()) {
+                expenseOwner.familyId.isNotBlank()
+            ) {
                 logger.debug("Family member ${currentUser.id} accessing expense $expenseId owned by ${expense.userId} in family ${currentUser.familyId}")
                 return expense
             }
@@ -691,7 +692,7 @@ class ExpenseController(
                     description = existingExpense.description
                 )
                 logger.info("Successfully deleted expense $id for user ${currentUser.id} (original owner: ${existingExpense.userId})")
-                ResponseEntity.noContent().build()
+                ResponseEntity.ok(mapOf("message" to "Expense Deleted Successfully"))
             } else {
                 logger.error("Failed to delete expense $id - deletion failed")
                 ResponseEntity.notFound().build()
