@@ -289,7 +289,16 @@ class FamilyController @Autowired constructor(
             userRepository.save(user.copy(familyId = familyId, updatedAt = System.currentTimeMillis()))
 
             logger.info("Family created successfully with ID: $familyId")
-            ResponseEntity.ok(family)
+
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to family,
+                "members" to members
+            )
+
+            ResponseEntity.ok(BasicFamilySuccessResponse("Family created successfully", response))
+
         } catch (ex: Exception) {
             logger.error("Exception in createFamily", ex)
             ApiResponseUtil.internalServerError("An error occurred while creating family")
@@ -394,7 +403,13 @@ class FamilyController @Autowired constructor(
             userRepository.save(user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
 
             logger.info("User $userId successfully joined family ${family.familyId}")
-            ResponseEntity.ok(updatedFamily)
+            ResponseEntity.ok(BasicFamilySuccessResponse(
+                "Joined family successfully",
+                mapOf(
+                    "family" to updatedFamily,
+                    "members" to updatedFamily.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+                )
+            ))
         } catch (ex: Exception) {
             logger.error("Exception in joinFamily", ex)
             ApiResponseUtil.internalServerError("An error occurred while joining family")
@@ -473,7 +488,7 @@ class FamilyController @Autowired constructor(
                     "members" to members
                 )
                 userRepository.save(user.copy(familyId = null, updatedAt = System.currentTimeMillis()))
-                ResponseEntity.ok(BasicFamilySuccessResponse("Left family successfully", response))
+                ResponseEntity.ok(mapOf("message" to "Left family successfully"))
             }
 
         } catch (ex: Exception) {
