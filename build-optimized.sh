@@ -1,38 +1,72 @@
 #!/bin/bash
 
-# Optimized build script for Raspberry Pi
-# This script implements several strategies to speed up JAR builds
+# Optimized build script for Raspberry Pi with improved caching
+# This script implements advanced caching strategies for faster builds
 
-echo "🚀 taking git pull to ensure latest changes are applied..."
-git pull
+echo "🚀 Starting optimized build with enhanced caching..."
 
 set -e
-
-echo "🚀 Starting optimized build for Raspberry Pi..."
 
 # Enable Docker BuildKit for faster builds
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
-# Clean up previous builds to free space (optimized to preserve caches)
-echo "🧹 Cleaning up previous builds..."
-# Remove only stopped containers and dangling images (preserve volumes and cache)
+# Check for changes before pulling
+echo "🔍 Checking for remote changes..."
+git fetch
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse @{u})
+
+if [ "$LOCAL" != "$REMOTE" ]; then
+    echo "📥 Pulling latest changes..."
+    git pull
+else
+    echo "✅ Already up to date - preserving cache"
+fi
+
+# Clean up Docker resources (preserve Gradle cache)
+echo "🧹 Cleaning up Docker resources..."
 docker container prune -f
 docker image prune -f --filter "dangling=true"
-# Only remove build artifacts, not gradle cache
-./gradlew clean
 
-# Build with optimized settings (removed dependency tree logging)
-echo "🔨 Building JAR with optimized settings..."
+# Only clean if necessary (check for significant changes)
+if [ -f ".gradle-clean-needed" ] || [ ! -d "build" ]; then
+    echo "🧹 Running gradle clean..."
+    ./gradlew clean
+    rm -f .gradle-clean-needed
+else
+    echo "⚡ Skipping clean to preserve cache"
+fi
+
+# Build with enhanced caching settings
+echo "🔨 Building JAR with enhanced caching..."
 ./gradlew bootJar \
   --daemon \
   --parallel \
   --build-cache \
+  --configuration-cache \
+  --configuration-cache-problems=warn \
   --max-workers=2 \
   --console=plain \
   --quiet \
-  -Dorg.gradle.jvmargs="-Xmx768m -XX:MaxMetaspaceSize=256m" \
-  -Dkotlin.compiler.execution.strategy=in-process
+  -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=384m -XX:+UseG1GC" \
+  -Dkotlin.compiler.execution.strategy=in-process \
+  -Dkotlin.incremental=true \
+  -Dorg.gradle.caching=true \
+  -Dorg.gradle.configuration-cache=true
+
+# Check build success and cache status
+if [ $? -eq 0 ]; then
+    echo "✅ Build completed successfully with caching!"
+    # Display cache statistics if available
+    if [ -d ".gradle/configuration-cache" ]; then
+        echo "📊 Configuration cache is active"
+    fi
+else
+    echo "❌ Build failed, marking for clean next time"
+    touch .gradle-clean-needed
+    exit 1
+fi
 
 # Build Docker image with simplified cache (compatible with default driver)
 echo "🐳 Building Docker image..."
