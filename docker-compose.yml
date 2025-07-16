@@ -65,6 +65,8 @@ services:
     init: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      - h2-server
 
 volumes:
   h2-data:
