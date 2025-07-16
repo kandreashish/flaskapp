@@ -3,7 +3,6 @@ package com.lavish.expensetracker.controller
 import com.lavish.expensetracker.model.Notification
 import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.repository.NotificationRepository
-import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.util.AuthUtil
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.domain.PageRequest
@@ -14,13 +13,18 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/notifications")
 class NotificationController @Autowired constructor(
     private val notificationRepository: NotificationRepository,
-    private val familyRepository: FamilyRepository,
     private val authUtil: AuthUtil
 ) {
     companion object {
         private const val DEFAULT_SIZE = 10
         private const val MAX_SIZE = 100
     }
+
+    data class BasicResponse(
+        val message: String,
+        val status: String,
+        val data: Any? = null
+    )
 
     @GetMapping
     fun getAllNotifications(
@@ -66,48 +70,65 @@ class NotificationController @Autowired constructor(
     }
 
     @GetMapping("/{id}")
-    fun getNotificationById(@PathVariable id: Long): ResponseEntity<Notification> {
-        val notification = notificationRepository.findById(id)
-        return if (notification.isPresent) ResponseEntity.ok(notification.get())
-        else ResponseEntity.notFound().build()
-    }
-
-    @PostMapping
-    fun createNotification(@RequestBody notification: Notification): ResponseEntity<Notification> {
-        val saved = notificationRepository.save(notification.copy(timestamp = System.currentTimeMillis()))
-        return ResponseEntity.ok(saved)
-    }
-
-    @PutMapping("/{id}")
-    fun updateNotification(@PathVariable id: Long, @RequestBody notification: Notification): ResponseEntity<Notification> {
-        if (!notificationRepository.existsById(id)) return ResponseEntity.notFound().build()
-        val updated = notificationRepository.save(notification.copy(id = id, timestamp = System.currentTimeMillis()))
-        return ResponseEntity.ok(updated)
-    }
-
-    @DeleteMapping("/{id}")
-    fun deleteNotification(@PathVariable id: Long): ResponseEntity<Void> {
-        if (!notificationRepository.existsById(id)) return ResponseEntity.notFound().build()
-        notificationRepository.deleteById(id)
-        return ResponseEntity.noContent().build()
-    }
-
-    @PutMapping("/{id}/mark-read")
-    fun markNotificationAsRead(@PathVariable id: Long): ResponseEntity<Notification> {
+    fun getNotificationById(@PathVariable id: Long): ResponseEntity<BasicResponse> {
         val notification = notificationRepository.findById(id)
         return if (notification.isPresent) {
-            val updated = notificationRepository.save(notification.get().copy(isRead = true))
-            ResponseEntity.ok(updated)
+            ResponseEntity.ok(BasicResponse("Notification retrieved successfully", "success"))
         } else {
             ResponseEntity.notFound().build()
         }
     }
 
-    @GetMapping("/unread")
-    fun getUnreadNotifications(): ResponseEntity<List<Notification>> {
-        val userId = authUtil.getCurrentUserId()
+    @PostMapping
+    fun createNotification(@RequestBody notification: Notification): ResponseEntity<BasicResponse> {
+        val saved = notificationRepository.save(notification.copy(timestamp = System.currentTimeMillis()))
+        return ResponseEntity.ok(BasicResponse("Notification created successfully", "success"))
+    }
 
+    @PutMapping("/mark-all-read")
+    fun markAllNotificationsAsRead(): ResponseEntity<BasicResponse> {
+        val userId = authUtil.getCurrentUserId()
+        val updatedCount = notificationRepository.markAllAsReadByReceiverId(receiverId = userId)
+        return ResponseEntity.ok(BasicResponse("$updatedCount notifications marked as read", "success"))
+    }
+
+    @PutMapping("/{id}")
+    fun updateNotification(
+        @PathVariable id: Long,
+        @RequestBody notification: Notification
+    ): ResponseEntity<BasicResponse> {
+        if (!notificationRepository.existsById(id)) {
+            return ResponseEntity.ok(BasicResponse("Notification not found", "error"))
+        }
+        val updated = notificationRepository.save(notification.copy(id = id, timestamp = System.currentTimeMillis()))
+        return ResponseEntity.ok(BasicResponse("Notification updated successfully", "success", data = updated))
+    }
+
+    @DeleteMapping("/{id}")
+    fun deleteNotification(@PathVariable id: Long): ResponseEntity<BasicResponse> {
+        if (!notificationRepository.existsById(id)) {
+            return ResponseEntity.ok(BasicResponse("Notification not found", "error"))
+        }
+        notificationRepository.deleteById(id)
+        return ResponseEntity.ok(BasicResponse("Notification deleted successfully", "success"))
+    }
+
+    @PutMapping("/{id}/mark-read")
+    fun markNotificationAsRead(@PathVariable id: Long): ResponseEntity<BasicResponse> {
+        val notification = notificationRepository.findById(id)
+        return if (notification.isPresent) {
+            val updated = notificationRepository.save(notification.get().copy(isRead = true))
+            ResponseEntity.ok(BasicResponse("Notification marked as read successfully", "success", data = updated))
+        } else {
+            ResponseEntity.ok(BasicResponse("Notification not found", "error"))
+        }
+    }
+
+    @GetMapping("/unread")
+    fun getUnreadNotifications(): ResponseEntity<BasicResponse> {
+        val userId = authUtil.getCurrentUserId()
         val unreadNotifications = notificationRepository.findByReceiverIdAndIsReadFalseOrderByTimestampDesc(userId)
-        return ResponseEntity.ok(unreadNotifications)
+        val count = unreadNotifications.size
+        return ResponseEntity.ok(BasicResponse("Found $count unread notifications", "success"))
     }
 }

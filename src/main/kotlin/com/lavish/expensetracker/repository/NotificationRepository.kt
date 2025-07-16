@@ -4,6 +4,9 @@ import com.lavish.expensetracker.model.Notification
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 @Repository
@@ -13,6 +16,10 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
     fun findAllBySenderIdOrFamilyId(senderId: String, familyId: String): List<Notification>
     fun findByFamilyIdOrderByTimestampDesc(familyId: String): List<Notification>
     fun findByFamilyIdAndIsReadFalseOrderByTimestampDesc(familyId: String): List<Notification>
+
+    @Modifying
+    @Query("UPDATE Notification n SET n.isRead = true WHERE n.receiverId = :receiverId AND n.isRead = false")
+    fun markAllAsReadByReceiverId(@Param("receiverId") receiverId: String): Int
 
     // Simple pagination methods
     fun findByFamilyIdOrderByTimestampDesc(familyId: String, pageable: Pageable): Page<Notification>
