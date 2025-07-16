@@ -1247,6 +1247,12 @@ class FamilyController @Autowired constructor(
 
         return try {
             val userId = authUtil.getCurrentUserId()
+            if (request.notificationId != null) {
+                notificationRepository.findById(request.notificationId).ifPresent {
+                    val updatedNotification = it.copy(isRead = true, actionable = false)
+                    notificationRepository.save(updatedNotification)
+                }
+            }
             val user = userRepository.findById(userId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "reject family invitation"))
 
@@ -1297,13 +1303,6 @@ class FamilyController @Autowired constructor(
                 "familyName" to family.name,
                 "aliasName" to family.aliasName
             )
-
-            if (request.notificationId != null) {
-                notificationRepository.findById(request.notificationId).ifPresent {
-                    val new = it.copy(isRead = true, actionable = false)
-                    notificationRepository.save(new)
-                }
-            }
 
             logger.info("Family invitation rejected successfully")
             ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation rejected successfully", response))
@@ -1474,6 +1473,12 @@ class FamilyController @Autowired constructor(
 
         return try {
             val userId = authUtil.getCurrentUserId()
+            if (request.notificationId != null) {
+                notificationRepository.findById(request.notificationId).ifPresent {
+                    val updatedNotification = it.copy(isRead = true, actionable = false)
+                    notificationRepository.save(updatedNotification)
+                }
+            }
             val user = userRepository.findById(userId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "accept family invitation"))
 
@@ -1552,12 +1557,7 @@ class FamilyController @Autowired constructor(
                 "family" to updatedFamily,
                 "members" to members
             )
-            if (request.notificationId != null) {
-                notificationRepository.findById(request.notificationId).ifPresent {
-                    val updatedNotification = it.copy(isRead = true, actionable = false)
-                    notificationRepository.save(updatedNotification)
-                }
-            }
+
             logger.info("Family invitation accepted successfully")
             ResponseEntity.ok(
                 BasicFamilySuccessResponse(
@@ -1611,6 +1611,12 @@ class FamilyController @Autowired constructor(
 
         return try {
             val headId = authUtil.getCurrentUserId()
+            if (request.notificationId != null) {
+                notificationRepository.findById(request.notificationId).ifPresent {
+                    val updatedNotification = it.copy(isRead = true, actionable = false)
+                    notificationRepository.save(updatedNotification)
+                }
+            }
             val headUser = userRepository.findById(headId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(headId, "reject join request"))
 
@@ -1650,12 +1656,7 @@ class FamilyController @Autowired constructor(
             )
 
             logger.info("Join request rejected successfully for user: ${requesterUser.email}")
-            if (request.notificationId != null) {
-                notificationRepository.findById(request.notificationId).ifPresent {
-                    val updatedNotification = it.copy(isRead = true, actionable = false)
-                    notificationRepository.save(updatedNotification)
-                }
-            }
+
             ResponseEntity.ok(
                 BasicFamilySuccessResponse(
                     "Join request from ${request.requesterId} has been rejected",
@@ -1714,6 +1715,12 @@ class FamilyController @Autowired constructor(
 
         return try {
             val headId = authUtil.getCurrentUserId()
+            if (request.notificationId != null) {
+                notificationRepository.findById(request.notificationId).ifPresent {
+                    val updatedNotification = it.copy(isRead = true, actionable = false)
+                    notificationRepository.save(updatedNotification)
+                }
+            }
             val headUser = userRepository.findById(headId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(headId, "accept join request"))
 
@@ -1763,14 +1770,6 @@ class FamilyController @Autowired constructor(
             // Update user's family ID
             userRepository.save(requesterUser.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
 
-            // Mark the join request notification as read
-            if (request.notificationId != null) {
-                notificationRepository.findById(request.notificationId).ifPresent {
-                    val updatedNotification = it.copy(isRead = true)
-                    notificationRepository.save(updatedNotification)
-                }
-            }
-
             // Notify the requester about the acceptance
             notifyJoinRequestAccepted(requesterUser, updatedFamily, headUser)
 
@@ -1782,12 +1781,6 @@ class FamilyController @Autowired constructor(
             )
 
             logger.info("Join request accepted successfully for user: ${request.requesterId}")
-            if (request.notificationId != null) {
-                notificationRepository.findById(request.notificationId).ifPresent {
-                    val updatedNotification = it.copy(isRead = true, actionable = false)
-                    notificationRepository.save(updatedNotification)
-                }
-            }
             ResponseEntity.ok(
                 BasicFamilySuccessResponse(
                     "Join request from ${requesterUser.email} has been accepted. Welcome to ${family.name}!",
