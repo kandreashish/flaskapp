@@ -107,6 +107,16 @@ class FamilyController @Autowired constructor(
         val family: Map<String, Any>
     )
 
+    data class UpdateFamilyNameRequest(
+        @field:NotBlank(message = "Family name is required")
+        @field:Size(
+            min = FAMILY_NAME_MIN_LENGTH,
+            max = FAMILY_NAME_MAX_LENGTH,
+            message = "Family name must be between $FAMILY_NAME_MIN_LENGTH and $FAMILY_NAME_MAX_LENGTH characters"
+        )
+        val familyName: String
+    )
+
     // Validation helper methods
     private fun validateFamilyName(familyName: String): String? {
         return when {
@@ -1312,6 +1322,88 @@ class FamilyController @Autowired constructor(
             family.aliasName
         )
         saveNotificationSafely(notification)
+    }
+
+    @PostMapping("/update-name")
+    @Operation(
+        summary = "Update family name",
+        description = "Allows the family head to update the family's name"
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Family name updated successfully",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "400",
+                description = "Invalid family name",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "404",
+                description = "User or family not found",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "409",
+                description = "Conflict, family name already in use",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "500",
+                description = "Internal server error",
+                content = [Content(mediaType = "application/json")]
+            )
+        ]
+    )
+    fun updateFamilyName(@Valid @RequestBody request: UpdateFamilyNameRequest): ResponseEntity<*> {
+        logger.info("Updating family name to: ${request.familyName}")
+
+        return try {
+            // Validate family name
+            validateFamilyName(request.familyName)?.let { error ->
+                logger.warn("Invalid family name: $error")
+                return ApiResponseUtil.badRequest(error)
+            }
+
+            val userId = authUtil.getCurrentUserId()
+            val user = userRepository.findById(userId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "update family name"))
+
+            val familyId = user.familyId
+                ?: return ApiResponseUtil.badRequest(logUserNotInFamily(userId, "update family name"))
+
+            val family = familyRepository.findById(familyId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logFamilyNotFound(familyId, "update family name"))
+
+            if (family.headId != userId) {
+                return ApiResponseUtil.forbidden(logNotFamilyHead(userId, family.headId, "update family name"))
+            }
+
+            // Check for name conflict with existing families (exclude current family)
+            val existingFamilyWithName = familyRepository.findAll()
+                .find { it.name.equals(request.familyName.trim(), ignoreCase = true) && it.familyId != familyId }
+
+            if (existingFamilyWithName != null) {
+                return ApiResponseUtil.conflict("Family name already in use")
+            }
+
+            val updatedFamily = family.copy(
+                name = request.familyName.trim(),
+                updatedAt = System.currentTimeMillis()
+            )
+
+            familyRepository.save(updatedFamily)
+
+            logger.info("Family name updated successfully to: ${request.familyName}")
+
+            ResponseEntity.ok(BasicFamilySuccessResponse("Family name updated successfully", mapOf("family" to updatedFamily)))
+        } catch (ex: Exception) {
+            logger.error("Exception in updateFamilyName", ex)
+            ApiResponseUtil.internalServerError("An error occurred while updating family name")
+        }
     }
 
 }
