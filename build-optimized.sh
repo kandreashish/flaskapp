@@ -15,7 +15,6 @@ set -e
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
-echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
 
 # Check for changes before pulling
 echo "🔍 Checking for remote changes..."

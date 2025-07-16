@@ -77,6 +77,10 @@ class AuthService(
             if (existingUser.firebaseUid != firebaseUser.uid) {
                 logger.info("Updating Firebase UID for user: ${existingUser.id}")
                 existingUser.firebaseUid = firebaseUser.uid
+                existingUser.aliasName.ifEmpty {
+                    logger.info("Generating new alias name for user: ${existingUser.id}")
+                    existingUser.aliasName = generateUniqueAliasName()
+                }
                 userRepository.save(existingUser)
             }
             existingUser
