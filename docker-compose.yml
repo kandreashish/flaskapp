@@ -16,11 +16,11 @@ services:
     networks:
       - expense-network
     healthcheck:
-      test: ["CMD-SHELL", "netstat -an | grep 9092 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
 
   expense-tracker:
     image: expense-tracker:latest
