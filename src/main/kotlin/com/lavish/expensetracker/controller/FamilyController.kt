@@ -70,48 +70,42 @@ class FamilyController @Autowired constructor(
             message = "Alias name must be exactly $FAMILY_ALIAS_LENGTH characters"
         )
         val aliasName: String,
-        @field:NotBlank(message = "Notification ID is required")
-        val notificationId: Long
+        val notificationId: Long?
     )
 
     data class InviteMemberRequest(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
         val invitedMemberEmail: String,
-        @field:NotBlank(message = "Notification ID is required")
-        val notificationId: Long
+        val notificationId: Long?
     )
 
     data class AcceptJoinRequestRequest(
         @field:NotBlank(message = "Email is required")
         @field:NotBlank(message = "requesterId is required")
         val requesterId: String,
-        @field:NotBlank(message = "Notification ID is required")
-        val notificationId: Long
+        val notificationId: Long?
     )
 
     data class RemoveMemberRequest(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
         val memberEmail: String,
-        @field:NotBlank(message = "Notification ID is required")
-        val notificationId: Long
+        val notificationId: Long?
     )
 
     data class RejectJoinRequestRequest(
         @field:NotBlank(message = "Email is required")
         @field:NotBlank(message = "requesterId is required")
         val requesterId: String,
-        @field:NotBlank(message = "Notification ID is required")
-        val notificationId: Long
+        val notificationId: Long?
     )
 
     data class CancelInvitationRequest(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
         val invitedMemberEmail: String,
-        @field:NotBlank(message = "Notification ID is required")
-        val notificationId: Long
+        val notificationId: Long?
     )
 
     data class BasicFamilySuccessResponse(
@@ -1267,16 +1261,18 @@ class FamilyController @Autowired constructor(
 
             // Check if the user has a pending invitation for this family
             if (!family.pendingMemberEmails.contains(user.email)) {
-                val notification = notificationRepository.findById(
-                    request.notificationId
-                )
+                if (request.notificationId != null) {
+                    val notification = notificationRepository.findById(
+                        request.notificationId
+                    )
 
-                if (notification.isEmpty) {
-                    return ApiResponseUtil.notFound("No pending invitation found for this user")
-                }
+                    if (notification.isEmpty) {
+                        return ApiResponseUtil.notFound("No pending invitation found for this user")
+                    }
 
-                if (notification.isPresent && notification.get().type == NotificationType.JOIN_FAMILY_INVITATION) {
-                    return ApiResponseUtil.badRequest("You have already accepted or rejected this invitation")
+                    if (notification.isPresent && notification.get().type == NotificationType.JOIN_FAMILY_INVITATION) {
+                        return ApiResponseUtil.badRequest("You have already accepted or rejected this invitation")
+                    }
                 }
 
                 return ApiResponseUtil.badRequest("No pending invitation found for this user")
@@ -1293,10 +1289,11 @@ class FamilyController @Autowired constructor(
             val headUser = userRepository.findById(family.headId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(family.headId, "reject family invitation"))
             //mark previously accepted invitation as read
-            notificationRepository.findById(request.notificationId).ifPresent {
-                val new = it.copy(isRead = true)
-                notificationRepository.save(new)
-            }
+            if (request.notificationId != null)
+                notificationRepository.findById(request.notificationId).ifPresent {
+                    val new = it.copy(isRead = true)
+                    notificationRepository.save(new)
+                }
             // Notify the family head about the rejection
             sendInvitationRejectedNotification(user, updatedFamily, headUser)
 
@@ -1499,14 +1496,17 @@ class FamilyController @Autowired constructor(
 
             // Check if the user has a pending invitation for this family
             if (!family.pendingMemberEmails.contains(user.email)) {
-                val notification = notificationRepository.findById(request.notificationId)
 
-                if (notification.isEmpty) {
-                    return ApiResponseUtil.notFound("No pending invitation found for this user")
-                }
+                if (request.notificationId != null) {
+                    val notification = notificationRepository.findById(request.notificationId)
 
-                if (notification.isPresent && notification.get().type != NotificationType.JOIN_FAMILY_INVITATION) {
-                    return ApiResponseUtil.badRequest("Invalid invitation notification")
+                    if (notification.isEmpty) {
+                        return ApiResponseUtil.notFound("No pending invitation found for this user")
+                    }
+
+                    if (notification.isPresent && notification.get().type != NotificationType.JOIN_FAMILY_INVITATION) {
+                        return ApiResponseUtil.badRequest("Invalid invitation notification")
+                    }
                 }
 
                 return ApiResponseUtil.badRequest("No pending invitation found for this user")
@@ -1536,9 +1536,11 @@ class FamilyController @Autowired constructor(
             userRepository.save(user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
 
             // Mark the invitation notification as read
-            notificationRepository.findById(request.notificationId).ifPresent {
-                val updatedNotification = it.copy(isRead = true)
-                notificationRepository.save(updatedNotification)
+            if (request.notificationId != null) {
+                notificationRepository.findById(request.notificationId).ifPresent {
+                    val updatedNotification = it.copy(isRead = true)
+                    notificationRepository.save(updatedNotification)
+                }
             }
 
             // Get family head user for notification
@@ -1637,9 +1639,11 @@ class FamilyController @Autowired constructor(
             familyRepository.save(updatedFamily)
 
             // Mark the join request notification as read
-            notificationRepository.findById(request.notificationId).ifPresent {
-                val updatedNotification = it.copy(isRead = true)
-                notificationRepository.save(updatedNotification)
+            if (request.notificationId != null) {
+                notificationRepository.findById(request.notificationId).ifPresent {
+                    val updatedNotification = it.copy(isRead = true)
+                    notificationRepository.save(updatedNotification)
+                }
             }
 
             // Notify the requester about the rejection
@@ -1761,9 +1765,11 @@ class FamilyController @Autowired constructor(
             userRepository.save(requesterUser.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
 
             // Mark the join request notification as read
-            notificationRepository.findById(request.notificationId).ifPresent {
-                val updatedNotification = it.copy(isRead = true)
-                notificationRepository.save(updatedNotification)
+            if (request.notificationId != null) {
+                notificationRepository.findById(request.notificationId).ifPresent {
+                    val updatedNotification = it.copy(isRead = true)
+                    notificationRepository.save(updatedNotification)
+                }
             }
 
             // Notify the requester about the acceptance
