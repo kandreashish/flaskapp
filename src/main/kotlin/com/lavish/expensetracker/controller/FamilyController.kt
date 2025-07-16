@@ -84,8 +84,8 @@ class FamilyController @Autowired constructor(
 
     data class AcceptJoinRequestRequest(
         @field:NotBlank(message = "Email is required")
-        @field:Email(message = "Valid email is required")
-        val requesterEmail: String,
+        @field:NotBlank(message = "requesterId is required")
+        val requesterId: String,
         @field:NotBlank(message = "Notification ID is required")
         val notificationId: Long
     )
@@ -100,8 +100,8 @@ class FamilyController @Autowired constructor(
 
     data class RejectJoinRequestRequest(
         @field:NotBlank(message = "Email is required")
-        @field:Email(message = "Valid email is required")
-        val requesterEmail: String,
+        @field:NotBlank(message = "requesterId is required")
+        val requesterId: String,
         @field:NotBlank(message = "Notification ID is required")
         val notificationId: Long
     )
@@ -193,6 +193,7 @@ class FamilyController @Autowired constructor(
 
     // Optimized database operations
     private fun findUserByEmail(email: String) = userRepository.findAll().find { it.email == email }
+    private fun findUserByUserId(userId: String) = userRepository.findAll().find { it.id == userId }
     private fun findFamilyByAlias(aliasName: String) = familyRepository.findByAliasName(aliasName)
 
     // Simplified notification creation
@@ -1603,13 +1604,9 @@ class FamilyController @Autowired constructor(
         ]
     )
     fun rejectJoinRequest(@Valid @RequestBody request: RejectJoinRequestRequest): ResponseEntity<*> {
-        logger.info("Rejecting join request for user: ${request.requesterEmail}")
+        logger.info("Rejecting join request for user: ${request.requesterId}")
 
         return try {
-            validateEmail(request.requesterEmail)?.let { error ->
-                return ApiResponseUtil.badRequest(error)
-            }
-
             val headId = authUtil.getCurrentUserId()
             val headUser = userRepository.findById(headId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(headId, "reject join request"))
@@ -1624,17 +1621,17 @@ class FamilyController @Autowired constructor(
                 return ApiResponseUtil.forbidden(logNotFamilyHead(headId, family.headId, "reject join request"))
             }
 
-            val requesterUser = findUserByEmail(request.requesterEmail)
+            val requesterUser = findUserByUserId(request.requesterId)
                 ?: return ApiResponseUtil.notFound("Requester user not found")
 
             // Check if there's a pending join request from this user
-            if (!family.pendingJoinRequests.contains(request.requesterEmail)) {
+            if (!family.pendingJoinRequests.contains(requesterUser.email)) {
                 return ApiResponseUtil.notFound("No pending join request found for this user")
             }
 
             // Remove the user's email from pending join requests
             val updatedFamily = family.copy(
-                pendingJoinRequests = (family.pendingJoinRequests - request.requesterEmail).toMutableList(),
+                pendingJoinRequests = (family.pendingJoinRequests - requesterUser.email).toMutableList(),
                 updatedAt = System.currentTimeMillis()
             )
             familyRepository.save(updatedFamily)
@@ -1655,10 +1652,10 @@ class FamilyController @Autowired constructor(
                 "members" to members
             )
 
-            logger.info("Join request rejected successfully for user: ${request.requesterEmail}")
+            logger.info("Join request rejected successfully for user: ${requesterUser.email}")
             ResponseEntity.ok(
                 BasicFamilySuccessResponse(
-                    "Join request from ${request.requesterEmail} has been rejected",
+                    "Join request from ${request.requesterId} has been rejected",
                     response
                 )
             )
@@ -1710,13 +1707,9 @@ class FamilyController @Autowired constructor(
         ]
     )
     fun acceptJoinRequest(@Valid @RequestBody request: AcceptJoinRequestRequest): ResponseEntity<*> {
-        logger.info("Accepting join request for user: ${request.requesterEmail}")
+        logger.info("Accepting join request for user: ${request.requesterId}")
 
         return try {
-            validateEmail(request.requesterEmail)?.let { error ->
-                return ApiResponseUtil.badRequest(error)
-            }
-
             val headId = authUtil.getCurrentUserId()
             val headUser = userRepository.findById(headId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(headId, "accept join request"))
@@ -1731,11 +1724,11 @@ class FamilyController @Autowired constructor(
                 return ApiResponseUtil.forbidden(logNotFamilyHead(headId, family.headId, "accept join request"))
             }
 
-            val requesterUser = findUserByEmail(request.requesterEmail)
+            val requesterUser = findUserByUserId(request.requesterId)
                 ?: return ApiResponseUtil.notFound("Requester user not found")
 
             // Check if there's a pending join request from this user
-            if (!family.pendingJoinRequests.contains(request.requesterEmail)) {
+            if (!family.pendingJoinRequests.contains(requesterUser.email)) {
                 return ApiResponseUtil.notFound("No pending join request found for this user")
             }
 
@@ -1759,7 +1752,7 @@ class FamilyController @Autowired constructor(
             // Add user to family and remove from pending join requests
             val updatedFamily = family.copy(
                 membersIds = (family.membersIds + requesterUser.id).toMutableList(),
-                pendingJoinRequests = (family.pendingJoinRequests - request.requesterEmail).toMutableList(),
+                pendingJoinRequests = (family.pendingJoinRequests - requesterUser.email).toMutableList(),
                 updatedAt = System.currentTimeMillis()
             )
             familyRepository.save(updatedFamily)
@@ -1783,10 +1776,10 @@ class FamilyController @Autowired constructor(
                 "members" to members
             )
 
-            logger.info("Join request accepted successfully for user: ${request.requesterEmail}")
+            logger.info("Join request accepted successfully for user: ${request.requesterId}")
             ResponseEntity.ok(
                 BasicFamilySuccessResponse(
-                    "Join request from ${request.requesterEmail} has been accepted. Welcome to ${family.name}!",
+                    "Join request from ${requesterUser.email} has been accepted. Welcome to ${family.name}!",
                     response
                 )
             )
