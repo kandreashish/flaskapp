@@ -3,6 +3,10 @@
 # Optimized build script for Raspberry Pi with improved caching
 # This script implements advanced caching strategies for faster builds
 
+echo "Storage: $(df -h / | awk 'NR==2 {print $2}')"; \
+echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
+echo "Temperature: $(vcgencmd measure_temp)"
+
 echo "🚀 Starting optimized build with enhanced caching..."
 
 set -e
@@ -10,6 +14,8 @@ set -e
 # Enable Docker BuildKit for faster builds
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
+
+echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
 
 # Check for changes before pulling
 echo "🔍 Checking for remote changes..."
@@ -24,6 +30,9 @@ else
     echo "✅ Already up to date - preserving cache"
 fi
 
+echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
+echo "Temperature: $(vcgencmd measure_temp)"
+
 # Clean up Docker resources (preserve Gradle cache)
 echo "🧹 Cleaning up Docker resources..."
 docker container prune -f
@@ -37,6 +46,9 @@ if [ -f ".gradle-clean-needed" ] || [ ! -d "build" ]; then
 else
     echo "⚡ Skipping clean to preserve cache"
 fi
+
+echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
+echo "Temperature: $(vcgencmd measure_temp)"
 
 # Build with enhanced caching settings
 echo "🔨 Building JAR with enhanced caching..."
@@ -79,6 +91,9 @@ echo "✅ Build completed successfully!"
 echo "📊 Build artifacts:"
 ls -lah build/libs/
 
+echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
+echo "Temperature: $(vcgencmd measure_temp)"
+
 # Check if H2 server is running, if not start it
 echo "🗄️ Checking H2 server status..."
 H2_PORT=9092
@@ -107,9 +122,16 @@ else
     fi
 fi
 
+echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
+echo "Temperature: $(vcgencmd measure_temp)"
+
 # Start the application with docker-compose
 echo "🚀 Starting application with docker-compose..."
 docker-compose down
 docker-compose up
 
 echo "🎉 All done! Your application is now running."
+
+echo "Storage: $(df -h / | awk 'NR==2 {print $2}')"; \
+echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
+echo "Temperature: $(vcgencmd measure_temp)"
