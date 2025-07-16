@@ -60,8 +60,7 @@ echo "🔨 Building JAR with enhanced caching..."
   --configuration-cache-problems=warn \
   --max-workers=3 \
   --console=plain \
-  -Dkotlin.parallel.tasks.in.project=3 \
-  -Dorg.gradle.jvmargs="-Xmx1.5g -XX:MaxMetaspaceSize=512m -XX:+UseG1GC" \
+  -Dorg.gradle.jvmargs="-Xmx1.5g -XX:MaxMetaspaceSize=512m -XX:+UseG1GC -XX:G1HeapRegionSize=16m" \
   -Dkotlin.compiler.execution.strategy=in-process \
   -Dkotlin.incremental=true \
   -Dorg.gradle.caching=true \
