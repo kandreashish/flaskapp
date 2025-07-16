@@ -3,6 +3,7 @@ version: '3.8'
 services:
   h2-server:
     image: oscarfonts/h2:latest
+    platform: linux/amd64
     container_name: h2-server
     ports:
       - "9092:9092"  # TCP server port
