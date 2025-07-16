@@ -21,6 +21,8 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.receiverId = :receiverId AND n.isRead = false")
     fun markAllAsReadByReceiverId(@Param("receiverId") receiverId: String): Int
 
+    fun removeNotificationById(notificationId: Long)
+
     // Simple pagination methods
     fun findByFamilyIdOrderByTimestampDesc(familyId: String, pageable: Pageable): Page<Notification>
     fun findBySenderIdOrderByTimestampDesc(senderId: String, pageable: Pageable): Page<Notification>

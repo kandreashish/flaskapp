@@ -59,7 +59,7 @@ class FamilyController @Autowired constructor(
             max = FAMILY_NAME_MAX_LENGTH,
             message = "Family name must be between $FAMILY_NAME_MIN_LENGTH and $FAMILY_NAME_MAX_LENGTH characters"
         )
-        val familyName: String
+        val familyName: String,
     )
 
     data class JoinFamilyRequest(
@@ -69,37 +69,49 @@ class FamilyController @Autowired constructor(
             max = FAMILY_ALIAS_LENGTH,
             message = "Alias name must be exactly $FAMILY_ALIAS_LENGTH characters"
         )
-        val aliasName: String
+        val aliasName: String,
+        @field:NotBlank(message = "Notification ID is required")
+        val notificationId: Long
     )
 
     data class InviteMemberRequest(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
-        val invitedMemberEmail: String
+        val invitedMemberEmail: String,
+        @field:NotBlank(message = "Notification ID is required")
+        val notificationId: Long
     )
 
     data class AcceptJoinRequestRequest(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
-        val requesterEmail: String
+        val requesterEmail: String,
+        @field:NotBlank(message = "Notification ID is required")
+        val notificationId: Long
     )
 
     data class RemoveMemberRequest(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
-        val memberEmail: String
+        val memberEmail: String,
+        @field:NotBlank(message = "Notification ID is required")
+        val notificationId: Long
     )
 
     data class RejectJoinRequestRequest(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
-        val requesterEmail: String
+        val requesterEmail: String,
+        @field:NotBlank(message = "Notification ID is required")
+        val notificationId: Long
     )
 
     data class CancelInvitationRequest(
         @field:NotBlank(message = "Email is required")
         @field:Email(message = "Valid email is required")
-        val invitedMemberEmail: String
+        val invitedMemberEmail: String,
+        @field:NotBlank(message = "Notification ID is required")
+        val notificationId: Long
     )
 
     data class BasicFamilySuccessResponse(
@@ -253,7 +265,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json", schema = Schema(implementation = Family::class))]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid input",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -280,7 +292,7 @@ class FamilyController @Autowired constructor(
         return try {
             // Validate family name
             validateFamilyName(request.familyName)?.let { error ->
-                logger.warn("Invalid family name: $error")
+                logger.warn("Invalid family1 name: $error")
                 return ApiResponseUtil.badRequest(error)
             }
 
@@ -363,7 +375,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json", schema = Schema(implementation = Family::class))]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid input",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -425,13 +437,14 @@ class FamilyController @Autowired constructor(
             userRepository.save(user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
 
             logger.info("User $userId successfully joined family ${family.familyId}")
-            ResponseEntity.ok(BasicFamilySuccessResponse(
-                "Joined family successfully",
-                mapOf(
-                    "family" to updatedFamily,
-                    "members" to updatedFamily.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
-                )
-            ))
+            ResponseEntity.ok(
+                BasicFamilySuccessResponse(
+                    "Joined family successfully",
+                    mapOf(
+                        "family" to updatedFamily,
+                        "members" to updatedFamily.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+                    )
+                ))
         } catch (ex: Exception) {
             logger.error("Exception in joinFamily", ex)
             ApiResponseUtil.internalServerError("An error occurred while joining family")
@@ -448,7 +461,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid request",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -523,7 +536,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid request",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -581,7 +594,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid email format",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -883,7 +896,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid email format",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -1011,7 +1024,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid email format",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -1094,7 +1107,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid email format",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -1218,7 +1231,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Bad request or user not invited to this family",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -1242,13 +1255,8 @@ class FamilyController @Autowired constructor(
             val user = userRepository.findById(userId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "reject family invitation"))
 
-            // Check if user is already in a family
-            if (user.familyId != null) {
-                return ApiResponseUtil.badRequest("User is already part of a family")
-            }
-
             // Find the family by alias
-            val family = familyRepository.findAll().find { it.aliasName == request.aliasName }
+            val family = familyRepository.findByAliasName(request.aliasName.trim())
                 ?: return ApiResponseUtil.notFound(
                     logFamilyNotFoundByAlias(
                         request.aliasName,
@@ -1258,6 +1266,18 @@ class FamilyController @Autowired constructor(
 
             // Check if the user has a pending invitation for this family
             if (!family.pendingMemberEmails.contains(user.email)) {
+                val notification = notificationRepository.findById(
+                    request.notificationId
+                )
+
+                if (notification.isEmpty) {
+                    return ApiResponseUtil.notFound("No pending invitation found for this user")
+                }
+
+                if (notification.isPresent && notification.get().type == NotificationType.JOIN_FAMILY_INVITATION) {
+                    return ApiResponseUtil.badRequest("You have already accepted or rejected this invitation")
+                }
+
                 return ApiResponseUtil.badRequest("No pending invitation found for this user")
             }
 
@@ -1271,7 +1291,11 @@ class FamilyController @Autowired constructor(
             // Get family head user for notification
             val headUser = userRepository.findById(family.headId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(family.headId, "reject family invitation"))
-
+            //mark previously accepted invitation as read
+            notificationRepository.findById(request.notificationId).ifPresent {
+                val new = it.copy(isRead = true)
+                notificationRepository.save(new)
+            }
             // Notify the family head about the rejection
             sendInvitationRejectedNotification(user, updatedFamily, headUser)
 
@@ -1337,7 +1361,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "400",
+                responseCode = "412",
                 description = "Invalid family name",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -1399,11 +1423,378 @@ class FamilyController @Autowired constructor(
 
             logger.info("Family name updated successfully to: ${request.familyName}")
 
-            ResponseEntity.ok(BasicFamilySuccessResponse("Family name updated successfully", mapOf("family" to updatedFamily)))
+            ResponseEntity.ok(
+                BasicFamilySuccessResponse(
+                    "Family name updated successfully",
+                    mapOf("family" to updatedFamily)
+                )
+            )
         } catch (ex: Exception) {
             logger.error("Exception in updateFamilyName", ex)
             ApiResponseUtil.internalServerError("An error occurred while updating family name")
         }
     }
 
+    @PostMapping("/accept-invitation")
+    @Operation(
+        summary = "Accept a family invitation",
+        description = "Allows a user to accept an invitation to join a family"
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Invitation accepted successfully",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "412",
+                description = "Bad request or user not invited to this family",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "404",
+                description = "User or family not found",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "409",
+                description = "Conflict, family is full or user already in family",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "500",
+                description = "Internal server error",
+                content = [Content(mediaType = "application/json")]
+            )
+        ]
+    )
+    fun acceptInvitation(@Valid @RequestBody request: JoinFamilyRequest): ResponseEntity<*> {
+        logger.info("Accepting family invitation for alias: ${request.aliasName}")
+
+        return try {
+            val userId = authUtil.getCurrentUserId()
+            val user = userRepository.findById(userId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "accept family invitation"))
+
+            if (user.familyId != null) {
+                return ApiResponseUtil.conflict(
+                    logUserAlreadyInFamily(
+                        userId,
+                        user.familyId,
+                        "accept family invitation"
+                    )
+                )
+            }
+
+            // Find the family by alias
+            val family = familyRepository.findByAliasName(request.aliasName.trim())
+                ?: return ApiResponseUtil.notFound(
+                    logFamilyNotFoundByAlias(
+                        request.aliasName,
+                        "accept family invitation"
+                    )
+                )
+
+            // Check if the user has a pending invitation for this family
+            if (!family.pendingMemberEmails.contains(user.email)) {
+                val notification = notificationRepository.findById(request.notificationId)
+
+                if (notification.isEmpty) {
+                    return ApiResponseUtil.notFound("No pending invitation found for this user")
+                }
+
+                if (notification.isPresent && notification.get().type != NotificationType.JOIN_FAMILY_INVITATION) {
+                    return ApiResponseUtil.badRequest("Invalid invitation notification")
+                }
+
+                return ApiResponseUtil.badRequest("No pending invitation found for this user")
+            }
+
+            // Check if family is full
+            if (family.membersIds.size >= family.maxSize) {
+                return ApiResponseUtil.conflict(
+                    logFamilyFull(
+                        family.familyId,
+                        family.membersIds.size,
+                        family.maxSize,
+                        "accept family invitation"
+                    )
+                )
+            }
+
+            // Add user to family and remove from pending invitations
+            val updatedFamily = family.copy(
+                membersIds = (family.membersIds + userId).toMutableList(),
+                pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
+                updatedAt = System.currentTimeMillis()
+            )
+            familyRepository.save(updatedFamily)
+
+            // Update user's family ID
+            userRepository.save(user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
+
+            // Mark the invitation notification as read
+            notificationRepository.findById(request.notificationId).ifPresent {
+                val updatedNotification = it.copy(isRead = true)
+                notificationRepository.save(updatedNotification)
+            }
+
+            // Get family head user for notification
+            val headUser = userRepository.findById(family.headId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(family.headId, "accept family invitation"))
+
+            // Notify the family head about the acceptance
+            notifyInvitationAccepted(user, updatedFamily, headUser)
+
+            val members = updatedFamily.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to updatedFamily,
+                "members" to members
+            )
+
+            logger.info("Family invitation accepted successfully")
+            ResponseEntity.ok(
+                BasicFamilySuccessResponse(
+                    "Family invitation accepted successfully. Welcome to ${family.name}!",
+                    response
+                )
+            )
+
+        } catch (ex: Exception) {
+            logger.error("Exception in acceptInvitation", ex)
+            ApiResponseUtil.internalServerError("An error occurred while accepting invitation")
+        }
+    }
+
+    @PostMapping("/reject-join-request")
+    @Operation(
+        summary = "Reject a join request",
+        description = "Allows the family head to reject a user's request to join the family"
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Join request rejected successfully",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "412",
+                description = "Bad request or invalid email format",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "403",
+                description = "Forbidden, user is not the family head",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "404",
+                description = "User, family, or join request not found",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "500",
+                description = "Internal server error",
+                content = [Content(mediaType = "application/json")]
+            )
+        ]
+    )
+    fun rejectJoinRequest(@Valid @RequestBody request: RejectJoinRequestRequest): ResponseEntity<*> {
+        logger.info("Rejecting join request for user: ${request.requesterEmail}")
+
+        return try {
+            validateEmail(request.requesterEmail)?.let { error ->
+                return ApiResponseUtil.badRequest(error)
+            }
+
+            val headId = authUtil.getCurrentUserId()
+            val headUser = userRepository.findById(headId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(headId, "reject join request"))
+
+            val familyId = headUser.familyId
+                ?: return ApiResponseUtil.badRequest(logUserNotInFamily(headId, "reject join request"))
+
+            val family = familyRepository.findById(familyId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logFamilyNotFound(familyId, "reject join request"))
+
+            if (family.headId != headId) {
+                return ApiResponseUtil.forbidden(logNotFamilyHead(headId, family.headId, "reject join request"))
+            }
+
+            val requesterUser = findUserByEmail(request.requesterEmail)
+                ?: return ApiResponseUtil.notFound("Requester user not found")
+
+            // Check if there's a pending join request from this user
+            if (!family.pendingJoinRequests.contains(request.requesterEmail)) {
+                return ApiResponseUtil.notFound("No pending join request found for this user")
+            }
+
+            // Remove the user's email from pending join requests
+            val updatedFamily = family.copy(
+                pendingJoinRequests = (family.pendingJoinRequests - request.requesterEmail).toMutableList(),
+                updatedAt = System.currentTimeMillis()
+            )
+            familyRepository.save(updatedFamily)
+
+            // Mark the join request notification as read
+            notificationRepository.findById(request.notificationId).ifPresent {
+                val updatedNotification = it.copy(isRead = true)
+                notificationRepository.save(updatedNotification)
+            }
+
+            // Notify the requester about the rejection
+            notifyJoinRequestRejected(requesterUser, updatedFamily, headUser)
+
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to updatedFamily,
+                "members" to members
+            )
+
+            logger.info("Join request rejected successfully for user: ${request.requesterEmail}")
+            ResponseEntity.ok(
+                BasicFamilySuccessResponse(
+                    "Join request from ${request.requesterEmail} has been rejected",
+                    response
+                )
+            )
+
+        } catch (ex: Exception) {
+            logger.error("Exception in rejectJoinRequest", ex)
+            ApiResponseUtil.internalServerError("An error occurred while rejecting join request")
+        }
+    }
+
+
+    @PostMapping("/accept-join-request")
+    @Operation(
+        summary = "Accept a join request",
+        description = "Allows the family head to accept a user's request to join the family"
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Join request accepted successfully",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "400",
+                description = "Bad request or invalid email format",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "403",
+                description = "Forbidden, user is not the family head",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "404",
+                description = "User, family, or join request not found",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "409",
+                description = "Conflict, family is full or user already in family",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "500",
+                description = "Internal server error",
+                content = [Content(mediaType = "application/json")]
+            )
+        ]
+    )
+    fun acceptJoinRequest(@Valid @RequestBody request: AcceptJoinRequestRequest): ResponseEntity<*> {
+        logger.info("Accepting join request for user: ${request.requesterEmail}")
+
+        return try {
+            validateEmail(request.requesterEmail)?.let { error ->
+                return ApiResponseUtil.badRequest(error)
+            }
+
+            val headId = authUtil.getCurrentUserId()
+            val headUser = userRepository.findById(headId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(headId, "accept join request"))
+
+            val familyId = headUser.familyId
+                ?: return ApiResponseUtil.badRequest(logUserNotInFamily(headId, "accept join request"))
+
+            val family = familyRepository.findById(familyId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logFamilyNotFound(familyId, "accept join request"))
+
+            if (family.headId != headId) {
+                return ApiResponseUtil.forbidden(logNotFamilyHead(headId, family.headId, "accept join request"))
+            }
+
+            val requesterUser = findUserByEmail(request.requesterEmail)
+                ?: return ApiResponseUtil.notFound("Requester user not found")
+
+            // Check if there's a pending join request from this user
+            if (!family.pendingJoinRequests.contains(request.requesterEmail)) {
+                return ApiResponseUtil.notFound("No pending join request found for this user")
+            }
+
+            // Check if requester already belongs to a family
+            if (requesterUser.familyId != null) {
+                return ApiResponseUtil.conflict("User already belongs to a family")
+            }
+
+            // Check if family is full
+            if (family.membersIds.size >= family.maxSize) {
+                return ApiResponseUtil.conflict(
+                    logFamilyFull(
+                        family.familyId,
+                        family.membersIds.size,
+                        family.maxSize,
+                        "accept join request"
+                    )
+                )
+            }
+
+            // Add user to family and remove from pending join requests
+            val updatedFamily = family.copy(
+                membersIds = (family.membersIds + requesterUser.id).toMutableList(),
+                pendingJoinRequests = (family.pendingJoinRequests - request.requesterEmail).toMutableList(),
+                updatedAt = System.currentTimeMillis()
+            )
+            familyRepository.save(updatedFamily)
+
+            // Update user's family ID
+            userRepository.save(requesterUser.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
+
+            // Mark the join request notification as read
+            notificationRepository.findById(request.notificationId).ifPresent {
+                val updatedNotification = it.copy(isRead = true)
+                notificationRepository.save(updatedNotification)
+            }
+
+            // Notify the requester about the acceptance
+            notifyJoinRequestAccepted(requesterUser, updatedFamily, headUser)
+
+            val members = updatedFamily.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
+
+            val response = mapOf(
+                "family" to updatedFamily,
+                "members" to members
+            )
+
+            logger.info("Join request accepted successfully for user: ${request.requesterEmail}")
+            ResponseEntity.ok(
+                BasicFamilySuccessResponse(
+                    "Join request from ${request.requesterEmail} has been accepted. Welcome to ${family.name}!",
+                    response
+                )
+            )
+
+        } catch (ex: Exception) {
+            logger.error("Exception in acceptJoinRequest", ex)
+            ApiResponseUtil.internalServerError("An error occurred while accepting join request")
+        }
+    }
 }
+
