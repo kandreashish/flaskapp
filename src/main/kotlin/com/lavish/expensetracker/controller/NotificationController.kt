@@ -1,6 +1,7 @@
 package com.lavish.expensetracker.controller
 
 import com.lavish.expensetracker.model.Notification
+import com.lavish.expensetracker.model.NotificationType
 import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.util.AuthUtil
@@ -130,5 +131,144 @@ class NotificationController @Autowired constructor(
         val unreadNotifications = notificationRepository.findByReceiverIdAndIsReadFalseOrderByTimestampDesc(userId)
         val count = unreadNotifications.size
         return ResponseEntity.ok(BasicResponse("Found $count unread notifications", "success"))
+    }
+
+    data class NotificationDetailResponse(
+        val id: Long,
+        val title: String,
+        val message: String,
+        val customMessage: String,
+        val timestamp: Long,
+        val isRead: Boolean,
+        val familyId: String,
+        val familyAlias: String,
+        val senderName: String,
+        val senderId: String,
+        val receiverId: String,
+        val actionable: Boolean,
+        val type: String,
+        val typeDescription: String
+    )
+
+    @GetMapping("/{id}/details")
+    fun getNotificationDetails(@PathVariable id: Long): ResponseEntity<BasicResponse> {
+        val userId = authUtil.getCurrentUserId()
+        val notification = notificationRepository.findById(id)
+
+        return if (notification.isPresent) {
+            val notif = notification.get()
+
+            // Security check: only allow users to see their own notifications
+            if (notif.receiverId != userId) {
+                return ResponseEntity.status(403).body(
+                    BasicResponse("Access denied: You can only view your own notifications", "error")
+                )
+            }
+
+            val customMessage = generateCustomMessage(notif)
+            val typeDescription = getTypeDescription(notif.type)
+
+            val detailResponse = NotificationDetailResponse(
+                id = notif.id,
+                title = notif.title,
+                message = notif.message,
+                customMessage = customMessage,
+                timestamp = notif.timestamp,
+                isRead = notif.isRead,
+                familyId = notif.familyId,
+                familyAlias = notif.familyAlias,
+                senderName = notif.senderName,
+                senderId = notif.senderId,
+                receiverId = notif.receiverId,
+                actionable = notif.actionable,
+                type = notif.type.name,
+                typeDescription = typeDescription
+            )
+
+            ResponseEntity.ok(BasicResponse("Notification details retrieved successfully", "success", detailResponse))
+        } else {
+            ResponseEntity.ok(BasicResponse("Notification not found", "error"))
+        }
+    }
+
+    private fun generateCustomMessage(notification: Notification): String {
+        return when (notification.type) {
+            NotificationType.EXPENSE_ADDED ->
+                "💰 New expense added: ${notification.senderName} added an expense in ${notification.familyAlias} family"
+
+            NotificationType.EXPENSE_UPDATED ->
+                "✏️ Expense updated: ${notification.senderName} modified an expense in ${notification.familyAlias} family"
+
+            NotificationType.EXPENSE_DELETED ->
+                "🗑️ Expense deleted: ${notification.senderName} removed an expense from ${notification.familyAlias} family"
+
+            NotificationType.JOIN_FAMILY_INVITATION ->
+                "📨 Family invitation: You've been invited to join '${notification.familyAlias}' family by ${notification.senderName}"
+
+            NotificationType.JOIN_FAMILY_REQUEST ->
+                "🤝 Join request: ${notification.senderName} wants to join your '${notification.familyAlias}' family"
+
+            NotificationType.FAMILY_MEMBER_JOINED ->
+                "👋 New member: ${notification.senderName} has joined your '${notification.familyAlias}' family"
+
+            NotificationType.FAMILY_MEMBER_LEFT ->
+                "👋 Member left: ${notification.senderName} has left the '${notification.familyAlias}' family"
+
+            NotificationType.FAMILY_MEMBER_REMOVED ->
+                "❌ Removed from family: You have been removed from '${notification.familyAlias}' family by ${notification.senderName}"
+
+            NotificationType.JOIN_FAMILY_INVITATION_REJECTED ->
+                "❌ Invitation declined: ${notification.senderName} declined your invitation to join '${notification.familyAlias}' family"
+
+            NotificationType.JOIN_FAMILY_INVITATION_CANCELLED ->
+                "🚫 Invitation cancelled: Your invitation to join '${notification.familyAlias}' family has been cancelled"
+
+            NotificationType.JOIN_FAMILY_REQUEST_REJECTED ->
+                "❌ Request declined: Your request to join '${notification.familyAlias}' family was declined"
+
+            NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED ->
+                "✅ Invitation accepted: ${notification.senderName} accepted your invitation to join '${notification.familyAlias}' family"
+
+            NotificationType.JOIN_FAMILY_REQUEST_ACCEPTED ->
+                "✅ Request approved: Your request to join '${notification.familyAlias}' family has been approved"
+
+            NotificationType.BUDGET_LIMIT_REACHED ->
+                "⚠️ Budget alert: Budget limit reached for '${notification.familyAlias}' family"
+
+            NotificationType.PAYMENT_REMINDER ->
+                "💳 Payment reminder: You have pending payments in '${notification.familyAlias}' family"
+
+            NotificationType.REMINDER ->
+                "⏰ Reminder: ${notification.senderName} sent you a reminder"
+
+            NotificationType.GENERAL ->
+                "📢 General notification from ${notification.senderName}"
+
+            NotificationType.OTHER ->
+                "📝 ${notification.senderName}: ${notification.message}"
+        }
+    }
+
+    private fun getTypeDescription(type: NotificationType): String {
+        return when (type) {
+            NotificationType.EXPENSE_ADDED -> "Expense Management"
+            NotificationType.EXPENSE_UPDATED -> "Expense Management"
+            NotificationType.EXPENSE_DELETED -> "Expense Management"
+            NotificationType.JOIN_FAMILY_INVITATION -> "Family Invitation"
+            NotificationType.JOIN_FAMILY_REQUEST -> "Family Request"
+            NotificationType.FAMILY_MEMBER_JOINED -> "Family Activity"
+            NotificationType.FAMILY_MEMBER_LEFT -> "Family Activity"
+            NotificationType.FAMILY_MEMBER_REMOVED -> "Family Management"
+            NotificationType.JOIN_FAMILY_INVITATION_REJECTED -> "Family Response"
+            NotificationType.JOIN_FAMILY_INVITATION_CANCELLED -> "Family Management"
+            NotificationType.JOIN_FAMILY_REQUEST_REJECTED -> "Family Response"
+            NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED -> "Family Response"
+            NotificationType.JOIN_FAMILY_REQUEST_ACCEPTED -> "Family Response"
+            NotificationType.BUDGET_LIMIT_REACHED -> "Budget Alert"
+            NotificationType.PAYMENT_REMINDER -> "Payment Alert"
+            NotificationType.REMINDER -> "Personal Reminder"
+            NotificationType.GENERAL -> "General Notice"
+            NotificationType.OTHER -> "Other"
+        }
     }
 }
