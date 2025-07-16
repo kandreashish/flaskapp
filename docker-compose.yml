@@ -11,6 +11,7 @@ services:
       - h2-data:/opt/h2-data
     command: >
       sh -c "
+      apt-get update && apt-get install -y wget &&
       wget -O /tmp/h2.jar https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar &&
       java -cp /tmp/h2.jar org.h2.tools.Server
       -tcp -tcpAllowOthers -tcpPort 9092
