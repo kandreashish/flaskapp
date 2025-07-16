@@ -50,6 +50,9 @@ fi
 echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
 echo "Temperature: $(vcgencmd measure_temp)"
 
+# Stop any running Gradle daemons to ensure a fresh build
+./gradlew --stop
+
 # Build with enhanced caching settings
 echo "🔨 Building JAR with enhanced caching..."
 ./gradlew bootJar \
