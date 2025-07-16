@@ -93,38 +93,7 @@ echo "✅ Build completed successfully!"
 echo "📊 Build artifacts:"
 ls -lah build/libs/
 
-echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
-echo "Temperature: $(vcgencmd measure_temp)"
 
-# Check if H2 server is running, if not start it
-echo "🗄️ Checking H2 server status..."
-H2_PORT=9092
-
-# Function to check if port is in use
-check_port() {
-    local port=$1
-    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
-        return 0  # Port is in use
-    else
-        return 1  # Port is free
-    fi
-}
-
-if check_port $H2_PORT; then
-    echo "✅ H2 server is already running on port $H2_PORT"
-else
-    echo "⚠️ H2 server not running. Starting H2 server..."
-    if [ -f "./h2-server_start_up.sh" ]; then
-        chmod +x ./h2-server_start_up.sh
-        ./h2-server_start_up.sh
-        echo "✅ H2 server started"
-    else
-        echo "❌ h2-server_start_up.sh script not found!"
-        exit 1
-    fi
-fi
-
-echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
 echo "Temperature: $(vcgencmd measure_temp)"
 
 # Start the application with docker-compose
