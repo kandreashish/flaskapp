@@ -9,7 +9,7 @@ services:
       - "8082:8082"  # Web console port
     volumes:
       - h2-data:/opt/h2-data
-    command: -tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082 -baseDir /opt/h2-data
+    command: ["-tcp", "-tcpAllowOthers", "-tcpPort", "9092", "-web", "-webAllowOthers", "-webPort", "8082", "-baseDir", "/opt/h2-data"]
     restart: unless-stopped
 
   expense-tracker:
