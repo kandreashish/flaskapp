@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  h2-server:
+    image: oscarfonts/h2:latest
+    container_name: h2-server
+    ports:
+      - "9092:9092"  # TCP server port
+      - "8082:8082"  # Web console port
+    volumes:
+      - h2-data:/opt/h2-data
+    command: -tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082 -baseDir /opt/h2-data
+    restart: unless-stopped
+
   expense-tracker:
     image: expense-tracker:latest
     container_name: expense-tracker
@@ -17,8 +28,7 @@ services:
       - "3000:3000"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://host.docker.internal:9092//var/lib/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw;
-      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw;      - SPRING_DATASOURCE_USERNAME=sa
       - SPRING_DATASOURCE_PASSWORD=
       - SPRING_H2_CONSOLE_ENABLED=true
       - SPRING_H2_CONSOLE_PATH=/h2-console
