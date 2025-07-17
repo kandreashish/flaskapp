@@ -7,9 +7,11 @@ import com.lavish.expensetracker.exception.ExpenseNotFoundException
 import com.lavish.expensetracker.exception.ExpenseValidationException
 import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.model.ExpenseUser
+import com.lavish.expensetracker.model.Notification
 import com.lavish.expensetracker.model.NotificationType
 import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.repository.FamilyRepository
+import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.service.ExpenseService
 import com.lavish.expensetracker.service.UserDeviceService
 import com.lavish.expensetracker.service.UserService
@@ -31,7 +33,8 @@ class ExpenseController(
     @Autowired private val pushNotificationService: PushNotificationService,
     private val userService: UserService,
     private val userDeviceService: UserDeviceService,
-    private val familyRepository: FamilyRepository
+    private val familyRepository: FamilyRepository,
+    private val notificationRepository: NotificationRepository // Injecting NotificationRepository
 ) {
     private val logger = LoggerFactory.getLogger(ExpenseController::class.java)
 
@@ -236,11 +239,74 @@ class ExpenseController(
                 description = description
             )
 
+            // Save notification to database
+            saveNotificationToDatabase(
+                type = type,
+                title = title,
+                body = body,
+                expense = expense,
+                user = user
+            )
+
         } catch (e: Exception) {
             logger.error(
                 "Failed to send expense notification for user ${user.id}, expense ${expense.expenseId}: ${e.message}",
                 e
             )
+        }
+    }
+
+    private fun saveNotificationToDatabase(
+        type: NotificationType,
+        title: String,
+        body: String,
+        expense: ExpenseDto,
+        user: ExpenseUser
+    ) {
+        try {
+            // Only save notifications for family expenses
+            if (expense.familyId.isNullOrBlank()) {
+                logger.debug("Skipping database notification save for personal expense: ${expense.expenseId}")
+                return
+            }
+
+            // Get family information
+            val family = familyRepository.findById(expense.familyId).orElse(null)
+            if (family == null) {
+                logger.warn("Cannot save notification - family not found: ${expense.familyId}")
+                return
+            }
+
+            // Save notification for each family member
+            val familyMembers = userService.getFamilyMembersFcmTokens(expense.familyId)
+
+            familyMembers.forEach { familyMember ->
+                try {
+                    val notification = Notification(
+                        title = title.take(255),
+                        message = body.take(1000),
+                        timestamp = System.currentTimeMillis(),
+                        isRead = false,
+                        familyId = expense.familyId.take(50),
+                        familyAlias = family.aliasName.take(10),
+                        senderName = (user.name ?: "Unknown User").take(100),
+                        senderId = user.id.take(50),
+                        receiverId = familyMember.id.take(50),
+                        actionable = false,
+                        type = type
+                    )
+
+                    notificationRepository.save(notification)
+                    logger.debug("Notification saved to database for expense ${expense.expenseId}, user ${familyMember.id}")
+                } catch (e: Exception) {
+                    logger.error("Failed to save notification for family member ${familyMember.id}: ${e.message}", e)
+                }
+            }
+
+            logger.info("Family expense notifications saved to database for expense ${expense.expenseId} in family ${expense.familyId}")
+
+        } catch (e: Exception) {
+            logger.error("Failed to save family expense notifications to database: ${e.message}", e)
         }
     }
 
