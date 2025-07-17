@@ -329,8 +329,8 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
         return expenseRepository.sumExpensesByUserIdAndFamilyIdAndDateRange(
             userId = userId,
-            startDate = startDate,
             familyId = null,
+            startDate = startDate,
             endDate = endDate
         ).toLong()
     }
