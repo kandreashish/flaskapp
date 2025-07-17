@@ -68,8 +68,8 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     fun findByUserIdAndDateGreaterThanEqualAndLastModifiedOnGreaterThan(userId: String, minDate: Long, cursorModified: Long, pageable: Pageable): Page<Expense>
     fun findByUserIdAndDateGreaterThanEqualAndLastModifiedOnLessThan(userId: String, minDate: Long, cursorModified: Long, pageable: Pageable): Page<Expense>
 
-    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId AND e.date >= :startDate AND e.date <= :endDate")
-    fun sumExpensesByUserIdAndDateRange(@Param("userId") userId: String, @Param("startDate") startDate: Long, @Param("endDate") endDate: Long): Long
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId and e.familyId = familyId AND e.date >= :startDate AND e.date <= :endDate")
+    fun sumExpensesByUserIdAndDateRange(@Param("userId") userId: String,@Param("familyId") familyId: String?, @Param("startDate") startDate: Long, @Param("endDate") endDate: Long): Long
 
     // Combined family and user family queries using custom SQL
     @Query("""
