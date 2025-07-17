@@ -513,9 +513,9 @@ class NotificationController @Autowired constructor(
             NotificationType.REMINDER -> "Personal Reminder"
             NotificationType.GENERAL -> "General Notice"
             NotificationType.OTHER -> "Other"
-            NotificationType.FAMILY_EXPENSE_ADDED -> "Expense Management"
-            NotificationType.FAMILY_EXPENSE_UPDATED -> "Expense Management"
-            NotificationType.FAMILY_EXPENSE_DELETED -> "Expense Management"
+            NotificationType.FAMILY_EXPENSE_ADDED -> "Family Expense Management"
+            NotificationType.FAMILY_EXPENSE_UPDATED -> "Family Expense Management"
+            NotificationType.FAMILY_EXPENSE_DELETED -> "Family Expense Management"
         }
     }
 }
