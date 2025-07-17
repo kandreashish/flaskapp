@@ -5,11 +5,7 @@ import com.lavish.expensetracker.exception.ExpenseAccessDeniedException
 import com.lavish.expensetracker.exception.ExpenseCreationException
 import com.lavish.expensetracker.exception.ExpenseNotFoundException
 import com.lavish.expensetracker.exception.ExpenseValidationException
-import com.lavish.expensetracker.model.ExpenseDto
-import com.lavish.expensetracker.model.ExpenseUser
-import com.lavish.expensetracker.model.Notification
-import com.lavish.expensetracker.model.NotificationType
-import com.lavish.expensetracker.model.PagedResponse
+import com.lavish.expensetracker.model.*
 import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.service.ExpenseService
@@ -110,7 +106,7 @@ class ExpenseController(
         lastExpenseId: String?,
         sortBy: String,
         isAsc: Boolean,
-        validSortFields: List<String> = VALID_SORT_FIELDS
+        validSortFields: List<String> = VALID_SORT_FIELDS,
     ): ValidatedPaginationParams {
         val validatedPage = maxOf(0, page)
         val validatedSize = when {
@@ -123,14 +119,14 @@ class ExpenseController(
         return ValidatedPaginationParams(validatedPage, validatedSize, lastExpenseId, safeSortBy, isAsc)
     }
 
-    private fun validateExpenseData(expense: ExpenseDto): List<String> {
+    private fun validateExpenseData(expense: ExpenseDto, currentUser: ExpenseUser): List<String> {
         logger.debug("Starting expense validation for amount: ${expense.amount}, category: ${expense.category}")
         val errors = mutableListOf<String>()
 
         // Validate amount
         when {
             expense.amount <= 0 -> errors.add("Amount is required and must be greater than 0")
-            expense.amount > MAX_AMOUNT -> errors.add("Amount cannot exceed $${MAX_AMOUNT.toInt()}")
+            expense.amount > MAX_AMOUNT -> errors.add("Amount cannot exceed ${currentUser.currencyPreference + MAX_AMOUNT.toInt()}")
             expense.amount.toString().length > MAX_AMOUNT_STRING_LENGTH -> errors.add("Amount value is too large")
         }
 
@@ -362,12 +358,13 @@ class ExpenseController(
         body: String,
         fcmTokens: List<String>,
         amount: Int,
-        description: String
+        description: String,
+        expenseUser: ExpenseUser = getCurrentUserWithValidation()
     ) {
         try {
             logger.debug("Sending notification to ${fcmTokens.size} FCM tokens")
 
-            val formattedAmount = formatAmount(amount)
+            val formattedAmount = formatAmount(amount, expenseUser)
             val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
                 title, body, type,
                 fcmTokens, formattedAmount, description
@@ -386,12 +383,12 @@ class ExpenseController(
         }
     }
 
-    private fun formatAmount(amount: Int): String {
+    private fun formatAmount(amount: Int, currentUser: ExpenseUser): String {
         return try {
-            "$$amount"
+            "${currentUser.currencyPreference}$amount"
         } catch (e: Exception) {
             logger.warn("Error formatting amount $amount: ${e.message}")
-            "$0"
+            "${currentUser.currencyPreference}0"
         }
     }
 
@@ -518,7 +515,7 @@ class ExpenseController(
             logger.debug("Current user ID: ${currentUser.id}")
 
             // Validate the expense data
-            val validationErrors = validateExpenseData(expense)
+            val validationErrors = validateExpenseData(expense, currentUser)
             if (validationErrors.isNotEmpty()) {
                 logger.warn("Expense validation failed with errors: $validationErrors")
                 throw ExpenseValidationException("Expense validation failed", validationErrors)
@@ -575,7 +572,7 @@ class ExpenseController(
             sendExpenseNotification(
                 type = if (expense.familyId == null || expense.familyId.isBlank()) NotificationType.EXPENSE_ADDED else NotificationType.FAMILY_EXPENSE_ADDED,
                 title = "New Expense Added",
-                body = "${currentUser.name} added expense: ${expense.description} - $${expense.amount}",
+                body = "${currentUser.name} added expense: ${expense.description} - ${currentUser.currencyPreference + expense.amount}",
                 expense = createdExpense,
                 user = currentUser,
                 amount = expense.amount,
@@ -645,7 +642,7 @@ class ExpenseController(
             validateExpenseAccess(existingExpense, currentUser, id)
 
             // Validate the updated expense data
-            val validationErrors = validateExpenseData(expense)
+            val validationErrors = validateExpenseData(expense, currentUser)
             if (validationErrors.isNotEmpty()) {
                 throw ExpenseValidationException("Expense validation failed", validationErrors)
             }
@@ -690,7 +687,7 @@ class ExpenseController(
             sendExpenseNotification(
                 type = if (existingExpense.familyId == null || existingExpense.familyId.isBlank()) NotificationType.EXPENSE_UPDATED else NotificationType.FAMILY_EXPENSE_UPDATED,
                 title = "Expense Updated",
-                body = "${currentUser.name} updated expense: ${expense.description} - $${expense.amount}",
+                body = "${currentUser.name} updated expense: ${expense.description} - ${currentUser.currencyPreference + expense.amount}",
                 expense = updatedExpense,
                 user = currentUser,
                 amount = expense.amount,
@@ -758,7 +755,7 @@ class ExpenseController(
                 sendExpenseNotification(
                     type = if (existingExpense.familyId == null || existingExpense.familyId.isBlank()) NotificationType.EXPENSE_DELETED else NotificationType.FAMILY_EXPENSE_DELETED,
                     title = "Expense Deleted",
-                    body = "${currentUser.name} deleted expense: ${existingExpense.description} - $${existingExpense.amount}",
+                    body = "${currentUser.name} deleted expense: ${existingExpense.description} - ${currentUser.currencyPreference + existingExpense.amount}",
                     expense = existingExpense,
                     user = currentUser,
                     amount = existingExpense.amount,
@@ -824,7 +821,7 @@ class ExpenseController(
         }
 
         val title = "Expense Notification"
-        val body = "Expense '${expense!!.description}' of $${expense.amount}"
+        val body = "Expense '${expense!!.description}' of ${currentUser.currencyPreference + expense.amount}"
         val invalidTokens = pushNotificationService.sendNotificationToMultiple(fcmTokens, title, body)
 
         if (invalidTokens.isNotEmpty()) {

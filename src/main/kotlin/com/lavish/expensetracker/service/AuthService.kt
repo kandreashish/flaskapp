@@ -76,12 +76,13 @@ class AuthService(
             // Update Firebase UID if not set or changed
             if (existingUser.firebaseUid != firebaseUser.uid) {
                 logger.info("Updating Firebase UID for user: ${existingUser.id}")
-                existingUser.firebaseUid = firebaseUser.uid
+                val updatedUser = existingUser.copy(firebaseUid = firebaseUser.uid)
                 existingUser.aliasName.ifEmpty {
                     logger.info("Generating new alias name for user: ${existingUser.id}")
-                    existingUser.aliasName = generateUniqueAliasName()
+                    updatedUser.copy(aliasName = generateUniqueAliasName())
                 }
-                userRepository.save(existingUser)
+                userRepository.save(updatedUser)
+                return updatedUser
             }
             existingUser
         } ?: run {

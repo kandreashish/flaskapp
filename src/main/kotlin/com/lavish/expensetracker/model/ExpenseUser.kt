@@ -16,11 +16,11 @@ data class ExpenseUser(
     @Column(unique = true, nullable = false)
     val email: String,
 
-    @Column(name ="alias_name", unique = true)
-    var aliasName: String,
+    @Column(name = "alias_name", unique = true)
+    val aliasName: String,
 
     @Column(name = "firebase_uid", unique = true)
-    var firebaseUid: String? = null,
+    val firebaseUid: String? = null,
 
     @Column(name = "family_id")
     val familyId: String? = null,
@@ -29,11 +29,14 @@ data class ExpenseUser(
     val createdAt: Long = System.currentTimeMillis(),
 
     @Column(name = "updated_at")
-    var updatedAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
 
     @Column(name = "fcm_token")
-    var fcmToken: String? = null,
+    val fcmToken: String? = null,
 
     @Column(name = "profile_pic", nullable = true)
-    var profilePic: String? = null
+    val profilePic: String? = null,
+
+    @Column(name = "currencyPreference", nullable = false)
+    val currencyPreference: String = "₹"
 )
