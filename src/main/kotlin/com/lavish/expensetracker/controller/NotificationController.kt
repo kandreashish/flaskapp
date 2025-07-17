@@ -429,12 +429,21 @@ class NotificationController @Autowired constructor(
     private fun generateCustomMessage(notification: Notification): String {
         return when (notification.type) {
             NotificationType.EXPENSE_ADDED ->
-                "💰 New expense added: ${notification.senderName} added an expense in ${notification.familyAlias} family"
+                "💰 New expense added"
 
             NotificationType.EXPENSE_UPDATED ->
-                "✏️ Expense updated: ${notification.senderName} modified an expense in ${notification.familyAlias} family"
+                "✏️ Expense updated"
 
             NotificationType.EXPENSE_DELETED ->
+                "🗑️ Expense deleted"
+
+            NotificationType.FAMILY_EXPENSE_ADDED ->
+                "💰 New expense added: ${notification.senderName} added an expense in ${notification.familyAlias} family"
+
+            NotificationType.FAMILY_EXPENSE_UPDATED ->
+                "✏️ Expense updated: ${notification.senderName} modified an expense in ${notification.familyAlias} family"
+
+            NotificationType.FAMILY_EXPENSE_DELETED ->
                 "🗑️ Expense deleted: ${notification.senderName} removed an expense from ${notification.familyAlias} family"
 
             NotificationType.JOIN_FAMILY_INVITATION ->
@@ -504,6 +513,9 @@ class NotificationController @Autowired constructor(
             NotificationType.REMINDER -> "Personal Reminder"
             NotificationType.GENERAL -> "General Notice"
             NotificationType.OTHER -> "Other"
+            NotificationType.FAMILY_EXPENSE_ADDED -> "Expense Management"
+            NotificationType.FAMILY_EXPENSE_UPDATED -> "Expense Management"
+            NotificationType.FAMILY_EXPENSE_DELETED -> "Expense Management"
         }
     }
 }
