@@ -1,6 +1,7 @@
 package com.lavish.expensetracker.repository
 
 import com.lavish.expensetracker.model.Notification
+import jakarta.transaction.Transactional
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
@@ -18,6 +19,7 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
     fun findByFamilyIdAndIsReadFalseOrderByTimestampDesc(familyId: String): List<Notification>
 
     @Modifying
+    @Transactional
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.receiverId = :receiverId AND n.isRead = false")
     fun markAllAsReadByReceiverId(@Param("receiverId") receiverId: String): Int
 
