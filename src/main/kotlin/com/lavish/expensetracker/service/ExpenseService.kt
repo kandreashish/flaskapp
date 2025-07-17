@@ -322,14 +322,14 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         )
     }
 
-    fun getMonthlyExpenseSum(userId: String, year: Int, month: Int): Long {
+    fun getMonthlyExpenseSum(userId: String, year: Int, month: Int, familyId: String?=null): Long {
         val yearMonth = YearMonth.of(year, month)
         val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
         val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
 
         return expenseRepository.sumExpensesByUserIdAndFamilyIdAndDateRange(
             userId = userId,
-            familyId = null,
+            familyId = familyId,
             startDate = startDate,
             endDate = endDate
         ).toLong()

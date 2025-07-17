@@ -91,7 +91,7 @@ class ExpenseController(
 
                 HttpStatus.FORBIDDEN -> ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "ExpenseUser account not found or has been deactivated. Please re-authenticate."
+                    "Please re-authenticate."
                 )
 
                 else -> ResponseStatusException(
@@ -573,7 +573,7 @@ class ExpenseController(
 
             // Send FCM notification
             sendExpenseNotification(
-                type = NotificationType.EXPENSE_ADDED,
+                type = if (expense.familyId == null || expense.familyId.isBlank()) NotificationType.EXPENSE_ADDED else NotificationType.FAMILY_EXPENSE_ADDED,
                 title = "New Expense Added",
                 body = "${currentUser.name} added expense: ${expense.description} - $${expense.amount}",
                 expense = createdExpense,
@@ -634,7 +634,14 @@ class ExpenseController(
             val currentUser = getCurrentUserWithValidation()
             logger.debug("Current user3 ID: ${currentUser.id}")
 
-            val existingExpense = expenseService.getExpenseById(id)
+            val existingExpense: ExpenseDto = expenseService.getExpenseById(id)
+                ?: return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                    mapOf(
+                        "success" to false,
+                        "message" to "Expense not found",
+                        "error" to "The specified expense does not exist"
+                    )
+                )
             validateExpenseAccess(existingExpense, currentUser, id)
 
             // Validate the updated expense data
@@ -681,7 +688,7 @@ class ExpenseController(
 
             // Send FCM notification
             sendExpenseNotification(
-                type = NotificationType.EXPENSE_UPDATED,
+                type = if (existingExpense.familyId == null || existingExpense.familyId.isBlank()) NotificationType.EXPENSE_UPDATED else NotificationType.FAMILY_EXPENSE_UPDATED,
                 title = "Expense Updated",
                 body = "${currentUser.name} updated expense: ${expense.description} - $${expense.amount}",
                 expense = updatedExpense,
@@ -749,7 +756,7 @@ class ExpenseController(
 
             if (expenseService.deleteExpense(id)) {
                 sendExpenseNotification(
-                    type = NotificationType.EXPENSE_DELETED,
+                    type = if (existingExpense.familyId == null || existingExpense.familyId.isBlank()) NotificationType.EXPENSE_DELETED else NotificationType.FAMILY_EXPENSE_DELETED,
                     title = "Expense Deleted",
                     body = "${currentUser.name} deleted expense: ${existingExpense.description} - $${existingExpense.amount}",
                     expense = existingExpense,
@@ -851,6 +858,52 @@ class ExpenseController(
                 "month" to month,
                 "totalAmount" to totalAmount,
                 "userId" to currentUser.id
+            )
+        )
+    }
+
+    @GetMapping("/family-monthly-sum")
+    fun getFamilyMonthlyExpenseSum(
+        @RequestParam year: Int,
+        @RequestParam month: Int
+    ): ResponseEntity<Map<String, Any>> {
+        val currentUser = getCurrentUserWithValidation()
+        val familyId = currentUser.familyId
+
+        if (familyId == null || familyId.isBlank()) {
+            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                mapOf(
+                    "error" to "You are not part of any family",
+                    "userId" to currentUser.id
+                )
+            )
+        }
+
+        if (year < 2000 || year > LocalDate.now().year) {
+            return ResponseEntity.badRequest().body(
+                mapOf(
+                    "error" to "Invalid year. Year must be between 2000 and current year",
+                    "year" to year
+                )
+            )
+        }
+
+        if (month < 1 || month > 12) {
+            return ResponseEntity.badRequest().body(
+                mapOf(
+                    "error" to "Invalid month. Month must be between 1 and 12",
+                    "month" to month
+                )
+            )
+        }
+
+        val totalAmount = expenseService.getMonthlyExpenseSum(currentUser.id, year, month, familyId)
+
+        return ResponseEntity.ok(
+            mapOf(
+                "year" to year,
+                "month" to month,
+                "totalAmount" to totalAmount,
             )
         )
     }
