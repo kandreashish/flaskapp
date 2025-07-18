@@ -192,6 +192,14 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         @Param("endDate") endDate: Long
     ): BigDecimal
 
+
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.familyId = :familyId AND e.date >= :startDate AND e.date <= :endDate")
+    fun sumExpensesByFamilyIdAndDateRange(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): BigDecimal
+
     // Combined family and user family queries using custom SQL
     @Query(
         """

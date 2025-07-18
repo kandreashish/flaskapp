@@ -894,7 +894,7 @@ class ExpenseController(
             )
         }
 
-        val totalAmount = expenseService.getMonthlyExpenseSum(currentUser.id, year, month, familyId)
+        val totalAmount = expenseService.getFamilyMonthlyExpenseSum( year, month, familyId)
 
         return ResponseEntity.ok(
             mapOf(
