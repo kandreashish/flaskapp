@@ -28,6 +28,7 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
                     .requestMatchers("/").permitAll() // Home page
                     .requestMatchers("/api/auth/**").permitAll() // All auth endpoints
                     .requestMatchers("/api/build/**").permitAll() // Build info endpoints
+                    .requestMatchers("/api/files/**").permitAll() // File serving endpoints (profile pictures)
                     .requestMatchers("/h2-console/**").permitAll() // H2 console
                     .requestMatchers("/error").permitAll() // Error page
                     .requestMatchers("/actuator/health").permitAll() // Health check

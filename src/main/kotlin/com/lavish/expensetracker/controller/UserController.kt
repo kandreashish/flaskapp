@@ -170,8 +170,9 @@ class UserController(
         }
     }
 
-    @PostMapping("/profile-picture")
+    @PostMapping("/profile-picture", consumes = ["multipart/form-data"])
     fun uploadProfilePicture(@RequestParam("file") file: MultipartFile): ResponseEntity<Map<String, String>> {
+        logger.debug("Received profile picture upload request. File empty: ${file.isEmpty}, Size: ${file.size}, Content-Type: ${file.contentType}")
         val currentUser = getCurrentUserWithValidation()
 
         return try {

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.http.HttpStatus
+import javax.annotation.PostConstruct
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -18,9 +19,6 @@ class FileStorageService {
     @Value("\${app.upload.dir:uploads}")
     private lateinit var uploadDir: String
 
-    @Value("\${app.base.url:http://localhost:8080}")
-    private lateinit var baseUrl: String
-
     private val maxFileSize = 2 * 1024 * 1024L // 2MB in bytes
     private val allowedContentTypes = setOf(
         "image/jpeg",
@@ -30,7 +28,8 @@ class FileStorageService {
         "image/webp"
     )
 
-    init {
+    @PostConstruct
+    fun createUploadDirectory() {
         // Create upload directory if it doesn't exist
         try {
             val uploadPath = Paths.get(uploadDir, "profile-pics")
@@ -55,7 +54,7 @@ class FileStorageService {
             )
         }
 
-        return "$baseUrl/api/files/profile-pics/$fileName"
+        return "api/files/profile-pics/$fileName"
     }
 
     fun deleteProfilePicture(profilePicUrl: String): Boolean {
