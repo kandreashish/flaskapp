@@ -83,8 +83,6 @@ services:
         limits:
           cpus: '1.5'  # Increased for better build performance
           memory: 768M  # Increased for build process
-    security_opt:
-      - no-new-privileges:true
     init: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
