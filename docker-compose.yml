@@ -52,10 +52,12 @@ services:
       - SPRING_H2_CONSOLE_PATH=/h2-console
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_SQL_INIT_MODE=always
+      # File upload configuration
       - APP_UPLOAD_DIR=/app/uploads
       - APP_BASE_URL=http://localhost:3000
       - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=2MB
       - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=2MB
+      # Optimized JVM settings for Raspberry Pi
       - JAVA_OPTS=-Xms256m -Xmx448m -XX:+UseG1GC -XX:G1HeapRegionSize=4m -XX:+UseStringDeduplication
       - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=DEBUG
       - LOGGING_LEVEL_ROOT=INFO
@@ -88,6 +90,27 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - h2-server
+    # Run init script to fix permissions before starting app
+    entrypoint: ["/bin/bash", "-c"]
+    command: |
+      "
+      # Fix permissions for mounted volumes
+      chown -R 1000:1000 /app/uploads /app/logs 2>/dev/null || true
+      chmod -R 755 /app/uploads 2>/dev/null || true
+      
+      # Switch to app user and start the application
+      exec su-exec 1000:1000 tini -- java \
+        -XX:+UseContainerSupport \
+        -XX:MaxRAMPercentage=75.0 \
+        -XX:+UseG1GC \
+        -XX:G1HeapRegionSize=4m \
+        -XX:+UseStringDeduplication \
+        -XX:+OptimizeStringConcat \
+        -Djava.security.egd=file:/dev/./urandom \
+        -Dspring.jmx.enabled=false \
+        -Djava.io.tmpdir=/app/tmp \
+        -jar app.jar
+      "
 
 networks:
   expense-network:

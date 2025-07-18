@@ -44,6 +44,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         tini \
+        su-exec \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -63,6 +64,15 @@ RUN mkdir -p /app/h2-data /app/logs /app/tmp /app/uploads /app/uploads/profile-p
     chmod 755 /app/uploads && \
     chmod 755 /app/uploads/profile-pics && \
     chmod 666 /app/logs/* 2>/dev/null || true
+
+# Set proper ownership for mounted volumes at runtime
+RUN echo '#!/bin/bash\n\
+if [ -d "/app/uploads" ]; then\n\
+    chown -R appuser:appgroup /app/uploads\n\
+    chmod -R 755 /app/uploads\n\
+fi\n\
+exec "$@"' > /app/fix-permissions.sh && \
+    chmod +x /app/fix-permissions.sh
 
 # Switch to non-root user
 USER appuser:appgroup
