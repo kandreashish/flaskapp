@@ -124,9 +124,19 @@ class FileStorageService {
                     }
 
                     // Move temporary file to final location atomically
-                    Files.move(tempLocation, targetLocation, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+                    Files.move(
+                        tempLocation,
+                        targetLocation,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE
+                    )
 
-                    logger.info("Successfully uploaded profile picture for user: {} on attempt {}, file: {}", userId, attempt, fileName)
+                    logger.info(
+                        "Successfully uploaded profile picture for user: {} on attempt {}, file: {}",
+                        userId,
+                        attempt,
+                        fileName
+                    )
 
                     // Return the URL for accessing the file
                     return "/api/files/profile-pics/$fileName"
@@ -140,7 +150,13 @@ class FileStorageService {
                         logger.warn("Failed to cleanup files after upload error: {}", cleanupEx.message)
                     }
 
-                    logger.error("IOException during file copy for user: {}, attempt: {}, file: {}", userId, attempt, fileName, ex)
+                    logger.error(
+                        "IOException during file copy for user: {}, attempt: {}, file: {}",
+                        userId,
+                        attempt,
+                        fileName,
+                        ex
+                    )
 
                     when (ex) {
                         is NoSuchFileException -> {
@@ -149,18 +165,21 @@ class FileStorageService {
                                 "Upload directory not found. Please contact administrator."
                             )
                         }
+
                         is AccessDeniedException -> {
                             lastException = ResponseStatusException(
                                 HttpStatus.INTERNAL_SERVER_ERROR,
                                 "Permission denied. Unable to write to upload directory."
                             )
                         }
+
                         is FileSystemException -> {
                             lastException = ResponseStatusException(
                                 HttpStatus.INSUFFICIENT_STORAGE,
                                 "File system error. Possibly insufficient disk space."
                             )
                         }
+
                         else -> {
                             lastException = ResponseStatusException(
                                 HttpStatus.INTERNAL_SERVER_ERROR,
@@ -169,13 +188,13 @@ class FileStorageService {
                         }
                     }
 
-                    // If this is not the last attempt and it's a retryable error, continue
-                    if (attempt < maxAttempts && isRetryableError(ex)) {
+                    // If this is not the last attempt, and it's a retryAble error, continue
+                    if (attempt < maxAttempts && isRetryAbleError(ex)) {
                         logger.warn("Retrying upload for user: {} after error: {}", userId, ex.message)
                         Thread.sleep(100L * attempt) // Brief backoff
                         continue
                     } else {
-                        throw lastException!!
+                        throw lastException
                     }
                 }
 
@@ -194,7 +213,7 @@ class FileStorageService {
                     Thread.sleep(100L * attempt) // Brief backoff
                     continue
                 } else {
-                    throw lastException!!
+                    throw lastException
                 }
             }
         }
@@ -206,7 +225,7 @@ class FileStorageService {
         )
     }
 
-    private fun isRetryableError(ex: IOException): Boolean {
+    private fun isRetryAbleError(ex: IOException): Boolean {
         return when (ex) {
             is FileSystemException -> true // Might be temporary
             is NoSuchFileException -> false // Directory issue, unlikely to resolve on retry

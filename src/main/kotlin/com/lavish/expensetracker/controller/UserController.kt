@@ -185,7 +185,7 @@ class UserController(
             if (updatedUser != null) {
                 ResponseEntity.ok(mapOf(
                     "message" to "Profile picture uploaded successfully",
-                    "profilePicUrl" to profilePicUrl
+                    "profilePicUrl" to "http://103.80.162.46/$profilePicUrl"
                 ))
             } else {
                 ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
