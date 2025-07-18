@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException
 import java.io.IOException
 import java.nio.file.*
 import java.util.*
+import javax.annotation.PostConstruct
 
 @Service
 class FileStorageService {
@@ -27,8 +28,55 @@ class FileStorageService {
         "image/webp"
     )
 
+    @PostConstruct
+    fun initializeUploadDirectories() {
+        logger.info("Initializing upload directories with uploadDir: {}", uploadDir)
+        try {
+            val uploadPath = Paths.get(uploadDir)
+            val profilePicsPath = Paths.get(uploadDir, "profile-pics")
+
+            logger.info("Upload path: {}", uploadPath.toAbsolutePath())
+            logger.info("Profile pics path: {}", profilePicsPath.toAbsolutePath())
+
+            // Create base upload directory
+            if (!Files.exists(uploadPath)) {
+                logger.info("Creating base upload directory: {}", uploadPath.toAbsolutePath())
+                Files.createDirectories(uploadPath)
+                logger.info("Successfully created base upload directory")
+            } else {
+                logger.info("Base upload directory already exists")
+            }
+
+            // Create profile-pics subdirectory
+            if (!Files.exists(profilePicsPath)) {
+                logger.info("Creating profile-pics directory: {}", profilePicsPath.toAbsolutePath())
+                Files.createDirectories(profilePicsPath)
+                logger.info("Successfully created profile-pics directory")
+            } else {
+                logger.info("Profile-pics directory already exists")
+            }
+
+            // Check permissions
+            if (!Files.isWritable(profilePicsPath)) {
+                logger.error("Profile-pics directory is not writable: {}", profilePicsPath.toAbsolutePath())
+                throw RuntimeException("Upload directory is not writable")
+            }
+
+            logger.info("Upload directories initialization completed successfully")
+
+        } catch (ex: Exception) {
+            logger.error("Failed to initialize upload directories", ex)
+            throw RuntimeException("Failed to initialize upload directories: ${ex.message}", ex)
+        }
+    }
+
     fun uploadProfilePicture(file: MultipartFile, userId: String): String {
-        logger.debug("Starting profile picture upload for user: {}, file: {}, size: {}", userId, file.originalFilename, file.size)
+        logger.debug(
+            "Starting profile picture upload for user: {}, file: {}, size: {}",
+            userId,
+            file.originalFilename,
+            file.size
+        )
 
         try {
             // Validate the file first
@@ -61,18 +109,21 @@ class FileStorageService {
                             "Upload directory not found. Please contact administrator."
                         )
                     }
+
                     is AccessDeniedException -> {
                         throw ResponseStatusException(
                             HttpStatus.INTERNAL_SERVER_ERROR,
                             "Permission denied. Unable to write to upload directory."
                         )
                     }
+
                     is FileSystemException -> {
                         throw ResponseStatusException(
                             HttpStatus.INSUFFICIENT_STORAGE,
                             "File system error. Possibly insufficient disk space."
                         )
                     }
+
                     else -> {
                         throw ResponseStatusException(
                             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -145,17 +196,20 @@ class FileStorageService {
     private fun ensureDirectoryExists(directory: Path) {
         try {
             if (!Files.exists(directory)) {
-                logger.debug("Creating directory: $directory")
+                logger.debug("Creating directory: {}", directory)
                 Files.createDirectories(directory)
+                logger.info("Successfully created directory: {}", directory)
+            } else {
+                logger.debug("Directory already exists: {}", directory)
             }
         } catch (ex: IOException) {
-            logger.error("Failed to create directory: $directory", ex)
+            logger.error("Failed to create directory: {}", directory, ex)
             throw ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                "Failed to create upload directory"
+                "Failed to create upload directory: ${ex.message}"
             )
         } catch (ex: SecurityException) {
-            logger.error("Security exception creating directory: $directory", ex)
+            logger.error("Security exception creating directory: {}", directory, ex)
             throw ResponseStatusException(
                 HttpStatus.FORBIDDEN,
                 "Permission denied creating upload directory"
