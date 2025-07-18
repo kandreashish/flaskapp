@@ -28,17 +28,17 @@ class FileStorageService {
     )
 
     fun uploadProfilePicture(file: MultipartFile, userId: String): String {
-        logger.debug("Starting profile picture upload for user: $userId, file: ${file.originalFilename}, size: ${file.size}")
+        logger.debug("Starting profile picture upload for user: {}, file: {}, size: {}", userId, file.originalFilename, file.size)
 
         try {
             // Validate the file first
             validateFile(file)
-            logger.debug("File validation passed for user: $userId")
+            logger.debug("File validation passed for user: {}", userId)
 
             val fileName = generateFileName(file.originalFilename, userId)
             val targetLocation = Paths.get(uploadDir, "profile-pics", fileName)
 
-            logger.debug("Target location: $targetLocation")
+            logger.debug("Target location: {}", targetLocation)
 
             // Ensure the directory exists
             ensureDirectoryExists(targetLocation.parent)
@@ -51,9 +51,9 @@ class FileStorageService {
                 file.inputStream.use { inputStream ->
                     Files.copy(inputStream, targetLocation, StandardCopyOption.REPLACE_EXISTING)
                 }
-                logger.info("Successfully uploaded profile picture for user: $userId, file: $fileName")
+                logger.info("Successfully uploaded profile picture for user: {}, file: {}", userId, fileName)
             } catch (ex: IOException) {
-                logger.error("IOException during file copy for user: $userId, file: $fileName", ex)
+                logger.error("IOException during file copy for user: {}, file: {}", userId, fileName, ex)
                 when (ex) {
                     is NoSuchFileException -> {
                         throw ResponseStatusException(
@@ -85,7 +85,7 @@ class FileStorageService {
             // Verify the file was actually written and has the correct size
             try {
                 if (!Files.exists(targetLocation)) {
-                    logger.error("File was not created at target location: $targetLocation")
+                    logger.error("File was not created at target location: {}", targetLocation)
                     throw ResponseStatusException(
                         HttpStatus.INTERNAL_SERVER_ERROR,
                         "File upload verification failed - file not found after upload"
@@ -94,7 +94,7 @@ class FileStorageService {
 
                 val uploadedFileSize = Files.size(targetLocation)
                 if (uploadedFileSize != file.size) {
-                    logger.error("File size mismatch. Expected: ${file.size}, Actual: $uploadedFileSize")
+                    logger.error("File size mismatch. Expected: {}, Actual: {}", file.size, uploadedFileSize)
                     // Clean up the corrupted file
                     Files.deleteIfExists(targetLocation)
                     throw ResponseStatusException(
@@ -103,9 +103,9 @@ class FileStorageService {
                     )
                 }
 
-                logger.debug("File upload verification passed for: $fileName")
+                logger.debug("File upload verification passed for: {}", fileName)
             } catch (ex: IOException) {
-                logger.error("Error during file verification for: $fileName", ex)
+                logger.error("Error during file verification for: {}", fileName, ex)
                 throw ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to verify uploaded file"
@@ -116,22 +116,22 @@ class FileStorageService {
 
         } catch (ex: ResponseStatusException) {
             // Re-throw ResponseStatusException as-is
-            logger.warn("Upload failed for user: $userId - ${ex.reason}")
+            logger.warn("Upload failed for user: {} - {}", userId, ex.reason)
             throw ex
         } catch (ex: SecurityException) {
-            logger.error("Security exception during upload for user: $userId", ex)
+            logger.error("Security exception during upload for user: {}", userId, ex)
             throw ResponseStatusException(
                 HttpStatus.FORBIDDEN,
                 "Security policy prevents file upload"
             )
         } catch (ex: OutOfMemoryError) {
-            logger.error("Out of memory during upload for user: $userId", ex)
+            logger.error("Out of memory during upload for user: {}", userId, ex)
             throw ResponseStatusException(
                 HttpStatus.INSUFFICIENT_STORAGE,
                 "File too large to process"
             )
         } catch (ex: Exception) {
-            logger.error("Unexpected error during profile picture upload for user: $userId", ex)
+            logger.error("Unexpected error during profile picture upload for user: {}", userId, ex)
             throw ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred during file upload: ${ex.javaClass.simpleName}"
@@ -232,5 +232,56 @@ class FileStorageService {
 
     fun getFilePath(fileName: String): Path {
         return Paths.get(uploadDir, "profile-pics", fileName)
+    }
+
+    fun deleteProfilePicture(profilePicUrl: String): Boolean {
+        logger.debug("Attempting to delete profile picture: $profilePicUrl")
+
+        return try {
+            val fileName = extractFileNameFromUrl(profilePicUrl)
+            if (fileName == null) {
+                logger.warn("Could not extract filename from URL: $profilePicUrl")
+                return false
+            }
+
+            val filePath = Paths.get(uploadDir, "profile-pics", fileName)
+            logger.debug("Target file path for deletion: $filePath")
+
+            if (!Files.exists(filePath)) {
+                logger.warn("Profile picture file does not exist: $filePath")
+                return true // Consider it "deleted" if it doesn't exist
+            }
+
+            // Check if we have permission to delete the file
+            if (!Files.isWritable(filePath.parent)) {
+                logger.error("No write permission to delete file: $filePath")
+                return false
+            }
+
+            val deleted = Files.deleteIfExists(filePath)
+            if (deleted) {
+                logger.info("Successfully deleted profile picture: $fileName")
+            } else {
+                logger.warn("File was not deleted (may not have existed): $fileName")
+            }
+
+            return deleted
+
+        } catch (ex: SecurityException) {
+            logger.error("Security exception while deleting profile picture: $profilePicUrl", ex)
+            false
+        } catch (ex: AccessDeniedException) {
+            logger.error("Access denied while deleting profile picture: $profilePicUrl", ex)
+            false
+        } catch (ex: DirectoryNotEmptyException) {
+            logger.error("Directory not empty while deleting profile picture: $profilePicUrl", ex)
+            false
+        } catch (ex: IOException) {
+            logger.error("IO exception while deleting profile picture: $profilePicUrl", ex)
+            false
+        } catch (ex: Exception) {
+            logger.error("Unexpected error while deleting profile picture: $profilePicUrl", ex)
+            false
+        }
     }
 }
