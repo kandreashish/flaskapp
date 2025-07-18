@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.service
 
+import com.lavish.expensetracker.controller.UserController
 import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.repository.ExpenseUserRepository
 import org.springframework.stereotype.Service
@@ -35,11 +36,6 @@ class UserService(
         return true
     }
 
-    @Deprecated("Use getAllFcmTokens instead for multiple device support")
-    fun getFcmToken(userId: String): String? {
-        return userRepository.findById(userId).orElse(null)?.fcmToken
-    }
-
     fun getAllFcmTokens(userId: String): List<String> {
         return userDeviceService.getActiveDeviceTokens(userId)
     }
@@ -60,5 +56,17 @@ class UserService(
 
     fun userExists(userId: String): Boolean {
         return userRepository.existsById(userId)
+    }
+
+    @Transactional
+    fun updateProfile(userId: String, updateRequest: UserController.UpdateProfileRequest): ExpenseUser? {
+        val existingUser = userRepository.findById(userId).orElse(null) ?: return null
+
+        val updatedUser = existingUser.copy(
+            name = updateRequest.name ?: existingUser.name,
+            updatedAt = System.currentTimeMillis()
+        )
+
+        return userRepository.save(updatedUser)
     }
 }
