@@ -13,6 +13,8 @@ interface ExpenseUserRepository : JpaRepository<ExpenseUser, String> {
 
     fun findByFirebaseUid(firebaseUid: String): ExpenseUser?
 
+    fun findByAliasName(aliasName: String): ExpenseUser?
+
     @Query("SELECT u FROM ExpenseUser u WHERE u.familyId = :familyId")
     fun findByFamilyId(@Param("familyId") familyId: String): List<ExpenseUser>
 

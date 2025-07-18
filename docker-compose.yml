@@ -1,44 +1,102 @@
+version: '3.8'
+
 services:
+  h2-server:
+    image: openjdk:11-jre-slim
+    container_name: h2-server
+    ports:
+      - "9092:9092"  # TCP server port
+      - "8082:8082"  # Web console port
+    volumes:
+      - h2-data:/opt/h2-data
+    command: >
+      sh -c "
+      apt-get update && apt-get install -y wget &&
+      wget -O /tmp/h2.jar https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar &&
+      java -cp /tmp/h2.jar org.h2.tools.Server
+      -tcp -tcpAllowOthers -tcpPort 9092
+      -web -webAllowOthers -webPort 8082
+      -baseDir /opt/h2-data
+      -ifNotExists
+      "
+    restart: unless-stopped
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8082/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   expense-tracker:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: expense-tracker:latest
     container_name: expense-tracker
     platform: linux/arm64
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Add build args for better caching
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      # Use BuildKit for faster builds
+      target: runtime
     ports:
       - "3000:3000"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://103.80.162.46:9092/var/lib/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw;
-      - SPRING_DATASOURCE_USERNAME=h2user
-      - SPRING_DATASOURCE_PASSWORD=ashish123
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=
       - SPRING_H2_CONSOLE_ENABLED=true
       - SPRING_H2_CONSOLE_PATH=/h2-console
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_SQL_INIT_MODE=always
-      - JAVA_OPTS=-Xms128m -Xmx384m -XX:+UseG1GC -XX:G1HeapRegionSize=8m
+      # File upload configuration
+      - APP_UPLOAD_DIR=/app/uploads
+      - APP_BASE_URL=http://localhost:3000
+      - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=2MB
+      - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=2MB
+      # Optimized JVM settings for Raspberry Pi
+      - JAVA_OPTS=-Xms256m -Xmx448m -XX:+UseG1GC -XX:G1HeapRegionSize=4m -XX:+UseStringDeduplication
       - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=DEBUG
       - LOGGING_LEVEL_ROOT=INFO
       - LOGGING_FILE_NAME=/app/logs/expense-tracker.log
+      - TINI_SUBREAPER=1
     volumes:
-      - h2-data:/app/h2-data  # Changed to named volume
-      - ./logs:/app/logs:rw   # Bind mount for easier log access on Raspberry Pi
+      - h2-data:/app/h2-data
+      - ./logs:/app/logs:rw
+      - ./uploads:/app/uploads:rw
+      # Add Gradle cache volume for faster rebuilds
+      - gradle-cache:/root/.gradle
     restart: unless-stopped
+    networks:
+      - expense-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
-      interval: 45s
-      timeout: 15s
+      interval: 30s
+      timeout: 10s
       retries: 3
-      start_period: 60s
-    mem_limit: 512m
-    cpus: 0.8
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'  # Increased for better build performance
+          memory: 768M  # Increased for build process
     security_opt:
       - no-new-privileges:true
     init: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - h2-server
+
+networks:
+  expense-network:
+    driver: bridge
 
 volumes:
-  h2-data:  # Add this
+  h2-data:
     driver: local
   gradle-cache:
     driver: local

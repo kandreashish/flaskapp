@@ -8,15 +8,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Family(
     @Id
-    val familyId: String = "",
+    val familyId: String,
 
     @Column(nullable = false)
-    val headId: String = "",
+    val headId: String,
 
     @Column(nullable = false)
-    val name: String = "",
+    val name: String,
 
-    val aliasName: String = "",
+    val aliasName: String,
 
     @Column(nullable = false)
     val maxSize: Int = 2,

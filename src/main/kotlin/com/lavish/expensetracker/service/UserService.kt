@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.service
 
+import com.lavish.expensetracker.controller.UserController
 import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.repository.ExpenseUserRepository
 import org.springframework.stereotype.Service
@@ -8,7 +9,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class UserService(
     private val userRepository: ExpenseUserRepository,
-    private val userDeviceService: UserDeviceService
+    private val userDeviceService: UserDeviceService,
+    private val fileStorageService: FileStorageService
 ) {
 
     fun findByFirebaseUid(firebaseUid: String): ExpenseUser? {
@@ -35,11 +37,6 @@ class UserService(
         return true
     }
 
-    @Deprecated("Use getAllFcmTokens instead for multiple device support")
-    fun getFcmToken(userId: String): String? {
-        return userRepository.findById(userId).orElse(null)?.fcmToken
-    }
-
     fun getAllFcmTokens(userId: String): List<String> {
         return userDeviceService.getActiveDeviceTokens(userId)
     }
@@ -60,5 +57,38 @@ class UserService(
 
     fun userExists(userId: String): Boolean {
         return userRepository.existsById(userId)
+    }
+
+    @Transactional
+    fun updateProfile(userId: String, updateRequest: UserController.UpdateProfileRequest): ExpenseUser? {
+        val existingUser = userRepository.findById(userId).orElse(null) ?: return null
+
+        val updatedUser = existingUser.copy(
+            name = updateRequest.name ?: existingUser.name,
+            profilePic = updateRequest.profilePic ?: existingUser.profilePic,
+            currencyPreference = updateRequest.currencyPreference ?: existingUser.currencyPreference,
+            updatedAt = System.currentTimeMillis()
+        )
+
+        return userRepository.save(updatedUser)
+    }
+
+    @Transactional
+    fun updateProfilePicture(userId: String, profilePicUrl: String): ExpenseUser? {
+        val existingUser = userRepository.findById(userId).orElse(null) ?: return null
+
+        // Delete old profile picture if it exists and is a local file
+        existingUser.profilePic?.let { oldPicUrl ->
+            if (oldPicUrl.contains("/api/files/profile-pics/")) {
+                fileStorageService.deleteProfilePicture(oldPicUrl)
+            }
+        }
+
+        val updatedUser = existingUser.copy(
+            profilePic = profilePicUrl,
+            updatedAt = System.currentTimeMillis()
+        )
+
+        return userRepository.save(updatedUser)
     }
 }

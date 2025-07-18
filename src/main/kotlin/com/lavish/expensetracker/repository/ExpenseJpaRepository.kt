@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import java.math.BigDecimal
 
 @Repository
 interface ExpenseJpaRepository : JpaRepository<Expense, String> {
@@ -28,20 +29,67 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     // Cursor-based pagination methods for amount sorting
     fun findByUserIdAndAmountGreaterThanOrderByAmountAsc(userId: String, amount: Int, pageable: Pageable): Page<Expense>
     fun findByUserIdAndAmountLessThanOrderByAmountDesc(userId: String, amount: Int, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndAmountGreaterThanOrderByAmountAsc(familyId: String, amount: Int, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndAmountLessThanOrderByAmountDesc(familyId: String, amount: Int, pageable: Pageable): Page<Expense>
+    fun findByFamilyIdAndAmountGreaterThanOrderByAmountAsc(
+        familyId: String,
+        amount: Int,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByFamilyIdAndAmountLessThanOrderByAmountDesc(
+        familyId: String,
+        amount: Int,
+        pageable: Pageable
+    ): Page<Expense>
 
     // Cursor-based pagination methods for creation date sorting
-    fun findByUserIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(familyId: String, createdOn: Long, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(familyId: String, createdOn: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+        userId: String,
+        createdOn: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+        userId: String,
+        createdOn: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+        familyId: String,
+        createdOn: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+        familyId: String,
+        createdOn: Long,
+        pageable: Pageable
+    ): Page<Expense>
 
     // Cursor-based pagination methods for last modified date sorting
-    fun findByUserIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(familyId: String, lastModified: Long, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(familyId: String, lastModified: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+        userId: String,
+        lastModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+        userId: String,
+        lastModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+        familyId: String,
+        lastModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+        familyId: String,
+        lastModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
 
     // Methods for getting expenses since a timestamp (for sync operations)
     fun findByUserIdAndLastModifiedOnGreaterThan(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
@@ -50,131 +98,232 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
 
     // Methods for getting expenses since a date (inclusive)
     fun findByUserIdAndDateGreaterThanEqual(userId: String, date: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndLastModifiedOnGreaterThanEqual(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndExpenseCreatedOnGreaterThanEqual(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndLastModifiedOnGreaterThanEqual(
+        userId: String,
+        lastModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndExpenseCreatedOnGreaterThanEqual(
+        userId: String,
+        createdOn: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
     fun findByUserIdAndDateGreaterThanEqualOrderByAmount(userId: String, date: Long, pageable: Pageable): Page<Expense>
 
     // Combined methods for cursor-based pagination with timestamp filtering
-    fun findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnGreaterThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnLessThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndExpenseCreatedOnGreaterThanAndExpenseCreatedOnGreaterThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndExpenseCreatedOnGreaterThanAndExpenseCreatedOnLessThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndDateGreaterThanAndDateGreaterThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndDateGreaterThanAndDateLessThan(userId: String, minTimestamp: Long, cursorTimestamp: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnGreaterThan(
+        userId: String,
+        minTimestamp: Long,
+        cursorTimestamp: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndLastModifiedOnGreaterThanAndLastModifiedOnLessThan(
+        userId: String,
+        minTimestamp: Long,
+        cursorTimestamp: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndExpenseCreatedOnGreaterThanAndExpenseCreatedOnGreaterThan(
+        userId: String,
+        minTimestamp: Long,
+        cursorTimestamp: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndExpenseCreatedOnGreaterThanAndExpenseCreatedOnLessThan(
+        userId: String,
+        minTimestamp: Long,
+        cursorTimestamp: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndDateGreaterThanAndDateGreaterThan(
+        userId: String,
+        minTimestamp: Long,
+        cursorTimestamp: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndDateGreaterThanAndDateLessThan(
+        userId: String,
+        minTimestamp: Long,
+        cursorTimestamp: Long,
+        pageable: Pageable
+    ): Page<Expense>
 
     // Combined methods for cursor-based pagination with date filtering
-    fun findByUserIdAndDateGreaterThanEqualAndDateGreaterThan(userId: String, minDate: Long, cursorDate: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndDateGreaterThanEqualAndDateLessThan(userId: String, minDate: Long, cursorDate: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndDateGreaterThanEqualAndLastModifiedOnGreaterThan(userId: String, minDate: Long, cursorModified: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndDateGreaterThanEqualAndLastModifiedOnLessThan(userId: String, minDate: Long, cursorModified: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndDateGreaterThanEqualAndDateGreaterThan(
+        userId: String,
+        minDate: Long,
+        cursorDate: Long,
+        pageable: Pageable
+    ): Page<Expense>
 
-    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId AND e.date >= :startDate AND e.date <= :endDate")
-    fun sumExpensesByUserIdAndDateRange(@Param("userId") userId: String, @Param("startDate") startDate: Long, @Param("endDate") endDate: Long): Long
+    fun findByUserIdAndDateGreaterThanEqualAndDateLessThan(
+        userId: String,
+        minDate: Long,
+        cursorDate: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndDateGreaterThanEqualAndLastModifiedOnGreaterThan(
+        userId: String,
+        minDate: Long,
+        cursorModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndDateGreaterThanEqualAndLastModifiedOnLessThan(
+        userId: String,
+        minDate: Long,
+        cursorModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId AND (:familyId IS NULL AND e.familyId IS NULL OR e.familyId = :familyId) AND e.date >= :startDate AND e.date <= :endDate")
+    fun sumExpensesByUserIdAndFamilyIdAndDateRange(
+        @Param("userId") userId: String,
+        @Param("familyId") familyId: String?,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): BigDecimal
+
+
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.familyId = :familyId AND e.date >= :startDate AND e.date <= :endDate")
+    fun sumExpensesByFamilyIdAndDateRange(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): BigDecimal
 
     // Combined family and user family queries using custom SQL
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyId(@Param("familyId") familyId: String, pageable: Pageable): Page<Expense>
 
-    @Query("""
+    @Query(
+        """
         SELECT COUNT(e) FROM Expense e 
         WHERE e.familyId = :familyId
-    """)
+    """
+    )
     fun countByFamilyIdOrUserFamilyId(@Param("familyId") familyId: String): Long
 
     // Cursor-based pagination for combined family queries
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.date > :cursorDate
         ORDER BY e.date ASC
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyIdAndDateGreaterThanOrderByDateAsc(
         @Param("familyId") familyId: String,
         @Param("cursorDate") cursorDate: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.date < :cursorDate
         ORDER BY e.date DESC
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyIdAndDateLessThanOrderByDateDesc(
         @Param("familyId") familyId: String,
         @Param("cursorDate") cursorDate: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.amount > :cursorAmount
         ORDER BY e.amount ASC
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyIdAndAmountGreaterThanOrderByAmountAsc(
         @Param("familyId") familyId: String,
         @Param("cursorAmount") cursorAmount: Int,
         pageable: Pageable
     ): Page<Expense>
 
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.amount < :cursorAmount
         ORDER BY e.amount DESC
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyIdAndAmountLessThanOrderByAmountDesc(
         @Param("familyId") familyId: String,
         @Param("cursorAmount") cursorAmount: Int,
         pageable: Pageable
     ): Page<Expense>
 
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.expenseCreatedOn > :cursorCreated
         ORDER BY e.expenseCreatedOn ASC
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
         @Param("familyId") familyId: String,
         @Param("cursorCreated") cursorCreated: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.expenseCreatedOn < :cursorCreated
         ORDER BY e.expenseCreatedOn DESC
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
         @Param("familyId") familyId: String,
         @Param("cursorCreated") cursorCreated: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.lastModifiedOn > :cursorModified
         ORDER BY e.lastModifiedOn ASC
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
         @Param("familyId") familyId: String,
         @Param("cursorModified") cursorModified: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    @Query("""
+    @Query(
+        """
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.lastModifiedOn < :cursorModified
         ORDER BY e.lastModifiedOn DESC
-    """)
+    """
+    )
     fun findByFamilyIdOrUserFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
         @Param("familyId") familyId: String,
         @Param("cursorModified") cursorModified: Long,
@@ -186,12 +335,51 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     fun findByUserIdAndFamilyId(userId: String, familyId: String, pageable: Pageable): Page<Expense>
 
     // Cursor-based pagination methods for personal expenses (familyId is null/empty)
-    fun findByUserIdAndFamilyIdIsNullAndDateGreaterThanOrderByDateAsc(userId: String, date: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyIdIsNullAndDateLessThanOrderByDateDesc(userId: String, date: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyIdIsNullAndAmountGreaterThanOrderByAmountAsc(userId: String, amount: Int, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyIdIsNullAndAmountLessThanOrderByAmountDesc(userId: String, amount: Int, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyIdIsNullAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyIdIsNullAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(userId: String, createdOn: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyIdIsNullAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyIdIsNullAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
+    fun findByUserIdAndFamilyIdIsNullAndDateGreaterThanOrderByDateAsc(
+        userId: String,
+        date: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndFamilyIdIsNullAndDateLessThanOrderByDateDesc(
+        userId: String,
+        date: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndFamilyIdIsNullAndAmountGreaterThanOrderByAmountAsc(
+        userId: String,
+        amount: Int,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndFamilyIdIsNullAndAmountLessThanOrderByAmountDesc(
+        userId: String,
+        amount: Int,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndFamilyIdIsNullAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+        userId: String,
+        createdOn: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndFamilyIdIsNullAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+        userId: String,
+        createdOn: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndFamilyIdIsNullAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+        userId: String,
+        lastModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    fun findByUserIdAndFamilyIdIsNullAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+        userId: String,
+        lastModified: Long,
+        pageable: Pageable
+    ): Page<Expense>
 }

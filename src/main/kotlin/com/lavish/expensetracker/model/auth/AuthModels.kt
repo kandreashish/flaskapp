@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.model.auth
 
+import com.lavish.expensetracker.model.ExpenseUser
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
@@ -39,7 +40,7 @@ data class FirebaseLoginRequest(
 data class SuccessAuthResponse(
     override val success: Boolean,
     override val message: String,
-    val user: UserInfo? = null,
+    val user: ExpenseUser? = null,
     val token: String? = null,
     val refreshToken: String? = null
 ) : AuthResponseBase
@@ -53,14 +54,6 @@ interface AuthResponseBase {
     val success: Boolean
     val message: String
 }
-
-data class UserInfo(
-    val id: String,
-    val name: String?,
-    val email: String,
-    val familyId: String? = null,
-    val profilePicture: String? = null
-)
 
 data class FirebaseUserInfo(
     val uid: String,

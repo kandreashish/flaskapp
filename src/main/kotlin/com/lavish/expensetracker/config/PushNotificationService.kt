@@ -1,11 +1,17 @@
 package com.lavish.expensetracker.config
 
 import com.google.firebase.messaging.*
+import com.lavish.expensetracker.model.NotificationType
 import org.springframework.stereotype.Service
 
 @Service
 class PushNotificationService {
-    fun sendNotification(token: String?, title: String?, body: String?) {
+    fun sendNotification(
+        token: String?,
+        title: String?,
+        body: String?,
+        type: NotificationType = NotificationType.OTHER
+    ) {
         val message = Message.builder()
             .setToken(token)
             .setNotification(
@@ -13,7 +19,7 @@ class PushNotificationService {
                     .setTitle(title)
                     .setBody(body)
                     .build()
-            )
+            ).putData("type", type.name)
             .build()
 
         try {
@@ -115,19 +121,26 @@ class PushNotificationService {
         }
     }
 
-    fun sendExpenseNotificationToMultiple(tokens: List<String>, amount: String?, description: String, name: String?): List<String> {
+    fun sendExpenseNotificationToMultiple(
+        title: String,
+        body: String,
+        type: NotificationType,
+        tokens: List<String>,
+        amount: String?,
+        description: String
+    ): List<String> {
         if (tokens.isEmpty()) return emptyList()
 
         val message = MulticastMessage.builder()
             .addAllTokens(tokens)
             .setNotification(
                 Notification.builder()
-                    .setTitle("New Expense Added")
-                    .setBody("$name added a new expense")
+                    .setTitle(title)
+                    .setBody(body)
                     .build()
             )
-            .putData("type", "expense")
-            .putData("title", "New Expense Added")
+            .putData("type", type.name)
+            .putData("title", title)
             .putData("body", description)
             .putData("amount", amount ?: "₹0.00")
             .build()
@@ -147,6 +160,7 @@ class PushNotificationService {
                             MessagingErrorCode.INVALID_ARGUMENT -> {
                                 invalidTokens.add(tokens[index])
                             }
+
                             else -> {
                                 // Log other errors but don't remove tokens
                                 println("FCM Error for token ${tokens[index]}: ${exception.messagingErrorCode}")
@@ -190,6 +204,7 @@ class PushNotificationService {
                             MessagingErrorCode.INVALID_ARGUMENT -> {
                                 invalidTokens.add(tokens[index])
                             }
+
                             else -> {
                                 // Log other errors but don't remove tokens
                                 println("FCM Error for token ${tokens[index]}: ${exception.messagingErrorCode}")

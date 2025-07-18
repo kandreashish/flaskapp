@@ -1,15 +1,16 @@
 package com.lavish.expensetracker.controller
 
 import com.lavish.expensetracker.config.PushNotificationService
-import com.lavish.expensetracker.exception.ExpenseValidationException
+import com.lavish.expensetracker.exception.ExpenseAccessDeniedException
 import com.lavish.expensetracker.exception.ExpenseCreationException
 import com.lavish.expensetracker.exception.ExpenseNotFoundException
-import com.lavish.expensetracker.exception.ExpenseAccessDeniedException
-import com.lavish.expensetracker.model.ExpenseDto
-import com.lavish.expensetracker.model.PagedResponse
+import com.lavish.expensetracker.exception.ExpenseValidationException
+import com.lavish.expensetracker.model.*
+import com.lavish.expensetracker.repository.FamilyRepository
+import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.service.ExpenseService
-import com.lavish.expensetracker.service.UserService
 import com.lavish.expensetracker.service.UserDeviceService
+import com.lavish.expensetracker.service.UserService
 import com.lavish.expensetracker.util.AuthUtil
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -27,309 +28,118 @@ class ExpenseController(
     private val authUtil: AuthUtil,
     @Autowired private val pushNotificationService: PushNotificationService,
     private val userService: UserService,
-    private val userDeviceService: UserDeviceService
+    private val userDeviceService: UserDeviceService,
+    private val familyRepository: FamilyRepository,
+    private val notificationRepository: NotificationRepository // Injecting NotificationRepository
 ) {
     private val logger = LoggerFactory.getLogger(ExpenseController::class.java)
 
-    /**
-     * Get all expenses for the current user with pagination and sorting.
-     * Supports cursor-based pagination using expense ID to prevent duplicates with dynamic page sizes.
-     */
-    @GetMapping
-    fun getExpenses(
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "10") size: Int,
-        @RequestParam(required = false) lastExpenseId: String?, // Cursor-based pagination
-        @RequestParam(defaultValue = "date") sortBy: String,
-        @RequestParam(defaultValue = "false") isAsc: Boolean
-    ): PagedResponse<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
-        logger.info("Getting personal expenses for user: $currentUserId, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
-
-        // Validate pagination parameters
-        val validatedSize = when {
-            size <= 0 -> 10 // Default to 10 if size is 0 or negative
-            size > 100 -> 100 // Cap at 100 to prevent performance issues
-            else -> size
-        }
-
-        // Validate sortBy parameter to prevent SQL injection
-        val validSortFields = listOf(
+    companion object {
+        private val VALID_SORT_FIELDS = listOf(
             "expenseCreatedOn", "lastModifiedOn", "amount", "category",
             "description", "date", "userId", "expenseId"
         )
-
-        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "date"
-
-        return if (lastExpenseId != null) {
-            logger.debug("Using cursor-based pagination with lastExpenseId: $lastExpenseId")
-            // Use cursor-based pagination for personal expenses only
-            expenseService.getPersonalExpensesByUserIdAfterCursor(
-                currentUserId, lastExpenseId, validatedSize, safeSortBy, isAsc
-            )
-        } else {
-            logger.debug("Using traditional page-based pagination")
-            // Use traditional page-based pagination for first page - personal expenses only
-            val validatedPage = maxOf(0, page)
-            expenseService.getPersonalExpensesByUserIdWithOrder(
-                currentUserId,
-                validatedPage,
-                validatedSize,
-                safeSortBy,
-                isAsc
-            )
-        }
+        private val VALID_SYNC_SORT_FIELDS = listOf(
+            "lastModifiedOn", "expenseCreatedOn", "date"
+        )
+        private val VALID_CATEGORIES = listOf(
+            "FOOD", "ENTERTAINMENT", "FUN", "BILLS", "TRAVEL",
+            "UTILITIES", "HEALTH", "SHOPPING", "EDUCATION", "OTHERS"
+        )
+        private const val DEFAULT_PAGE_SIZE = 10
+        private const val MAX_PAGE_SIZE = 100
+        private const val MAX_AMOUNT = 1000000.0
+        private const val MAX_DESCRIPTION_LENGTH = 500
+        private const val MAX_AMOUNT_STRING_LENGTH = 10
+        private const val ONE_DAY_MILLIS = 24 * 60 * 60 * 1000L
+        private const val TEN_YEARS_MILLIS = 10 * 365 * 24 * 60 * 60 * 1000L
     }
 
-    @GetMapping("/family")
-    fun getExpensesForFamily(
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "10") size: Int,
-        @RequestParam(required = false) lastExpenseId: String?, // Cursor-based pagination
-        @RequestParam(defaultValue = "date") sortBy: String,
-        @RequestParam(defaultValue = "false") isAsc: Boolean
-    ): PagedResponse<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
-        logger.info("Getting family expenses for user: $currentUserId, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
+    // Data classes for common operations
+    data class PaginationParams(
+        val page: Int,
+        val size: Int,
+        val lastExpenseId: String?,
+        val sortBy: String,
+        val isAsc: Boolean
+    )
 
-        // Get the user's family ID
-        val user = userService.findById(currentUserId)
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "User not found")
+    data class ValidatedPaginationParams(
+        val page: Int,
+        val size: Int,
+        val lastExpenseId: String?,
+        val sortBy: String,
+        val isAsc: Boolean
+    )
 
-        val familyId = user.familyId
-        if (familyId.isNullOrBlank()) {
-            logger.warn("User $currentUserId is not part of any family, returning empty family expenses")
-            // Return an empty result if user is not part of any family
-            return PagedResponse(
-                content = emptyList(),
-                page = maxOf(0, page),
-                size = when {
-                    size <= 0 -> 10
-                    size > 100 -> 100
-                    else -> size
-                },
-                totalElements = 0,
-                totalPages = 0,
-                isFirst = true,
-                isLast = true,
-                hasNext = false,
-                hasPrevious = false
-            )
+    data class ExpenseNotificationRequest(val expenseId: String)
+
+    // Common validation and utility methods
+    private fun getCurrentUserWithValidation(): ExpenseUser {
+        val currentUserId = try {
+            authUtil.getCurrentUserId()
+        } catch (e: ResponseStatusException) {
+            logger.warn("Authentication/Authorization failed: ${e.message}")
+            throw when (e.statusCode) {
+                HttpStatus.UNAUTHORIZED -> ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "Authentication required. Please provide a valid JWT token."
+                )
+
+                HttpStatus.FORBIDDEN -> ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Please re-authenticate."
+                )
+
+                else -> ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Authentication failed: ${e.reason}"
+                )
+            }
         }
 
-        logger.debug("User $currentUserId belongs to family: $familyId")
+        return userService.findById(currentUserId)
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "ExpenseUser not found")
+    }
 
-        // Validate pagination parameters
+    private fun validatePaginationParams(
+        page: Int,
+        size: Int,
+        lastExpenseId: String?,
+        sortBy: String,
+        isAsc: Boolean,
+        validSortFields: List<String> = VALID_SORT_FIELDS,
+    ): ValidatedPaginationParams {
+        val validatedPage = maxOf(0, page)
         val validatedSize = when {
-            size <= 0 -> 10 // Default to 10 if size is 0 or negative
-            size > 100 -> 100 // Cap at 100 to prevent performance issues
+            size <= 0 -> DEFAULT_PAGE_SIZE
+            size > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
             else -> size
         }
-
-        // Validate sortBy parameter to prevent SQL injection
-        val validSortFields = listOf(
-            "expenseCreatedOn", "lastModifiedOn", "amount", "category",
-            "description", "date", "userId", "expenseId"
-        )
-
         val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "date"
 
-        return if (lastExpenseId != null) {
-            logger.debug("Using cursor-based pagination for family expenses with lastExpenseId: $lastExpenseId")
-            // Use cursor-based pagination for family expenses (both familyId and userId based)
-            expenseService.getExpensesByFamilyIdAndUserFamilyAfterCursor(
-                familyId, lastExpenseId, validatedSize, safeSortBy, isAsc
-            )
-        } else {
-            logger.debug("Using traditional page-based pagination for family expenses")
-            // Use traditional page-based pagination for first page
-            val validatedPage = maxOf(0, page)
-            expenseService.getExpensesByFamilyIdAndUserFamilyWithOrder(
-                familyId,
-                validatedPage,
-                validatedSize,
-                safeSortBy,
-                isAsc
-            )
-        }.also {
-            logger.info("Successfully retrieved ${it.content.size} family expenses for user: $currentUserId, family: $familyId")
-        }
+        return ValidatedPaginationParams(validatedPage, validatedSize, lastExpenseId, safeSortBy, isAsc)
     }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    fun createExpense(@RequestBody expense: ExpenseDto): ResponseEntity<Any> {
-        logger.info("Creating expense request received: amount=${expense.amount}, category=${expense.category}, description=${expense.description}")
-
-        return try {
-            val currentUserId = try {
-                authUtil.getCurrentUserId()
-            } catch (e: ResponseStatusException) {
-                logger.warn("Authentication/Authorization failed during expense creation: ${e.message}")
-                return when (e.statusCode) {
-                    HttpStatus.UNAUTHORIZED -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                        mapOf(
-                            "success" to false,
-                            "message" to "Authentication required. Please provide a valid JWT token."
-                        )
-                    )
-
-                    HttpStatus.FORBIDDEN -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                        mapOf(
-                            "success" to false,
-                            "message" to "User account not found or has been deactivated. Please re-authenticate."
-                        )
-                    )
-
-                    else -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                        mapOf(
-                            "success" to false,
-                            "message" to "Authentication failed: ${e.reason}"
-                        )
-                    )
-                }
-            }
-
-            logger.debug("Current user ID: $currentUserId")
-
-            // Check if user exists before proceeding (additional check)
-            logger.debug("Validating user existence for ID: $currentUserId")
-            val user = userService.findById(currentUserId)
-            if (user == null) {
-                logger.warn("User not found for ID: $currentUserId - returning 400 Bad Request")
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                    mapOf(
-                        "success" to false,
-                        "message" to "User not found"
-                    )
-                )
-            }
-            logger.debug("User validation successful for ID: $currentUserId, user name: ${user.name}")
-
-            // Validate the expense data
-            logger.debug("Validating expense data")
-            val validationErrors = validateExpense(expense)
-            if (validationErrors.isNotEmpty()) {
-                logger.warn("Expense validation failed with errors: $validationErrors")
-                throw ExpenseValidationException(
-                    "Expense validation failed",
-                    validationErrors
-                )
-            }
-            logger.debug("Expense validation successful")
-
-            val expenseWithUser = expense.copy(
-                userId = currentUserId,
-                createdBy = currentUserId,
-                modifiedBy = currentUserId,
-                expenseCreatedOn = System.currentTimeMillis(),
-                lastModifiedOn = System.currentTimeMillis()
-            )
-
-            logger.debug("Attempting to save expense to database")
-            val createdExpense = try {
-                expenseService.createExpense(expenseWithUser)
-            } catch (e: Exception) {
-                logger.error("Failed to save expense to database: ${e.message}", e)
-                throw ExpenseCreationException(
-                    "Failed to save expense to database: ${e.message}",
-                    e
-                )
-            }
-            logger.info("Successfully created expense with ID: ${createdExpense.expenseId}")
-
-            // Send FCM notification to all user devices after creating expense
-            logger.debug("Attempting to send FCM notifications")
-            try {
-                val fcmTokens: List<String> =
-                    userService.getFamilyMembersFcmTokens(currentUserId).flatMap { userService.getAllFcmTokens(it.id) }.distinct()
-                logger.debug("Found ${fcmTokens.size} FCM tokens for user: $currentUserId")
-                if (fcmTokens.isNotEmpty()) {
-                    val formattedAmount = "$${expense.amount}"
-                    val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
-                        fcmTokens, formattedAmount, expense.description, user.name
-                    )
-                    logger.info("FCM notifications sent successfully. Invalid tokens: ${invalidTokens.size}")
-                    // Clean up invalid tokens
-                    if (invalidTokens.isNotEmpty()) {
-                        logger.debug("Cleaning up ${invalidTokens.size} invalid FCM tokens")
-                        userDeviceService.removeInvalidTokens(invalidTokens)
-                    }
-                } else {
-                    logger.debug("No FCM tokens found for user: $currentUserId")
-                }
-            } catch (e: Exception) {
-                // Log notification error but don't fail the expense creation
-                logger.error(
-                    "Failed to send push notification for expense ${createdExpense.expenseId}: ${e.message}",
-                    e
-                )
-            }
-
-            logger.info("Expense creation completed successfully for user: $currentUserId, expenseId: ${createdExpense.expenseId}")
-            ResponseEntity.status(HttpStatus.CREATED).body(
-                mapOf(
-                    "success" to true,
-                    "message" to "Expense created successfully",
-                    "expense" to createdExpense
-                )
-            )
-
-        } catch (e: ExpenseValidationException) {
-            logger.error("Expense validation exception: ${e.message}")
-            // Re-throw validation exceptions to be handled by GlobalExceptionHandler
-            throw e
-        } catch (e: ExpenseCreationException) {
-            logger.error("Expense creation exception: ${e.message}", e)
-            // Re-throw creation exceptions to be handled by GlobalExceptionHandler
-            throw e
-        } catch (e: Exception) {
-            logger.error("Unexpected error occurred while creating expense: ${e.message}", e)
-            // Catch any unexpected exceptions
-            throw ExpenseCreationException(
-                "An unexpected error occurred while creating the expense: ${e.message}",
-                e
-            )
-        }
-    }
-
-    private fun validateExpense(expense: ExpenseDto): List<String> {
+    private fun validateExpenseData(expense: ExpenseDto, currentUser: ExpenseUser): List<String> {
         logger.debug("Starting expense validation for amount: ${expense.amount}, category: ${expense.category}")
         val errors = mutableListOf<String>()
 
         // Validate amount
-        if (expense.amount <= 0) {
-            errors.add("Amount is required and must be greater than 0")
-        }
-        if (expense.amount > 1000000) {
-            errors.add("Amount cannot exceed $1,000,000")
-        }
-        if (expense.amount.toString().length > 10) {
-            errors.add("Amount value is too large")
+        when {
+            expense.amount <= 0 -> errors.add("Amount is required and must be greater than 0")
+            expense.amount > MAX_AMOUNT -> errors.add("Amount cannot exceed ${currentUser.currencyPreference + MAX_AMOUNT.toInt()}")
+            expense.amount.toString().length > MAX_AMOUNT_STRING_LENGTH -> errors.add("Amount value is too large")
         }
 
         // Validate category
-        val validCategories = listOf(
-            "FOOD",
-            "ENTERTAINMENT",
-            "FUN",
-            "BILLS",
-            "TRAVEL",
-            "UTILITIES",
-            "HEALTH",
-            "SHOPPING",
-            "EDUCATION",
-            "OTHERS"
-        )
-        if (expense.category.isBlank()) {
-            errors.add("Category is required")
-        } else if (!validCategories.contains(expense.category.uppercase())) {
-            errors.add("Category must be one of: ${validCategories.joinToString(", ")}")
+        when {
+            expense.category.isBlank() -> errors.add("Category is required")
+            !VALID_CATEGORIES.contains(expense.category.uppercase()) ->
+                errors.add("Category must be one of: ${VALID_CATEGORIES.joinToString(", ")}")
         }
 
-        // Validate description (optional but if provided, should have reasonable length)
-        if (expense.description.length > 500) {
-            errors.add("Description cannot exceed 500 characters")
+        // Validate description
+        if (expense.description.length > MAX_DESCRIPTION_LENGTH) {
+            errors.add("Description cannot exceed $MAX_DESCRIPTION_LENGTH characters")
         }
 
         // Check for potentially harmful content in description
@@ -339,25 +149,19 @@ class ExpenseController(
         }
 
         // Validate date
-        if (expense.date <= 0) {
-            errors.add("Date is required and must be a valid timestamp")
-        }
+        val currentTime = System.currentTimeMillis()
+        when {
+            expense.date <= 0 -> errors.add("Date is required and must be a valid timestamp")
+            expense.date > currentTime + ONE_DAY_MILLIS ->
+                errors.add("Date cannot be more than 1 day in the future")
 
-        // Check if the date is not too far in the future (more than 1 day)
-        val oneDayFromNow = System.currentTimeMillis() + (24 * 60 * 60 * 1000)
-        if (expense.date > oneDayFromNow) {
-            errors.add("Date cannot be more than 1 day in the future")
-        }
-
-        // Check if date is not too far in the past (more than 10 years)
-        val tenYearsAgo = System.currentTimeMillis() - (10 * 365 * 24 * 60 * 60 * 1000L)
-        if (expense.date < tenYearsAgo) {
-            errors.add("Date cannot be more than 10 years in the past")
+            expense.date < currentTime - TEN_YEARS_MILLIS ->
+                errors.add("Date cannot be more than 10 years in the past")
         }
 
         // Validate user ID format if provided
         if (expense.userId.isNotBlank() && expense.userId.length < 3) {
-            errors.add("User ID format is invalid")
+            errors.add("ExpenseUser ID format is invalid")
         }
 
         // Validate family ID if provided
@@ -369,24 +173,445 @@ class ExpenseController(
         return errors
     }
 
+    private fun validateExpenseAccess(expense: ExpenseDto?, currentUser: ExpenseUser, expenseId: String): ExpenseDto {
+        if (expense == null) {
+            throw ExpenseNotFoundException("Expense with ID '$expenseId' not found")
+        }
+
+        // Allow access if user is the expense owner
+        if (expense.userId == currentUser.id) {
+            return expense
+        }
+
+        // Allow access if both users are in the same family
+        if (currentUser.familyId != null && currentUser.familyId.isNotBlank()) {
+            val expenseOwner = userService.findById(expense.userId)
+            if (expenseOwner != null &&
+                expenseOwner.familyId == currentUser.familyId &&
+                expenseOwner.familyId.isNotBlank()
+            ) {
+                logger.debug("Family member ${currentUser.id} accessing expense $expenseId owned by ${expense.userId} in family ${currentUser.familyId}")
+                return expense
+            }
+        }
+
+        logger.warn("Access denied for user ${currentUser.id} trying to access expense $expenseId owned by ${expense.userId}")
+        throw ExpenseAccessDeniedException("You don't have permission to view this expense")
+    }
+
+    private fun canDeleteExpense(expense: ExpenseDto, currentUser: ExpenseUser): Boolean {
+        val expenseOwner = userService.findById(expense.userId)
+            ?: return false
+
+        return expense.userId == currentUser.id ||
+                (currentUser.familyId != null &&
+                        currentUser.familyId == expenseOwner.familyId &&
+                        currentUser.familyId.isNotBlank())
+    }
+
+    private fun sendExpenseNotification(
+        type: NotificationType,
+        title: String,
+        body: String,
+        expense: ExpenseDto,
+        user: ExpenseUser,
+        amount: Int,
+        description: String
+    ) {
+        try {
+            val fcmTokens = getFcmTokensForNotification(expense, user)
+
+            if (fcmTokens.isEmpty()) {
+                logger.debug("No FCM tokens found for notification - user: ${user.id}, family: ${expense.familyId}")
+                return
+            }
+
+            sendNotificationToTokens(
+                type = type,
+                title = title,
+                body = body,
+                fcmTokens = fcmTokens,
+                amount = amount,
+                description = description
+            )
+
+            // Save notification to database
+            saveNotificationToDatabase(
+                type = type,
+                title = title,
+                body = body,
+                expense = expense,
+                user = user
+            )
+
+        } catch (e: Exception) {
+            logger.error(
+                "Failed to send expense notification for user ${user.id}, expense ${expense.expenseId}: ${e.message}",
+                e
+            )
+        }
+    }
+
+    private fun saveNotificationToDatabase(
+        type: NotificationType,
+        title: String,
+        body: String,
+        expense: ExpenseDto,
+        user: ExpenseUser
+    ) {
+        try {
+            // Only save notifications for family expenses
+            if (expense.familyId.isNullOrBlank()) {
+                logger.debug("Skipping database notification save for personal expense: ${expense.expenseId}")
+                return
+            }
+
+            // Get family information
+            val family = familyRepository.findById(expense.familyId).orElse(null)
+            if (family == null) {
+                logger.warn("Cannot save notification - family not found: ${expense.familyId}")
+                return
+            }
+
+            // Save notification for each family member
+            val familyMembers = userService.getFamilyMembersFcmTokens(expense.familyId)
+
+            familyMembers.forEach { familyMember ->
+                try {
+                    val notification = Notification(
+                        title = title.take(255),
+                        message = body.take(1000),
+                        timestamp = System.currentTimeMillis(),
+                        isRead = false,
+                        familyId = expense.familyId.take(50),
+                        familyAlias = family.aliasName.take(10),
+                        senderName = (user.name ?: "Unknown User").take(100),
+                        senderId = user.id.take(50),
+                        receiverId = familyMember.id.take(50),
+                        actionable = false,
+                        type = type
+                    )
+
+                    notificationRepository.save(notification)
+                    logger.debug("Notification saved to database for expense ${expense.expenseId}, user ${familyMember.id}")
+                } catch (e: Exception) {
+                    logger.error("Failed to save notification for family member ${familyMember.id}: ${e.message}", e)
+                }
+            }
+
+            logger.info("Family expense notifications saved to database for expense ${expense.expenseId} in family ${expense.familyId}")
+
+        } catch (e: Exception) {
+            logger.error("Failed to save family expense notifications to database: ${e.message}", e)
+        }
+    }
+
+    private fun getFcmTokensForNotification(expense: ExpenseDto, user: ExpenseUser): List<String> {
+        return try {
+            if (expense.familyId.isNullOrBlank()) {
+                // Personal expense - notify only the user's devices
+                logger.debug("Personal expense notification for user: ${user.id}")
+                getUserFcmTokens(user.id)
+            } else {
+                // Family expense - notify all family members
+                logger.debug("Family expense notification for family: ${expense.familyId}")
+                getFamilyFcmTokens(expense.familyId)
+            }
+        } catch (e: Exception) {
+            logger.error("Error retrieving FCM tokens for user ${user.id}, family ${expense.familyId}: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    private fun getUserFcmTokens(userId: String): List<String> {
+        return try {
+            userService.getAllFcmTokens(userId).filter { it.isNotBlank() }
+        } catch (e: Exception) {
+            logger.error("Error getting FCM tokens for user $userId: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    private fun getFamilyFcmTokens(familyId: String): List<String> {
+        return try {
+            userService.getFamilyMembersFcmTokens(familyId)
+                .map { familyMember ->
+                    try {
+                        userService.getAllFcmTokens(familyMember.id)
+                    } catch (e: Exception) {
+                        logger.warn("Failed to get tokens for family member ${familyMember.id}: ${e.message}")
+                        emptyList()
+                    }
+                }
+                .flatten()
+                .distinct()
+                .filter { it.isNotBlank() }
+        } catch (e: Exception) {
+            logger.error("Error getting family FCM tokens for family $familyId: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    private fun sendNotificationToTokens(
+        type: NotificationType,
+        title: String,
+        body: String,
+        fcmTokens: List<String>,
+        amount: Int,
+        description: String,
+        expenseUser: ExpenseUser = getCurrentUserWithValidation()
+    ) {
+        try {
+            logger.debug("Sending notification to ${fcmTokens.size} FCM tokens")
+
+            val formattedAmount = formatAmount(amount, expenseUser)
+            val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
+                title, body, type,
+                fcmTokens, formattedAmount, description
+            )
+
+            val successfulNotifications = fcmTokens.size - invalidTokens.size
+            logger.info("Expense notification sent to $successfulNotifications devices. Invalid tokens: ${invalidTokens.size}")
+
+            if (invalidTokens.isNotEmpty()) {
+                cleanupInvalidTokens(invalidTokens)
+            }
+
+        } catch (e: Exception) {
+            logger.error("Error sending notifications to FCM tokens: ${e.message}", e)
+            throw e
+        }
+    }
+
+    private fun formatAmount(amount: Int, currentUser: ExpenseUser): String {
+        return try {
+            "${currentUser.currencyPreference}$amount"
+        } catch (e: Exception) {
+            logger.warn("Error formatting amount $amount: ${e.message}")
+            "${currentUser.currencyPreference}0"
+        }
+    }
+
+    private fun cleanupInvalidTokens(invalidTokens: List<String>) {
+        try {
+            logger.debug("Cleaning up ${invalidTokens.size} invalid FCM tokens")
+            userDeviceService.removeInvalidTokens(invalidTokens)
+            logger.debug("Successfully removed invalid FCM tokens")
+        } catch (e: Exception) {
+            logger.error("Failed to cleanup invalid FCM tokens: ${e.message}", e)
+        }
+    }
+
+    private fun executeWithPagination(
+        params: PaginationParams,
+        validSortFields: List<String> = VALID_SORT_FIELDS,
+        operation: (ValidatedPaginationParams) -> PagedResponse<ExpenseDto>
+    ): PagedResponse<ExpenseDto> {
+        val validatedParams = validatePaginationParams(
+            params.page, params.size, params.lastExpenseId, params.sortBy, params.isAsc, validSortFields
+        )
+        return operation(validatedParams)
+    }
+
+    // API Endpoints
+    @GetMapping
+    fun getExpenses(
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(required = false) lastExpenseId: String?,
+        @RequestParam(defaultValue = "date") sortBy: String,
+        @RequestParam(defaultValue = "false") isAsc: Boolean
+    ): PagedResponse<ExpenseDto> {
+        val currentUser = getCurrentUserWithValidation()
+        logger.info("Getting personal expenses for user: ${currentUser.id}, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
+        val params = PaginationParams(page, size, lastExpenseId, sortBy, isAsc)
+        return executeWithPagination(params) { validatedParams ->
+            if (validatedParams.lastExpenseId != null) {
+                logger.debug("Using cursor-based pagination with lastExpenseId: ${validatedParams.lastExpenseId}")
+                expenseService.getPersonalExpensesByUserIdAfterCursor(
+                    currentUser.id, validatedParams.lastExpenseId, validatedParams.size,
+                    validatedParams.sortBy, validatedParams.isAsc
+                )
+            } else {
+                logger.debug("Using traditional page-based pagination")
+                expenseService.getPersonalExpensesByUserIdWithOrder(
+                    currentUser.id, validatedParams.page, validatedParams.size,
+                    validatedParams.sortBy, validatedParams.isAsc
+                )
+            }
+        }
+    }
+
+    @GetMapping("/family")
+    fun getExpensesForFamily(
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(required = false) lastExpenseId: String?,
+        @RequestParam(defaultValue = "date") sortBy: String,
+        @RequestParam(defaultValue = "false") isAsc: Boolean
+    ): PagedResponse<ExpenseDto> {
+        val currentUser = getCurrentUserWithValidation()
+        logger.info("Getting family expenses for user: ${currentUser.id}, page: $page, size: $size, sortBy: $sortBy, isAsc: $isAsc")
+
+        val familyId = currentUser.familyId
+
+        if (!familyId.isNullOrBlank()) {
+            val family = familyRepository.findById(familyId).orElse(null)
+            if (family == null) {
+                logger.warn("User ${currentUser.id} attempted to access expenses for non-existent family: ${familyId}")
+                throw ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "The specified family does not exist"
+                )
+            }
+
+            if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                logger.warn("User ${currentUser.id} attempted to access expenses for family ${familyId} but is not a member")
+                throw ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "Cannot access expenses for a family you are not a member of"
+                )
+            }
+
+            logger.debug("Family membership validated for user ${currentUser.id} in family ${familyId}")
+        }
+
+        if (familyId.isNullOrBlank()) {
+            logger.warn("ExpenseUser ${currentUser.id} is not part of any family, returning empty family expenses")
+            throw ResponseStatusException(
+                HttpStatus.PRECONDITION_FAILED,
+                "you are not a member of any family, cannot fetch family expenses"
+            )
+        }
+
+        logger.debug("ExpenseUser ${currentUser.id} belongs to family: $familyId")
+        val params = PaginationParams(page, size, lastExpenseId, sortBy, isAsc)
+        return executeWithPagination(params) { validatedParams ->
+            if (validatedParams.lastExpenseId != null) {
+                logger.debug("Using cursor-based pagination for family expenses with lastExpenseId: ${validatedParams.lastExpenseId}")
+                expenseService.getExpensesByFamilyIdAndUserFamilyAfterCursor(
+                    familyId, validatedParams.lastExpenseId, validatedParams.size,
+                    validatedParams.sortBy, validatedParams.isAsc
+                )
+            } else {
+                logger.debug("Using traditional page-based pagination for family expenses")
+                expenseService.getExpensesByFamilyIdAndUserFamilyWithOrder(
+                    familyId, validatedParams.page, validatedParams.size,
+                    validatedParams.sortBy, validatedParams.isAsc
+                )
+            }
+        }.also {
+            logger.info("Successfully retrieved ${it.content.size} family expenses for user: ${currentUser.id}, family: $familyId")
+        }
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createExpense(@RequestBody expense: ExpenseDto): ResponseEntity<Any> {
+        logger.info("Creating expense request received: amount=${expense.amount}, category=${expense.category}, description=${expense.description}")
+
+        return try {
+            val currentUser = getCurrentUserWithValidation()
+            logger.debug("Current user ID: ${currentUser.id}")
+
+            // Validate the expense data
+            val validationErrors = validateExpenseData(expense, currentUser)
+            if (validationErrors.isNotEmpty()) {
+                logger.warn("Expense validation failed with errors: $validationErrors")
+                throw ExpenseValidationException("Expense validation failed", validationErrors)
+            }
+
+            // Validate family membership if familyId is provided
+            if (!expense.familyId.isNullOrBlank()) {
+                val family = familyRepository.findById(expense.familyId).orElse(null)
+                if (family == null) {
+                    logger.warn("User ${currentUser.id} attempted to add expense to non-existent family: ${expense.familyId}")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "Family not found",
+                            "error" to "The specified family does not exist"
+                        )
+                    )
+                }
+
+                if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                    logger.warn("User ${currentUser.id} attempted to add expense to family ${expense.familyId} but is not a member")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "You are not part of this family",
+                            "error" to "Cannot add expense to a family you are not a member of"
+                        )
+                    )
+                }
+
+                logger.debug("Family membership validated for user ${currentUser.id} in family ${expense.familyId}")
+            }
+
+            val currentTime = System.currentTimeMillis()
+            val expenseWithUser = expense.copy(
+                userId = currentUser.id,
+                createdBy = currentUser.id,
+                modifiedBy = currentUser.id,
+                expenseCreatedOn = currentTime,
+                lastModifiedOn = currentTime,
+                updatedUserAlias = currentUser.profilePic ?: currentUser.name ?: "Unknown ExpenseUser"
+            )
+
+            logger.debug("Attempting to save expense to database")
+            val createdExpense = try {
+                expenseService.createExpense(expenseWithUser)
+            } catch (e: Exception) {
+                logger.error("Failed to save expense to database: ${e.message}", e)
+                throw ExpenseCreationException("Failed to save expense to database: ${e.message}", e)
+            }
+            logger.info("Successfully created expense with ID: ${createdExpense.expenseId}")
+
+            // Send FCM notification
+            sendExpenseNotification(
+                type = if (expense.familyId == null || expense.familyId.isBlank()) NotificationType.EXPENSE_ADDED else NotificationType.FAMILY_EXPENSE_ADDED,
+                title = "New Expense Added",
+                body = "${currentUser.name} added expense: ${expense.description} - ${currentUser.currencyPreference + expense.amount}",
+                expense = createdExpense,
+                user = currentUser,
+                amount = expense.amount,
+                description = expense.description
+            )
+
+            logger.info("Expense creation completed successfully for user: ${currentUser.id}, expenseId: ${createdExpense.expenseId}")
+            ResponseEntity.status(HttpStatus.CREATED).body(
+                mapOf(
+                    "success" to true,
+                    "message" to "Expense created successfully",
+                    "expense" to createdExpense
+                )
+            )
+
+        } catch (e: ExpenseValidationException) {
+            logger.error("Expense validation exception: ${e.message}")
+            throw e
+        } catch (e: ExpenseCreationException) {
+            logger.error("Expense creation exception: ${e.message}", e)
+            throw e
+        } catch (e: Exception) {
+            logger.error("Unexpected error occurred while creating expense: ${e.message}", e)
+            throw ExpenseCreationException("An unexpected error occurred while creating the expense: ${e.message}", e)
+        }
+    }
+
     @GetMapping("/detail/{id}")
     fun getExpenseById(@PathVariable id: String): ResponseEntity<ExpenseDto> {
         logger.info("Getting expense by ID: $id")
         return try {
-            val currentUserId = authUtil.getCurrentUserId()
-            logger.debug("Current user ID: $currentUserId")
+            val currentUser = getCurrentUserWithValidation()
+            logger.debug("Current user2 ID: ${currentUser.id}")
 
             val expense = expenseService.getExpenseById(id)
-                ?: throw ExpenseNotFoundException("Expense with ID '$id' not found")
+            val validatedExpense = validateExpenseAccess(expense, currentUser, id)
 
-            logger.debug("Found expense with ID: $id, userId: ${expense.userId}")
-            if (expense.userId != currentUserId) {
-                logger.warn("Access denied for user $currentUserId trying to access expense $id owned by ${expense.userId}")
-                throw ExpenseAccessDeniedException("You don't have permission to view this expense")
-            }
-
-            logger.info("Successfully retrieved expense $id for user $currentUserId")
-            ResponseEntity.ok(expense)
+            logger.info("Successfully retrieved expense $id for user ${currentUser.id}")
+            ResponseEntity.ok(validatedExpense)
         } catch (e: ExpenseNotFoundException) {
             logger.error("Expense not found: ${e.message}")
             throw e
@@ -400,28 +625,81 @@ class ExpenseController(
     }
 
     @PutMapping("/{id}")
-    fun updateExpense(@PathVariable id: String, @RequestBody expense: ExpenseDto): ResponseEntity<ExpenseDto> {
+    fun updateExpense(@PathVariable id: String, @RequestBody expense: ExpenseDto): ResponseEntity<Any> {
         logger.info("Updating expense with ID: $id")
-        val currentUserId = authUtil.getCurrentUserId()
-        logger.debug("Current user ID: $currentUserId")
-
         return try {
-            val existingExpense = expenseService.getExpenseById(id)
-            if (existingExpense?.userId != currentUserId) {
-                logger.warn("Access denied for user $currentUserId trying to update expense $id")
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+            val currentUser = getCurrentUserWithValidation()
+            logger.debug("Current user3 ID: ${currentUser.id}")
+
+            val existingExpense: ExpenseDto = expenseService.getExpenseById(id)
+                ?: return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                    mapOf(
+                        "success" to false,
+                        "message" to "Expense not found",
+                        "error" to "The specified expense does not exist"
+                    )
+                )
+            validateExpenseAccess(existingExpense, currentUser, id)
+
+            // Validate the updated expense data
+            val validationErrors = validateExpenseData(expense, currentUser)
+            if (validationErrors.isNotEmpty()) {
+                throw ExpenseValidationException("Expense validation failed", validationErrors)
+            }
+
+            if (!expense.familyId.isNullOrBlank()) {
+                val family = familyRepository.findById(expense.familyId).orElse(null)
+                if (family == null) {
+                    logger.warn("User1 ${currentUser.id} attempted to update expense to non-existent family: ${expense.familyId}")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "Family not found",
+                            "error" to "The specified family does not exist"
+                        )
+                    )
+                }
+
+                if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                    logger.warn("User ${currentUser.id} attempted to update expense to family ${expense.familyId} but is not a member")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "You are not part of this family",
+                            "error" to "Cannot update expense to a family you are not a member of"
+                        )
+                    )
+                }
+
+                logger.debug("Family membership validated for user ${currentUser.id} in family ${expense.familyId}")
             }
 
             logger.debug("Updating expense $id with new data")
             val updatedExpense = expenseService.updateExpense(
                 id, expense.copy(
-                    userId = currentUserId,
-                    modifiedBy = currentUserId
+                    userId = currentUser.id,
+                    modifiedBy = currentUser.id,
+                    lastModifiedOn = System.currentTimeMillis()
                 )
             )
-            logger.info("Successfully updated expense $id for user $currentUserId")
+
+            // Send FCM notification
+            sendExpenseNotification(
+                type = if (existingExpense.familyId == null || existingExpense.familyId.isBlank()) NotificationType.EXPENSE_UPDATED else NotificationType.FAMILY_EXPENSE_UPDATED,
+                title = "Expense Updated",
+                body = "${currentUser.name} updated expense: ${expense.description} - ${currentUser.currencyPreference + expense.amount}",
+                expense = updatedExpense,
+                user = currentUser,
+                amount = expense.amount,
+                description = expense.description
+            )
+
+            logger.info("Successfully updated expense $id for user ${currentUser.id}")
             ResponseEntity.ok(updatedExpense)
-        } catch (e: NoSuchElementException) {
+        } catch (e: ExpenseValidationException) {
+            logger.error("Expense validation1 exception: ${e.message}")
+            throw e
+        } catch (_: NoSuchElementException) {
             logger.error("Expense not found for update: $id")
             ResponseEntity.notFound().build()
         } catch (e: Exception) {
@@ -431,24 +709,67 @@ class ExpenseController(
     }
 
     @DeleteMapping("/{id}")
-    fun deleteExpense(@PathVariable id: String): ResponseEntity<Void> {
+    fun deleteExpense(@PathVariable id: String): ResponseEntity<Any> {
         logger.info("Deleting expense with ID: $id")
-        val currentUserId = authUtil.getCurrentUserId()
-        logger.debug("Current user ID: $currentUserId")
+        return try {
+            val currentUser = getCurrentUserWithValidation()
+            logger.debug("Current user1 ID: ${currentUser.id}")
 
-        val existingExpense = expenseService.getExpenseById(id)
+            val existingExpense = expenseService.getExpenseById(id)
+                ?: return ResponseEntity.notFound().build()
 
-        if (existingExpense?.userId != currentUserId) {
-            logger.warn("Access denied for user $currentUserId trying to delete expense $id")
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
-        }
+            if (!canDeleteExpense(existingExpense, currentUser)) {
+                logger.warn("Access denied for user ${currentUser.id} trying to delete expense $id (owner: ${existingExpense.userId})")
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+            }
 
-        return if (expenseService.deleteExpense(id)) {
-            logger.info("Successfully deleted expense $id for user $currentUserId")
-            ResponseEntity.noContent().build()
-        } else {
-            logger.error("Failed to delete expense $id - not found")
-            ResponseEntity.notFound().build()
+
+            if (!existingExpense.familyId.isNullOrBlank()) {
+                val family = familyRepository.findById(existingExpense.familyId).orElse(null)
+                if (family == null) {
+                    logger.warn("User ${currentUser.id} attempted to update expense to non-existent family: ${existingExpense.familyId}")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "Family not found",
+                            "error" to "The specified family does not exist"
+                        )
+                    )
+                }
+
+                if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                    logger.warn("User ${currentUser.id} attempted to update expense to family ${existingExpense.familyId} but is not a member")
+                    return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                        mapOf(
+                            "success" to false,
+                            "message" to "You are not part of this family",
+                            "error" to "Cannot update expense to a family you are not a member of"
+                        )
+                    )
+                }
+
+                logger.debug("Family membership validated for user ${currentUser.id} in family ${existingExpense.familyId}")
+            }
+
+            if (expenseService.deleteExpense(id)) {
+                sendExpenseNotification(
+                    type = if (existingExpense.familyId == null || existingExpense.familyId.isBlank()) NotificationType.EXPENSE_DELETED else NotificationType.FAMILY_EXPENSE_DELETED,
+                    title = "Expense Deleted",
+                    body = "${currentUser.name} deleted expense: ${existingExpense.description} - ${currentUser.currencyPreference + existingExpense.amount}",
+                    expense = existingExpense,
+                    user = currentUser,
+                    amount = existingExpense.amount,
+                    description = existingExpense.description
+                )
+                logger.info("Successfully deleted expense $id for user ${currentUser.id} (original owner: ${existingExpense.userId})")
+                ResponseEntity.ok(mapOf("message" to "Expense Deleted Successfully"))
+            } else {
+                logger.error("Failed to delete expense $id - deletion failed")
+                ResponseEntity.notFound().build()
+            }
+        } catch (e: Exception) {
+            logger.error("Error deleting expense $id: ${e.message}", e)
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
         }
     }
 
@@ -458,17 +779,14 @@ class ExpenseController(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int
     ): PagedResponse<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
+        val currentUser = getCurrentUserWithValidation()
+        val params = PaginationParams(page, size, null, "date", false)
 
-        // Validate pagination parameters
-        val validatedPage = maxOf(0, page) // Ensure page is not negative
-        val validatedSize = when {
-            size <= 0 -> 10 // Default to 10 if size is 0 or negative
-            size > 100 -> 100 // Cap at 100 to prevent performance issues
-            else -> size
+        return executeWithPagination(params) { validatedParams ->
+            expenseService.getExpensesByUserIdAndCategory(
+                currentUser.id, category, validatedParams.page, validatedParams.size
+            )
         }
-
-        return expenseService.getExpensesByUserIdAndCategory(currentUserId, category, validatedPage, validatedSize)
     }
 
     @GetMapping("/between-dates")
@@ -478,46 +796,34 @@ class ExpenseController(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "10") size: Int
     ): PagedResponse<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
+        val currentUser = getCurrentUserWithValidation()
+        val params = PaginationParams(page, size, null, "date", false)
 
-        // Validate pagination parameters
-        val validatedPage = maxOf(0, page) // Ensure page is not negative
-        val validatedSize = when {
-            size <= 0 -> 10 // Default to 10 if size is 0 or negative
-            size > 100 -> 100 // Cap at 100 to prevent performance issues
-            else -> size
+        return executeWithPagination(params) { validatedParams ->
+            val start = LocalDate.parse(startDate).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+            val end = LocalDate.parse(endDate).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+            expenseService.getExpensesByUserIdAndDateRange(
+                currentUser.id, start, end, validatedParams.page, validatedParams.size
+            )
         }
-
-        val start = LocalDate.parse(startDate).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
-        val end = LocalDate.parse(endDate).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
-        return expenseService.getExpensesByUserIdAndDateRange(currentUserId, start, end, validatedPage, validatedSize)
     }
-
-    // Simplified data class - now only needs expenseId since token is retrieved from DB
-    data class ExpenseNotificationRequest(val expenseId: String)
 
     @PostMapping("/notify")
     fun notifyExpense(@RequestBody request: ExpenseNotificationRequest): ResponseEntity<String> {
-        val currentUserId = authUtil.getCurrentUserId()
+        val currentUser = getCurrentUserWithValidation()
 
-        // Get the expense details
         val expense = expenseService.getExpenseById(request.expenseId)
-        if (expense == null || expense.userId != currentUserId) {
-            return ResponseEntity.badRequest().body("Expense not found or access denied")
-        }
+        validateExpenseAccess(expense, currentUser, request.expenseId)
 
-        // Get all user's FCM tokens from database
-        val fcmTokens = userService.getAllFcmTokens(currentUserId)
+        val fcmTokens = userService.getAllFcmTokens(currentUser.id)
         if (fcmTokens.isEmpty()) {
             return ResponseEntity.badRequest().body("No FCM tokens found. Please update your device token first.")
         }
 
-        // Send notification to all devices
         val title = "Expense Notification"
-        val body = "Expense '${expense.description}' of $${expense.amount}"
+        val body = "Expense '${expense!!.description}' of ${currentUser.currencyPreference + expense.amount}"
         val invalidTokens = pushNotificationService.sendNotificationToMultiple(fcmTokens, title, body)
 
-        // Clean up invalid tokens
         if (invalidTokens.isNotEmpty()) {
             userDeviceService.removeInvalidTokens(invalidTokens)
         }
@@ -530,9 +836,8 @@ class ExpenseController(
         @RequestParam year: Int,
         @RequestParam month: Int
     ): ResponseEntity<Map<String, Any>> {
-        val currentUserId = authUtil.getCurrentUserId()
+        val currentUser = getCurrentUserWithValidation()
 
-        // Validate month parameter
         if (month < 1 || month > 12) {
             return ResponseEntity.badRequest().body(
                 mapOf(
@@ -542,72 +847,100 @@ class ExpenseController(
             )
         }
 
-        val totalAmount = expenseService.getMonthlyExpenseSum(currentUserId, year, month)
+        val totalAmount = expenseService.getMonthlyExpenseSum(currentUser.id, year, month)
 
         return ResponseEntity.ok(
             mapOf(
                 "year" to year,
                 "month" to month,
                 "totalAmount" to totalAmount,
-                "userId" to currentUserId
+                "userId" to currentUser.id
+            )
+        )
+    }
+
+    @GetMapping("/family-monthly-sum")
+    fun getFamilyMonthlyExpenseSum(
+        @RequestParam year: Int,
+        @RequestParam month: Int
+    ): ResponseEntity<Map<String, Any>> {
+        val currentUser = getCurrentUserWithValidation()
+        val familyId = currentUser.familyId
+
+        if (familyId == null || familyId.isBlank()) {
+            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(
+                mapOf(
+                    "error" to "You are not part of any family",
+                    "userId" to currentUser.id
+                )
+            )
+        }
+
+        if (year < 2000 || year > LocalDate.now().year) {
+            return ResponseEntity.badRequest().body(
+                mapOf(
+                    "error" to "Invalid year. Year must be between 2000 and current year",
+                    "year" to year
+                )
+            )
+        }
+
+        if (month < 1 || month > 12) {
+            return ResponseEntity.badRequest().body(
+                mapOf(
+                    "error" to "Invalid month. Month must be between 1 and 12",
+                    "month" to month
+                )
+            )
+        }
+
+        val totalAmount = expenseService.getFamilyMonthlyExpenseSum( year, month, familyId)
+
+        return ResponseEntity.ok(
+            mapOf(
+                "year" to year,
+                "month" to month,
+                "totalAmount" to totalAmount,
             )
         )
     }
 
     @GetMapping("/since")
     fun getExpensesSince(
-        @RequestParam lastModified: Long, // Timestamp in milliseconds
+        @RequestParam lastModified: Long,
         @RequestParam(defaultValue = "10") size: Int,
-        @RequestParam(required = false) lastExpenseId: String?, // For cursor-based pagination
+        @RequestParam(required = false) lastExpenseId: String?,
         @RequestParam(defaultValue = "lastModifiedOn") sortBy: String,
         @RequestParam(defaultValue = "true") isAsc: Boolean
     ): PagedResponse<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
+        val currentUser = getCurrentUserWithValidation()
+        val params = PaginationParams(0, size, lastExpenseId, sortBy, isAsc)
 
-        // Validate pagination parameters
-        val validatedSize = when {
-            size <= 0 -> 10 // Default to 10 if size is 0 or negative
-            size > 100 -> 100 // Cap at 100 to prevent performance issues
-            else -> size
-        }
-
-        // Validate sortBy parameter for sync operations
-        val validSortFields = listOf(
-            "lastModifiedOn", "expenseCreatedOn", "date"
-        )
-        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "lastModifiedOn"
-
-        return if (lastExpenseId != null) {
-            // Use cursor-based pagination for subsequent requests
-            expenseService.getExpensesSinceWithCursor(
-                currentUserId, lastModified, lastExpenseId, validatedSize, safeSortBy, isAsc
-            )
-        } else {
-            // Initial request without cursor
-            expenseService.getExpensesSince(
-                currentUserId, lastModified, validatedSize, safeSortBy, isAsc
-            )
+        return executeWithPagination(params, VALID_SYNC_SORT_FIELDS) { validatedParams ->
+            if (validatedParams.lastExpenseId != null) {
+                expenseService.getExpensesSinceWithCursor(
+                    currentUser.id, lastModified, validatedParams.lastExpenseId,
+                    validatedParams.size, validatedParams.sortBy, validatedParams.isAsc
+                )
+            } else {
+                expenseService.getExpensesSince(
+                    currentUser.id, lastModified, validatedParams.size,
+                    validatedParams.sortBy, validatedParams.isAsc
+                )
+            }
         }
     }
 
     @GetMapping("/since-date")
     fun getExpensesSinceDate(
-        @RequestParam date: String, // Date in YYYY-MM-DD format
+        @RequestParam date: String,
         @RequestParam(defaultValue = "10") size: Int,
         @RequestParam(required = false) lastExpenseId: String?,
         @RequestParam(defaultValue = "date") sortBy: String,
         @RequestParam(defaultValue = "true") isAsc: Boolean
     ): PagedResponse<ExpenseDto> {
-        val currentUserId = authUtil.getCurrentUserId()
+        val currentUser = getCurrentUserWithValidation()
 
-        // Validate pagination parameters
-        val validatedSize = when {
-            size <= 0 -> 10
-            size > 100 -> 100
-            else -> size
-        }
-
-        // Parse date and convert to timestamp
         val sinceTimestamp = try {
             LocalDate.parse(date).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
         } catch (e: Exception) {
@@ -617,20 +950,21 @@ class ExpenseController(
             )
         }
 
-        // Validate sortBy parameter
-        val validSortFields = listOf(
-            "date", "lastModifiedOn", "expenseCreatedOn", "amount"
-        )
-        val safeSortBy = if (validSortFields.contains(sortBy)) sortBy else "date"
+        val validSortFields = listOf("date", "lastModifiedOn", "expenseCreatedOn", "amount")
+        val params = PaginationParams(0, size, lastExpenseId, sortBy, isAsc)
 
-        return if (lastExpenseId != null) {
-            expenseService.getExpensesSinceDateWithCursor(
-                currentUserId, sinceTimestamp, lastExpenseId, validatedSize, safeSortBy, isAsc
-            )
-        } else {
-            expenseService.getExpensesSinceDate(
-                currentUserId, sinceTimestamp, validatedSize, safeSortBy, isAsc
-            )
+        return executeWithPagination(params, validSortFields) { validatedParams ->
+            if (validatedParams.lastExpenseId != null) {
+                expenseService.getExpensesSinceDateWithCursor(
+                    currentUser.id, sinceTimestamp, validatedParams.lastExpenseId,
+                    validatedParams.size, validatedParams.sortBy, validatedParams.isAsc
+                )
+            } else {
+                expenseService.getExpensesSinceDate(
+                    currentUser.id, sinceTimestamp, validatedParams.size,
+                    validatedParams.sortBy, validatedParams.isAsc
+                )
+            }
         }
     }
 }

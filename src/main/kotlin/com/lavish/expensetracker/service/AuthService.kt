@@ -76,8 +76,13 @@ class AuthService(
             // Update Firebase UID if not set or changed
             if (existingUser.firebaseUid != firebaseUser.uid) {
                 logger.info("Updating Firebase UID for user: ${existingUser.id}")
-                existingUser.firebaseUid = firebaseUser.uid
-                userRepository.save(existingUser)
+                val updatedUser = existingUser.copy(firebaseUid = firebaseUser.uid)
+                existingUser.aliasName.ifEmpty {
+                    logger.info("Generating new alias name for user: ${existingUser.id}")
+                    updatedUser.copy(aliasName = generateUniqueAliasName())
+                }
+                userRepository.save(updatedUser)
+                return updatedUser
             }
             existingUser
         } ?: run {
@@ -89,10 +94,32 @@ class AuthService(
                 email = firebaseUser.email,
                 firebaseUid = firebaseUser.uid,
                 familyId = null,
-                profilePic = firebaseUser.picture
+                profilePic = firebaseUser.picture,
+                aliasName = generateUniqueAliasName()
             )
             userRepository.save(newUser)
             newUser
+        }
+    }
+
+    fun generateUniqueAliasName(): String {
+        logger.debug("Generating unique alias name")
+        return try {
+            val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+            var alias: String
+            var attempts = 0
+            do {
+                alias = (1..6)
+                    .map { chars.random() }
+                    .joinToString("")
+                attempts++
+                logger.debug("Generated alias attempt $attempts: $alias")
+            } while (userRepository.findAll().any { it.aliasName == alias })
+            logger.info("Unique alias generated: $alias after $attempts attempts")
+            alias
+        } catch (ex: Exception) {
+            logger.error("Exception in generateUniqueAliasName", ex)
+            throw ex
         }
     }
 
@@ -113,12 +140,16 @@ class AuthService(
         return SuccessAuthResponse(
             success = true,
             message = "Authentication successful",
-            user = UserInfo(
+            user = ExpenseUser(
                 id = user.id,
                 name = user.name?.ifEmpty { firebaseUser.name },
                 email = user.email,
                 familyId = user.familyId,
-                profilePicture = firebaseUser.picture
+                profilePic = firebaseUser.picture,
+                createdAt = user.createdAt,
+                updatedAt = user.updatedAt,
+                aliasName = user.aliasName,
+                firebaseUid = user.firebaseUid
             ),
             token = token,
             refreshToken = refreshToken
