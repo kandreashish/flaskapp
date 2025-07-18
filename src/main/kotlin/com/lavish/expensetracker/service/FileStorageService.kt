@@ -78,115 +78,140 @@ class FileStorageService {
             file.size
         )
 
-        try {
-            // Validate the file first
-            validateFile(file)
-            logger.debug("File validation passed for user: {}", userId)
+        var attempt = 0
+        val maxAttempts = 3
+        var lastException: Exception? = null
 
-            val fileName = generateFileName(file.originalFilename, userId)
-            val targetLocation = Paths.get(uploadDir, "profile-pics", fileName)
-
-            logger.debug("Target location: {}", targetLocation)
-
-            // Ensure the directory exists
-            ensureDirectoryExists(targetLocation.parent)
-
-            // Check available disk space before upload
-            checkDiskSpace(targetLocation.parent, file.size)
-
-            // Perform the file copy operation
+        while (attempt < maxAttempts) {
+            attempt++
             try {
-                file.inputStream.use { inputStream ->
-                    Files.copy(inputStream, targetLocation, StandardCopyOption.REPLACE_EXISTING)
-                }
-                logger.info("Successfully uploaded profile picture for user: {}, file: {}", userId, fileName)
-            } catch (ex: IOException) {
-                logger.error("IOException during file copy for user: {}, file: {}", userId, fileName, ex)
-                when (ex) {
-                    is NoSuchFileException -> {
-                        throw ResponseStatusException(
-                            HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Upload directory not found. Please contact administrator."
-                        )
+                logger.debug("Upload attempt {} of {} for user: {}", attempt, maxAttempts, userId)
+
+                // Validate the file first
+                validateFile(file)
+                logger.debug("File validation passed for user: {}", userId)
+
+                val fileName = generateFileName(file.originalFilename, userId)
+                val targetLocation = Paths.get(uploadDir, "profile-pics", fileName)
+
+                logger.debug("Target location: {}", targetLocation)
+
+                // Ensure the directory exists and is writable
+                ensureDirectoryExists(targetLocation.parent)
+                verifyDirectoryWritable(targetLocation.parent)
+
+                // Check available disk space before upload
+                checkDiskSpace(targetLocation.parent, file.size)
+
+                // Create temporary file first, then move to final location
+                val tempLocation = Paths.get(uploadDir, "profile-pics", "${fileName}.tmp")
+
+                try {
+                    // Write to temporary file first
+                    file.inputStream.use { inputStream ->
+                        Files.copy(inputStream, tempLocation, StandardCopyOption.REPLACE_EXISTING)
                     }
 
-                    is AccessDeniedException -> {
-                        throw ResponseStatusException(
-                            HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Permission denied. Unable to write to upload directory."
-                        )
+                    // Verify temporary file was written correctly
+                    if (!Files.exists(tempLocation)) {
+                        throw IOException("Temporary file was not created: ${tempLocation}")
                     }
 
-                    is FileSystemException -> {
-                        throw ResponseStatusException(
-                            HttpStatus.INSUFFICIENT_STORAGE,
-                            "File system error. Possibly insufficient disk space."
-                        )
+                    val tempFileSize = Files.size(tempLocation)
+                    if (tempFileSize != file.size) {
+                        Files.deleteIfExists(tempLocation)
+                        throw IOException("File size mismatch. Expected: ${file.size}, Got: ${tempFileSize}")
                     }
 
-                    else -> {
-                        throw ResponseStatusException(
-                            HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Failed to store file $fileName: ${ex.message}"
-                        )
+                    // Move temporary file to final location atomically
+                    Files.move(tempLocation, targetLocation, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+
+                    logger.info("Successfully uploaded profile picture for user: {} on attempt {}, file: {}", userId, attempt, fileName)
+
+                    // Return the URL for accessing the file
+                    return "/api/files/profile-pics/$fileName"
+
+                } catch (ex: IOException) {
+                    // Clean up any temporary files
+                    try {
+                        Files.deleteIfExists(tempLocation)
+                        Files.deleteIfExists(targetLocation)
+                    } catch (cleanupEx: Exception) {
+                        logger.warn("Failed to cleanup files after upload error: {}", cleanupEx.message)
+                    }
+
+                    logger.error("IOException during file copy for user: {}, attempt: {}, file: {}", userId, attempt, fileName, ex)
+
+                    when (ex) {
+                        is NoSuchFileException -> {
+                            lastException = ResponseStatusException(
+                                HttpStatus.INTERNAL_SERVER_ERROR,
+                                "Upload directory not found. Please contact administrator."
+                            )
+                        }
+                        is AccessDeniedException -> {
+                            lastException = ResponseStatusException(
+                                HttpStatus.INTERNAL_SERVER_ERROR,
+                                "Permission denied. Unable to write to upload directory."
+                            )
+                        }
+                        is FileSystemException -> {
+                            lastException = ResponseStatusException(
+                                HttpStatus.INSUFFICIENT_STORAGE,
+                                "File system error. Possibly insufficient disk space."
+                            )
+                        }
+                        else -> {
+                            lastException = ResponseStatusException(
+                                HttpStatus.INTERNAL_SERVER_ERROR,
+                                "Failed to store file $fileName: ${ex.message}"
+                            )
+                        }
+                    }
+
+                    // If this is not the last attempt and it's a retryable error, continue
+                    if (attempt < maxAttempts && isRetryableError(ex)) {
+                        logger.warn("Retrying upload for user: {} after error: {}", userId, ex.message)
+                        Thread.sleep(100L * attempt) // Brief backoff
+                        continue
+                    } else {
+                        throw lastException!!
                     }
                 }
-            }
 
-            // Verify the file was actually written and has the correct size
-            try {
-                if (!Files.exists(targetLocation)) {
-                    logger.error("File was not created at target location: {}", targetLocation)
-                    throw ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR,
-                        "File upload verification failed - file not found after upload"
-                    )
-                }
-
-                val uploadedFileSize = Files.size(targetLocation)
-                if (uploadedFileSize != file.size) {
-                    logger.error("File size mismatch. Expected: {}, Actual: {}", file.size, uploadedFileSize)
-                    // Clean up the corrupted file
-                    Files.deleteIfExists(targetLocation)
-                    throw ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR,
-                        "File upload verification failed - size mismatch"
-                    )
-                }
-
-                logger.debug("File upload verification passed for: {}", fileName)
-            } catch (ex: IOException) {
-                logger.error("Error during file verification for: {}", fileName, ex)
-                throw ResponseStatusException(
+            } catch (ex: ResponseStatusException) {
+                logger.error("Upload failed for user: {} on attempt {}: {}", userId, attempt, ex.reason)
+                throw ex
+            } catch (ex: Exception) {
+                logger.error("Unexpected error during upload for user: {} on attempt {}", userId, attempt, ex)
+                lastException = ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Failed to verify uploaded file"
+                    "Unexpected error during file upload: ${ex.message}"
                 )
+
+                // If this is not the last attempt, continue
+                if (attempt < maxAttempts) {
+                    Thread.sleep(100L * attempt) // Brief backoff
+                    continue
+                } else {
+                    throw lastException!!
+                }
             }
+        }
 
-            return "http://103.80.162.46/api/files/profile-pics/$fileName"
+        // If we get here, all attempts failed
+        throw lastException ?: ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "File upload failed after $maxAttempts attempts"
+        )
+    }
 
-        } catch (ex: ResponseStatusException) {
-            // Re-throw ResponseStatusException as-is
-            logger.warn("Upload failed for user: {} - {}", userId, ex.reason)
-            throw ex
-        } catch (ex: SecurityException) {
-            logger.error("Security exception during upload for user: {}", userId, ex)
-            throw ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "Security policy prevents file upload"
-            )
-        } catch (ex: OutOfMemoryError) {
-            logger.error("Out of memory during upload for user: {}", userId, ex)
-            throw ResponseStatusException(
-                HttpStatus.INSUFFICIENT_STORAGE,
-                "File too large to process"
-            )
-        } catch (ex: Exception) {
-            logger.error("Unexpected error during profile picture upload for user: {}", userId, ex)
-            throw ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "An unexpected error occurred during file upload: ${ex.javaClass.simpleName}"
-            )
+    private fun isRetryableError(ex: IOException): Boolean {
+        return when (ex) {
+            is FileSystemException -> true // Might be temporary
+            is NoSuchFileException -> false // Directory issue, unlikely to resolve on retry
+            is AccessDeniedException -> false // Permission issue, won't resolve on retry
+            else -> true // Other IO errors might be temporary
         }
     }
 
@@ -336,6 +361,29 @@ class FileStorageService {
         } catch (ex: Exception) {
             logger.error("Unexpected error while deleting profile picture: $profilePicUrl", ex)
             false
+        }
+    }
+
+    private fun verifyDirectoryWritable(directory: Path) {
+        if (!Files.isWritable(directory)) {
+            logger.error("Directory is not writable: {}", directory.toAbsolutePath())
+            throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Upload directory is not writable"
+            )
+        }
+
+        // Test write by creating a temporary file
+        try {
+            val testFile = directory.resolve(".write-test-${UUID.randomUUID()}")
+            Files.write(testFile, "test".toByteArray())
+            Files.deleteIfExists(testFile)
+        } catch (ex: Exception) {
+            logger.error("Failed to write test file to directory: {}", directory.toAbsolutePath(), ex)
+            throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Upload directory write test failed: ${ex.message}"
+            )
         }
     }
 }

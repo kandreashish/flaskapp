@@ -72,6 +72,11 @@ services:
     restart: unless-stopped
     networks:
       - expense-network
+    # Fix user permissions for mounted volumes
+    user: "0:0"  # Start as root to fix permissions, entrypoint will switch to appuser
+    # Ensure directories exist on host with correct permissions
+    depends_on:
+      - h2-server
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
       interval: 30s
@@ -86,8 +91,6 @@ services:
     init: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      - h2-server
 
 networks:
   expense-network:

@@ -27,7 +27,7 @@ WORKDIR /app
 # Copy source code (this layer changes frequently)
 COPY src ./src
 
-# Build with optimized settings for Raspberry Pi
+# Build with optimized settings for Raspberry Pi - fix max-workers to match gradle.properties
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=cache,target=/app/build/tmp \
     ./gradlew bootJar --no-daemon --parallel --build-cache --console=plain \
@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.gradle \
 FROM --platform=$TARGETPLATFORM eclipse-temurin:17-jre-jammy AS runtime
 WORKDIR /app
 
-# Install minimal dependencies for ARM64
+# Install minimal dependencies for ARM64 - fix package installation
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -47,11 +47,15 @@ RUN apt-get update && \
         gosu \
         && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    # Verify gosu installation
+    gosu nobody true
 
-# Create user with specific UID/GID
+# Create user with specific UID/GID - fix permission issues
 RUN groupadd -g 1000 appgroup && \
-    useradd -r -u 1000 -g appgroup -d /app -s /bin/bash appuser
+    useradd -r -u 1000 -g appgroup -d /app -s /bin/bash appuser && \
+    # Ensure the user can actually be used
+    echo "appuser:x:1000:1000::/app:/bin/bash" >> /etc/passwd || true
 
 # Copy the built JAR from build stage
 COPY --from=build /app/build/libs/*-SNAPSHOT.jar app.jar
@@ -60,32 +64,53 @@ COPY --from=build /app/build/libs/*-SNAPSHOT.jar app.jar
 RUN mkdir -p /app/h2-data /app/logs /app/tmp /app/uploads /app/uploads/profile-pics && \
     chown -R appuser:appgroup /app && \
     chmod -R 755 /app && \
-    chmod 755 /app/logs && \
-    chmod 755 /app/uploads && \
-    chmod 755 /app/uploads/profile-pics && \
+    chmod 777 /app/logs && \
+    chmod 777 /app/uploads && \
+    chmod 777 /app/uploads/profile-pics && \
     chmod 666 /app/logs/* 2>/dev/null || true
 
-# Set proper ownership for mounted volumes at runtime
+# Create entrypoint script to handle permissions properly
 RUN echo '#!/bin/bash\n\
-if [ -d "/app/uploads" ]; then\n\
-    chown -R appuser:appgroup /app/uploads\n\
-    chmod -R 755 /app/uploads\n\
-fi\n\
-exec "$@"' > /app/fix-permissions.sh && \
-    chmod +x /app/fix-permissions.sh
+set -e\n\
+\n\
+# Ensure directories exist and have correct permissions\n\
+mkdir -p /app/uploads/profile-pics /app/logs /app/tmp\n\
+\n\
+# Fix ownership if running as root (for mounted volumes)\n\
+if [ "$(id -u)" = "0" ]; then\n\
+    chown -R appuser:appgroup /app/uploads /app/logs /app/tmp 2>/dev/null || true\n\
+    chmod -R 755 /app/uploads 2>/dev/null || true\n\
+    chmod -R 755 /app/logs 2>/dev/null || true\n\
+    # Use gosu to switch to appuser and execute Java\n\
+    exec gosu appuser java \\\n\
+        -XX:+UseContainerSupport \\\n\
+        -XX:MaxRAMPercentage=75.0 \\\n\
+        -XX:+UseG1GC \\\n\
+        -XX:G1HeapRegionSize=4m \\\n\
+        -XX:+UseStringDeduplication \\\n\
+        -XX:+OptimizeStringConcat \\\n\
+        -Djava.security.egd=file:/dev/./urandom \\\n\
+        -Dspring.jmx.enabled=false \\\n\
+        -Djava.io.tmpdir=/app/tmp \\\n\
+        -jar app.jar\n\
+else\n\
+    # Already running as non-root user\n\
+    exec java \\\n\
+        -XX:+UseContainerSupport \\\n\
+        -XX:MaxRAMPercentage=75.0 \\\n\
+        -XX:+UseG1GC \\\n\
+        -XX:G1HeapRegionSize=4m \\\n\
+        -XX:+UseStringDeduplication \\\n\
+        -XX:+OptimizeStringConcat \\\n\
+        -Djava.security.egd=file:/dev/./urandom \\\n\
+        -Dspring.jmx.enabled=false \\\n\
+        -Djava.io.tmpdir=/app/tmp \\\n\
+        -jar app.jar\n\
+fi' > /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
 
 # Expose port
 EXPOSE 3000
 
-# Fixed JVM settings for Java 17 on Raspberry Pi
-ENTRYPOINT ["tini", "--", "java", \
-    "-XX:+UseContainerSupport", \
-    "-XX:MaxRAMPercentage=75.0", \
-    "-XX:+UseG1GC", \
-    "-XX:G1HeapRegionSize=4m", \
-    "-XX:+UseStringDeduplication", \
-    "-XX:+OptimizeStringConcat", \
-    "-Djava.security.egd=file:/dev/./urandom", \
-    "-Dspring.jmx.enabled=false", \
-    "-Djava.io.tmpdir=/app/tmp", \
-    "-jar", "app.jar"]
+# Use tini and our custom entrypoint
+ENTRYPOINT ["tini", "--", "/app/entrypoint.sh"]
