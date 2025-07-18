@@ -4,11 +4,13 @@ import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.model.UserDevice
 import com.lavish.expensetracker.service.UserDeviceService
 import com.lavish.expensetracker.service.UserService
+import com.lavish.expensetracker.service.FileStorageService
 import com.lavish.expensetracker.util.AuthUtil
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 
 @RestController
@@ -16,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException
 class UserController(
     private val userService: UserService,
     private val userDeviceService: UserDeviceService,
+    private val fileStorageService: FileStorageService,
     private val authUtil: AuthUtil
 ) {
 
@@ -57,6 +60,7 @@ class UserController(
 
     data class UpdateProfileRequest(
         val name: String?,
+        val profilePic: String?,
         val currencyPreference: String?
     )
 
@@ -163,6 +167,36 @@ class UserController(
             ResponseEntity.ok(response)
         } else {
             ResponseEntity.notFound().build()
+        }
+    }
+
+    @PostMapping("/profile-picture")
+    fun uploadProfilePicture(@RequestParam("file") file: MultipartFile): ResponseEntity<Map<String, String>> {
+        val currentUser = getCurrentUserWithValidation()
+
+        return try {
+            // Upload the file and get the URL
+            val profilePicUrl = fileStorageService.uploadProfilePicture(file, currentUser.id)
+
+            // Update the user's profile picture URL in the database
+            val updatedUser = userService.updateProfilePicture(currentUser.id, profilePicUrl)
+
+            if (updatedUser != null) {
+                ResponseEntity.ok(mapOf(
+                    "message" to "Profile picture uploaded successfully",
+                    "profilePicUrl" to profilePicUrl
+                ))
+            } else {
+                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(mapOf("error" to "Failed to update profile picture in database"))
+            }
+        } catch (e: ResponseStatusException) {
+            ResponseEntity.status(e.statusCode)
+                .body(mapOf("error" to (e.reason ?: "Upload failed")))
+        } catch (e: Exception) {
+            logger.error("Error uploading profile picture for user ${currentUser.id}", e)
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(mapOf("error" to "Failed to upload profile picture"))
         }
     }
 }
