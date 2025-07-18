@@ -99,7 +99,7 @@ services:
       chmod -R 755 /app/uploads 2>/dev/null || true
       
       # Switch to app user and start the application
-      exec su-exec 1000:1000 tini -- java \
+      exec gosu 1000:1000 tini -- java \
         -XX:+UseContainerSupport \
         -XX:MaxRAMPercentage=75.0 \
         -XX:+UseG1GC \
