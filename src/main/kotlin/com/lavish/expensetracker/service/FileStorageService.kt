@@ -5,7 +5,6 @@ import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.http.HttpStatus
-import javax.annotation.PostConstruct
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -28,17 +27,6 @@ class FileStorageService {
         "image/webp"
     )
 
-    @PostConstruct
-    fun createUploadDirectory() {
-        // Create upload directory if it doesn't exist
-        try {
-            val uploadPath = Paths.get(uploadDir, "profile-pics")
-            Files.createDirectories(uploadPath)
-        } catch (ex: IOException) {
-            throw RuntimeException("Could not create upload directory!", ex)
-        }
-    }
-
     fun uploadProfilePicture(file: MultipartFile, userId: String): String {
         validateFile(file)
 
@@ -54,7 +42,7 @@ class FileStorageService {
             )
         }
 
-        return "api/files/profile-pics/$fileName"
+        return "http://103.80.162.46/api/files/profile-pics/$fileName"
     }
 
     fun deleteProfilePicture(profilePicUrl: String): Boolean {
