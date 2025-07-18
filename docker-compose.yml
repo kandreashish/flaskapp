@@ -88,27 +88,6 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - h2-server
-    # Run init script to fix permissions before starting app
-    entrypoint: ["/bin/bash", "-c"]
-    command: |
-      "
-      # Fix permissions for mounted volumes
-      chown -R 1000:1000 /app/uploads /app/logs 2>/dev/null || true
-      chmod -R 755 /app/uploads 2>/dev/null || true
-      
-      # Switch to app user and start the application
-      exec gosu 1000:1000 tini -- java \
-        -XX:+UseContainerSupport \
-        -XX:MaxRAMPercentage=75.0 \
-        -XX:+UseG1GC \
-        -XX:G1HeapRegionSize=4m \
-        -XX:+UseStringDeduplication \
-        -XX:+OptimizeStringConcat \
-        -Djava.security.egd=file:/dev/./urandom \
-        -Dspring.jmx.enabled=false \
-        -Djava.io.tmpdir=/app/tmp \
-        -jar app.jar
-      "
 
 networks:
   expense-network:

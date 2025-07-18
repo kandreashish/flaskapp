@@ -74,9 +74,6 @@ fi\n\
 exec "$@"' > /app/fix-permissions.sh && \
     chmod +x /app/fix-permissions.sh
 
-# Switch to non-root user
-USER appuser:appgroup
-
 # Expose port
 EXPOSE 3000
 
