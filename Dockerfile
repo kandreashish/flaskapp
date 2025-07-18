@@ -56,10 +56,12 @@ RUN groupadd -g 1000 appgroup && \
 COPY --from=build /app/build/libs/*-SNAPSHOT.jar app.jar
 
 # Create directories with proper permissions BEFORE switching users
-RUN mkdir -p /app/h2-data /app/logs /app/tmp && \
+RUN mkdir -p /app/h2-data /app/logs /app/tmp /app/uploads /app/uploads/profile-pics && \
     chown -R appuser:appgroup /app && \
     chmod -R 755 /app && \
     chmod 755 /app/logs && \
+    chmod 755 /app/uploads && \
+    chmod 755 /app/uploads/profile-pics && \
     chmod 666 /app/logs/* 2>/dev/null || true
 
 # Switch to non-root user
