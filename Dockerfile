@@ -31,7 +31,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=cache,target=/app/build/tmp \
     ./gradlew bootJar --no-daemon --parallel --build-cache --console=plain \
-    --max-workers=3 \
+    --max-workers=2 \
     -Dorg.gradle.jvmargs="-Xmx768m -XX:MaxMetaspaceSize=256m" \
     -Dkotlin.compiler.execution.strategy=in-process
 
