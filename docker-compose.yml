@@ -66,7 +66,7 @@ services:
     volumes:
       - h2-data:/app/h2-data
       - ./logs:/app/logs:rw
-      - ./uploads:/../../app/uploads:rw
+      - ../uploads:/app/uploads:rw
       # Add Gradle cache volume for faster rebuilds
       - gradle-cache:/root/.gradle
     restart: unless-stopped
