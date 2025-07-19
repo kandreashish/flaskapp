@@ -728,7 +728,7 @@ class FamilyController @Autowired constructor(
             "family_name" to family.name,
             "sender_name" to user.email,
             "sender_id" to user.id,
-            "type" to NotificationType.OTHER.name
+            "type" to NotificationType.FAMILY_MEMBER_LEFT.name
         )
 
         sendPushNotification(headUser.fcmToken, title, message, data, headUser.email)
@@ -740,7 +740,7 @@ class FamilyController @Autowired constructor(
             userName,
             user.id,
             headUser.id,
-            NotificationType.OTHER,
+            NotificationType.FAMILY_MEMBER_LEFT,
             family.aliasName
         )
         saveNotificationSafely(notification)
