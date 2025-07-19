@@ -89,10 +89,14 @@ class FileStorageService {
                 validateFile(file)
                 logger.debug("File validation passed for user: {}", userId)
 
-                val fileName = generateFileName(file.originalFilename, userId)
+                // Always use jpg extension for consistency, regardless of original format
+                val fileName = generateConsistentFileName(userId)
                 val targetLocation = Paths.get(uploadDir, "profile-pics", fileName)
 
                 logger.debug("Target location: {}", targetLocation)
+
+                // Delete any existing profile pictures for this user before uploading new one
+                deleteExistingProfilePictures(userId)
 
                 // Ensure the directory exists and is writable
                 ensureDirectoryExists(targetLocation.parent)
@@ -112,7 +116,7 @@ class FileStorageService {
 
                     // Verify temporary file was written correctly
                     if (!Files.exists(tempLocation)) {
-                        throw IOException("Temporary file was not created: ${tempLocation}")
+                        throw IOException("Temporary file was not created: $tempLocation")
                     }
 
                     val tempFileSize = Files.size(tempLocation)
@@ -307,15 +311,9 @@ class FileStorageService {
         }
     }
 
-    private fun generateFileName(originalFilename: String?, userId: String): String {
-        val extension = getFileExtension(originalFilename)
-        val uuid = UUID.randomUUID().toString()
-        val timestamp = System.currentTimeMillis()
-        return "profile_${userId}_${timestamp}_${uuid}.$extension"
-    }
-
-    private fun getFileExtension(filename: String?): String {
-        return filename?.substringAfterLast('.', "jpg") ?: "jpg"
+    private fun generateConsistentFileName(userId: String): String {
+        // Always use jpg extension for consistency, regardless of original format
+        return "profile_${userId}.jpg"
     }
 
     private fun extractFileNameFromUrl(url: String): String? {
@@ -400,6 +398,30 @@ class FileStorageService {
             throw ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "Upload directory write test failed: ${ex.message}"
+            )
+        }
+    }
+
+    /**
+     * Deletes any existing profile pictures for the user
+     */
+    private fun deleteExistingProfilePictures(userId: String) {
+        val fileName = generateConsistentFileName(userId)
+        val filePath = Paths.get(uploadDir, "profile-pics", fileName)
+
+        try {
+            if (Files.exists(filePath)) {
+                logger.info("Deleting existing profile picture for user: $userId, file: $fileName")
+                Files.delete(filePath)
+                logger.info("Successfully deleted existing profile picture")
+            } else {
+                logger.info("No existing profile picture found for user: $userId")
+            }
+        } catch (ex: Exception) {
+            logger.error("Failed to delete existing profile picture for user: $userId", ex)
+            throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Failed to delete existing profile picture: ${ex.message}"
             )
         }
     }
