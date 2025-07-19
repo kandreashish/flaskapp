@@ -556,7 +556,8 @@ class ExpenseController(
                 modifiedBy = currentUser.id,
                 expenseCreatedOn = currentTime,
                 lastModifiedOn = currentTime,
-                updatedUserAlias = currentUser.profilePic ?: currentUser.name ?: "Unknown ExpenseUser"
+                updatedUserAlias = currentUser.profilePic ?: currentUser.name ?: "Unknown ExpenseUser",
+                updatedUserName = currentUser.name ?: currentUser.email
             )
 
             logger.debug("Attempting to save expense to database")
@@ -894,7 +895,7 @@ class ExpenseController(
             )
         }
 
-        val totalAmount = expenseService.getFamilyMonthlyExpenseSum( year, month, familyId)
+        val totalAmount = expenseService.getFamilyMonthlyExpenseSum(year, month, familyId)
 
         return ResponseEntity.ok(
             mapOf(

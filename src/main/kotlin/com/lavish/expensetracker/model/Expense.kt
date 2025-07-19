@@ -39,6 +39,9 @@ data class ExpenseDto(
     @SerialName("updatedUserAlias")
     val updatedUserAlias: String,
 
+    @SerialName("updatedUserName")
+    val updatedUserName: String,
+
     @SerialName("lastModifiedOn")
     val lastModifiedOn: Long,
 
