@@ -19,7 +19,7 @@ class FileStorageService {
     @Value("\${app.upload.dir:uploads}")
     private lateinit var uploadDir: String
 
-    private val maxFileSize = 2 * 1024 * 1024L // 2MB in bytes
+    private val maxFileSize = 4 * 1024 * 1024L // 4MB in bytes
     private val allowedContentTypes = setOf(
         "image/jpeg",
         "image/jpg",
@@ -294,7 +294,7 @@ class FileStorageService {
         if (file.size > maxFileSize) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "File size exceeds maximum limit of 2MB"
+                "File size exceeds maximum limit of 4MB"
             )
         }
 
