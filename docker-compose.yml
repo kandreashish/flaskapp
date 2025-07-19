@@ -29,75 +29,104 @@ services:
       retries: 5
       start_period: 60s
 
-  expense-tracker:
-    image: expense-tracker:latest
-    container_name: expense-tracker
-    platform: linux/arm64
-    build:
-      context: .
-      dockerfile: Dockerfile
-      # Add build args for better caching
-      args:
-        BUILDKIT_INLINE_CACHE: 1
-      # Use BuildKit for faster builds
-      target: runtime
-    ports:
-      - "3000:3000"
+  app-1:
+    build: .
+    container_name: expense-tracker-app-1
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
-      - SPRING_DATASOURCE_USERNAME=sa
-      - SPRING_DATASOURCE_PASSWORD=
-      - SPRING_H2_CONSOLE_ENABLED=true
-      - SPRING_H2_CONSOLE_PATH=/h2-console
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-      - SPRING_SQL_INIT_MODE=always
-      # File upload configuration
-      - APP_UPLOAD_DIR=/app/uploads
-      - APP_BASE_URL=http://localhost:3000
-      - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=2MB
-      - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=2MB
-      # Optimized JVM settings for Raspberry Pi
-      - JAVA_OPTS=-Xms256m -Xmx448m -XX:+UseG1GC -XX:G1HeapRegionSize=4m -XX:+UseStringDeduplication
-      - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=DEBUG
-      - LOGGING_LEVEL_ROOT=INFO
-      - LOGGING_FILE_NAME=/app/logs/expense-tracker.log
-      - TINI_SUBREAPER=1
+      - SERVER_PORT=3000
+    ports:
+      - "3001:3000"  # Map container port 3000 to host port 3001
     volumes:
-      - h2-data:/app/h2-data
-      - ./logs:/app/logs:rw
-      - ../uploads:/app/uploads:rw
-      # Add Gradle cache volume for faster rebuilds
-      - gradle-cache:/root/.gradle
+      - app-uploads:/app/uploads
+      - app-logs-1:/app/logs
+    depends_on:
+      h2-server:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - expense-network
-    # Fix user permissions for mounted volumes
-    user: "0:0"  # Start as root to fix permissions, entrypoint will switch to appuser
-    # Ensure directories exist on host with correct permissions
-    depends_on:
-      - h2-server
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'  # Increased for better build performance
-          memory: 768M  # Increased for build process
-    init: true
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      start_period: 60s
+
+  app-2:
+    build: .
+    container_name: expense-tracker-app-2
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
+      - SERVER_PORT=3000
+    ports:
+      - "3002:3000"  # Map container port 3000 to host port 3002
+    volumes:
+      - app-uploads:/app/uploads
+      - app-logs-2:/app/logs
+    depends_on:
+      h2-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  app-3:
+    build: .
+    container_name: expense-tracker-app-3
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
+      - SERVER_PORT=3000
+    ports:
+      - "3003:3000"  # Map container port 3000 to host port 3003
+    volumes:
+      - app-uploads:/app/uploads
+      - app-logs-3:/app/logs
+    depends_on:
+      h2-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  nginx:
+    image: nginx:alpine
+    container_name: expense-tracker-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-loadbalancer.conf:/etc/nginx/conf.d/default.conf:ro
+      - app-uploads:/app/uploads:ro
+    depends_on:
+      - app-1
+      - app-2
+      - app-3
+    restart: unless-stopped
+    networks:
+      - expense-network
+
+volumes:
+  h2-data:
+  app-uploads:
+  app-logs-1:
+  app-logs-2:
+  app-logs-3:
 
 networks:
   expense-network:
     driver: bridge
-
-volumes:
-  h2-data:
-    driver: local
-  gradle-cache:
-    driver: local

@@ -99,11 +99,30 @@ ls -lah build/libs/
 echo "Temperature: $(vcgencmd measure_temp)"
 
 # Start the application with docker-compose
-echo "🚀 Starting application with docker-compose..."
+echo "🚀 Starting application with docker-compose (3 instances)..."
 docker-compose down
-docker-compose up
 
-echo "🎉 All done! Your application is now running."
+# Build and start all services
+echo "📦 Starting all services..."
+docker-compose up -d
+
+# Wait a moment for services to start
+echo "⏳ Waiting for services to start..."
+sleep 10
+
+# Check the status of all services
+echo "📊 Service Status:"
+docker-compose ps
+
+echo "🎯 Application is now running on multiple ports:"
+echo "  • Load Balancer (nginx): http://localhost:80"
+echo "  • Direct access to instances:"
+echo "    - Instance 1: http://localhost:3001"
+echo "    - Instance 2: http://localhost:3002"
+echo "    - Instance 3: http://localhost:3003"
+echo "  • H2 Console: http://localhost:8082"
+
+echo "🎉 All done! Your application is now running with load balancing."
 
 echo "Storage: $(df -h / | awk 'NR==2 {print $2}')"; \
 echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
