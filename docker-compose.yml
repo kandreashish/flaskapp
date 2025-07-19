@@ -53,7 +53,7 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_SQL_INIT_MODE=always
       # File upload configuration
-      - APP_UPLOAD_DIR=/app/uploads
+      - APP_UPLOAD_DIR=/../app/uploads
       - APP_BASE_URL=http://localhost:3000
       - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=2MB
       - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=2MB
@@ -66,7 +66,7 @@ services:
     volumes:
       - h2-data:/app/h2-data
       - ./logs:/app/logs:rw
-      - ./uploads:/app/uploads:rw
+      - ./uploads:/../app/uploads:rw
       # Add Gradle cache volume for faster rebuilds
       - gradle-cache:/root/.gradle
     restart: unless-stopped

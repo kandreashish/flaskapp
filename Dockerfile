@@ -61,12 +61,12 @@ RUN groupadd -g 1000 appgroup && \
 COPY --from=build /app/build/libs/*-SNAPSHOT.jar app.jar
 
 # Create directories with proper permissions BEFORE switching users
-RUN mkdir -p /app/h2-data /app/logs /app/tmp /app/uploads /app/uploads/profile-pics && \
+RUN mkdir -p /app/h2-data /app/logs /app/tmp /../app/uploads /../app/uploads/profile-pics && \
     chown -R appuser:appgroup /app && \
     chmod -R 755 /app && \
     chmod 777 /app/logs && \
-    chmod 777 /app/uploads && \
-    chmod 777 /app/uploads/profile-pics && \
+    chmod 777 /../app/uploads && \
+    chmod 777 /../app/uploads/profile-pics && \
     chmod 666 /app/logs/* 2>/dev/null || true
 
 # Create entrypoint script to handle permissions properly
@@ -74,12 +74,12 @@ RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
 # Ensure directories exist and have correct permissions\n\
-mkdir -p /app/uploads/profile-pics /app/logs /app/tmp\n\
+mkdir -p /../app/uploads/profile-pics /app/logs /app/tmp\n\
 \n\
 # Fix ownership if running as root (for mounted volumes)\n\
 if [ "$(id -u)" = "0" ]; then\n\
-    chown -R appuser:appgroup /app/uploads /app/logs /app/tmp 2>/dev/null || true\n\
-    chmod -R 755 /app/uploads 2>/dev/null || true\n\
+    chown -R appuser:appgroup /../app/uploads /app/logs /app/tmp 2>/dev/null || true\n\
+    chmod -R 755 /../app/uploads 2>/dev/null || true\n\
     chmod -R 755 /app/logs 2>/dev/null || true\n\
     # Use gosu to switch to appuser and execute Java\n\
     exec gosu appuser java \\\n\
