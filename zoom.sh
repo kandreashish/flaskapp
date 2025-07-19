@@ -99,11 +99,11 @@ ls -lah build/libs/
 echo "Temperature: $(vcgencmd measure_temp)"
 
 # Start the application with docker-compose
-echo "🚀 Starting application with docker-compose (3 instances)..."
+echo "🚀 Starting application instances for external nginx..."
 docker-compose down
 
-# Build and start all services
-echo "📦 Starting all services..."
+# Build and start all services (without nginx)
+echo "📦 Starting backend services..."
 docker-compose up -d
 
 # Wait a moment for services to start
@@ -114,15 +114,18 @@ sleep 10
 echo "📊 Service Status:"
 docker-compose ps
 
-echo "🎯 Application is now running on multiple ports:"
-echo "  • Load Balancer (nginx): http://localhost:80"
-echo "  • Direct access to instances:"
-echo "    - Instance 1: http://localhost:3001"
-echo "    - Instance 2: http://localhost:3002"
-echo "    - Instance 3: http://localhost:3003"
+echo "🎯 Application instances are now running:"
+echo "  • Instance 1: http://localhost:3001"
+echo "  • Instance 2: http://localhost:3002"
+echo "  • Instance 3: http://localhost:3003"
 echo "  • H2 Console: http://localhost:8082"
+echo ""
+echo "📝 Configure your external nginx server with the provided configuration:"
+echo "  • Copy: external-nginx.conf to your nginx server"
+echo "  • Update server_name and file paths as needed"
+echo "  • Reload nginx: sudo nginx -s reload"
 
-echo "🎉 All done! Your application is now running with load balancing."
+echo "🎉 Backend services are ready for your external nginx load balancer!"
 
 echo "Storage: $(df -h / | awk 'NR==2 {print $2}')"; \
 echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
