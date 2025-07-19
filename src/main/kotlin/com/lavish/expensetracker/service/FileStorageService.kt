@@ -78,12 +78,10 @@ class FileStorageService {
             file.size
         )
 
-        var attempt = 0
         val maxAttempts = 3
         var lastException: Exception? = null
 
-        while (attempt < maxAttempts) {
-            attempt++
+        for (attempt in 1..maxAttempts) {
             try {
                 logger.debug("Upload attempt {} of {} for user: {}", attempt, maxAttempts, userId)
 
@@ -158,48 +156,48 @@ class FileStorageService {
                         ex
                     )
 
-                    when (ex) {
+                    // Convert IOException to appropriate ResponseStatusException
+                    lastException = when (ex) {
                         is NoSuchFileException -> {
-                            lastException = ResponseStatusException(
+                            ResponseStatusException(
                                 HttpStatus.INTERNAL_SERVER_ERROR,
                                 "Upload directory not found. Please contact administrator."
                             )
                         }
-
                         is AccessDeniedException -> {
-                            lastException = ResponseStatusException(
+                            ResponseStatusException(
                                 HttpStatus.INTERNAL_SERVER_ERROR,
                                 "Permission denied. Unable to write to upload directory."
                             )
                         }
-
                         is FileSystemException -> {
-                            lastException = ResponseStatusException(
+                            ResponseStatusException(
                                 HttpStatus.INSUFFICIENT_STORAGE,
                                 "File system error. Possibly insufficient disk space."
                             )
                         }
-
                         else -> {
-                            lastException = ResponseStatusException(
+                            ResponseStatusException(
                                 HttpStatus.INTERNAL_SERVER_ERROR,
                                 "Failed to store file $fileName: ${ex.message}"
                             )
                         }
                     }
 
-                    // If this is not the last attempt, and it's a retryAble error, continue
+                    // Check if this error is retry able and if we have attempts left
                     if (attempt < maxAttempts && isRetryAbleError(ex)) {
                         logger.warn("Retrying upload for user: {} after error: {}", userId, ex.message)
                         Thread.sleep(100L * attempt) // Brief backoff
-                        continue
+                        continue // Retry the loop
                     } else {
+                        // Either last attempt or non-retryable error
                         throw lastException
                     }
                 }
 
             } catch (ex: ResponseStatusException) {
                 logger.error("Upload failed for user: {} on attempt {}: {}", userId, attempt, ex.reason)
+                // ResponseStatusException should not be retried
                 throw ex
             } catch (ex: Exception) {
                 logger.error("Unexpected error during upload for user: {} on attempt {}", userId, attempt, ex)
@@ -208,17 +206,17 @@ class FileStorageService {
                     "Unexpected error during file upload: ${ex.message}"
                 )
 
-                // If this is not the last attempt, continue
+                // Retry unexpected errors if we have attempts left
                 if (attempt < maxAttempts) {
                     Thread.sleep(100L * attempt) // Brief backoff
-                    continue
+                    continue // Retry the loop
                 } else {
                     throw lastException
                 }
             }
         }
 
-        // If we get here, all attempts failed
+        // This should never be reached due to the for loop structure, but kept for safety
         throw lastException ?: ResponseStatusException(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "File upload failed after $maxAttempts attempts"
@@ -323,7 +321,7 @@ class FileStorageService {
     private fun extractFileNameFromUrl(url: String): String? {
         return try {
             url.substringAfterLast('/')
-        } catch (ex: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -343,7 +341,7 @@ class FileStorageService {
             }
 
             val filePath = Paths.get(uploadDir, "profile-pics", fileName)
-            logger.debug("Target file path for deletion: $filePath")
+            logger.debug("Target file path for deletion: {}", filePath)
 
             if (!Files.exists(filePath)) {
                 logger.warn("Profile picture file does not exist: $filePath")
