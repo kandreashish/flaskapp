@@ -39,7 +39,7 @@ services:
     ports:
       - "3001:3000"  # Expose to external nginx
     volumes:
-      - ../app-uploads:/app/uploads
+      - /../app-uploads:/app/uploads
       - app-logs-1:/app/logs
     depends_on:
       h2-server:
@@ -64,7 +64,7 @@ services:
     ports:
       - "3002:3000"  # Expose to external nginx
     volumes:
-      - ../app-uploads:/app/uploads
+      - /../app-uploads:/app/uploads
       - app-logs-2:/app/logs
     depends_on:
       h2-server:
@@ -89,7 +89,7 @@ services:
     ports:
       - "3003:3000"  # Expose to external nginx
     volumes:
-      - ../app-uploads:/app/uploads
+      - /../app-uploads:/app/uploads
       - app-logs-3:/app/logs
     depends_on:
       h2-server:
@@ -111,7 +111,7 @@ services:
       - "80:80"  # Main entry point
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
-      - ../app-uploads:/app/uploads  # Mount uploads volume for direct file serving
+      - /../app-uploads:/app/uploads  # Mount uploads volume for direct file serving
     depends_on:
       - app-1
       - app-2
@@ -128,7 +128,7 @@ services:
 
 volumes:
   h2-data:
-  ../app-uploads:
+  /../app-uploads:
   app-logs-1:
   app-logs-2:
   app-logs-3:
