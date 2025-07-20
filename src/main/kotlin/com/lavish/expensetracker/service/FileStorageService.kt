@@ -96,7 +96,7 @@ class FileStorageService {
                 logger.debug("Target location: {}", targetLocation)
 
                 // Delete any existing profile pictures for this user before uploading new one
-                deleteExistingProfilePictures(userId)
+                //deleteExistingProfilePictures(userId)
 
                 // Ensure the directory exists and is writable
                 ensureDirectoryExists(targetLocation.parent)
