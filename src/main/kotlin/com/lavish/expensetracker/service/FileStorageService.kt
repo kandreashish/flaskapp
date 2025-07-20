@@ -328,6 +328,59 @@ class FileStorageService {
         return Paths.get(uploadDir, "profile-pics", fileName)
     }
 
+    fun getUploadDirectoryInfo(): Map<String, Any> {
+        logger.info("Getting upload directory info for debugging")
+
+        val info = mutableMapOf<String, Any>()
+
+        try {
+            val uploadPath = Paths.get(uploadDir).toAbsolutePath()
+            val profilePicsPath = Paths.get(uploadDir, "profile-pics").toAbsolutePath()
+
+            info["uploadDir"] = uploadDir
+            info["uploadPathAbsolute"] = uploadPath.toString()
+            info["profilePicsPathAbsolute"] = profilePicsPath.toString()
+            info["uploadPathExists"] = Files.exists(uploadPath)
+            info["profilePicsPathExists"] = Files.exists(profilePicsPath)
+            info["uploadPathReadable"] = Files.isReadable(uploadPath)
+            info["uploadPathWritable"] = Files.isWritable(uploadPath)
+            info["profilePicsPathReadable"] = Files.isReadable(profilePicsPath)
+            info["profilePicsPathWritable"] = Files.isWritable(profilePicsPath)
+
+            // List files in profile-pics directory
+            if (Files.exists(profilePicsPath) && Files.isDirectory(profilePicsPath)) {
+                val files = Files.list(profilePicsPath).use { stream ->
+                    stream.map { file ->
+                        mapOf(
+                            "name" to file.fileName.toString(),
+                            "size" to Files.size(file),
+                            "readable" to Files.isReadable(file),
+                            "lastModified" to Files.getLastModifiedTime(file).toString()
+                        )
+                    }.toList()
+                }
+                info["files"] = files
+                info["fileCount"] = files.size
+            } else {
+                info["files"] = emptyList<Map<String, Any>>()
+                info["fileCount"] = 0
+                info["directoryIssue"] = "Directory does not exist or is not a directory"
+            }
+
+            // Check disk space
+            val store = Files.getFileStore(profilePicsPath)
+            info["totalSpace"] = store.totalSpace
+            info["usableSpace"] = store.usableSpace
+            info["unallocatedSpace"] = store.unallocatedSpace
+
+        } catch (ex: Exception) {
+            logger.error("Error collecting upload directory info", ex)
+            info["error"] = ex.message ?: "Unknown error"
+        }
+
+        return info
+    }
+
     fun deleteProfilePicture(profilePicUrl: String): Boolean {
         logger.debug("Attempting to delete profile picture: $profilePicUrl")
 
