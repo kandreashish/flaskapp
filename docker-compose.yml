@@ -104,6 +104,27 @@ services:
       retries: 3
       start_period: 60s
 
+  nginx:
+    image: nginx:alpine
+    container_name: expense-tracker-nginx
+    ports:
+      - "80:80"  # Main entry point
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app-1
+      - app-2
+      - app-3
+    restart: unless-stopped
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 volumes:
   h2-data:
   app-uploads:
