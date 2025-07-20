@@ -54,55 +54,55 @@ services:
       retries: 3
       start_period: 60s
 
-  app-2:
-    build: .
-    container_name: expense-tracker-app-2
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
-      - SERVER_PORT=3000
-    ports:
-      - "3002:3000"  # Expose to external nginx
-    volumes:
-      - app-uploads:/app/uploads
-      - app-logs-2:/app/logs
-    depends_on:
-      h2-server:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - expense-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  app-3:
-    build: .
-    container_name: expense-tracker-app-3
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
-      - SERVER_PORT=3000
-    ports:
-      - "3003:3000"  # Expose to external nginx
-    volumes:
-      - app-uploads:/app/uploads
-      - app-logs-3:/app/logs
-    depends_on:
-      h2-server:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - expense-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+#  app-2:
+#    build: .
+#    container_name: expense-tracker-app-2
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=docker
+#      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
+#      - SERVER_PORT=3000
+#    ports:
+#      - "3002:3000"  # Expose to external nginx
+#    volumes:
+#      - app-uploads:/app/uploads
+#      - app-logs-2:/app/logs
+#    depends_on:
+#      h2-server:
+#        condition: service_healthy
+#    restart: unless-stopped
+#    networks:
+#      - expense-network
+#    healthcheck:
+#      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 60s
+#
+#  app-3:
+#    build: .
+#    container_name: expense-tracker-app-3
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=docker
+#      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
+#      - SERVER_PORT=3000
+#    ports:
+#      - "3003:3000"  # Expose to external nginx
+#    volumes:
+#      - app-uploads:/app/uploads
+#      - app-logs-3:/app/logs
+#    depends_on:
+#      h2-server:
+#        condition: service_healthy
+#    restart: unless-stopped
+#    networks:
+#      - expense-network
+#    healthcheck:
+#      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 60s
 
   nginx:
     image: nginx:alpine
@@ -114,8 +114,8 @@ services:
       - app-uploads:/app/uploads  # Mount uploads volume for direct file serving
     depends_on:
       - app-1
-      - app-2
-      - app-3
+#      - app-2
+#      - app-3
     restart: unless-stopped
     networks:
       - expense-network
@@ -130,8 +130,8 @@ volumes:
   h2-data:
   app-uploads:
   app-logs-1:
-  app-logs-2:
-  app-logs-3:
+#  app-logs-2:
+#  app-logs-3:
 
 networks:
   expense-network:

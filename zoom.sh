@@ -7,6 +7,10 @@ echo "Storage: $(df -h / | awk 'NR==2 {print $2}')"; \
 echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
 echo "Temperature: $(vcgencmd measure_temp)"
 
+# Start the application with docker-compose
+echo "🚀 Starting application instances for external nginx..."
+docker-compose down
+
 echo "🚀 Starting optimized build with enhanced caching..."
 
 set -e
@@ -97,10 +101,6 @@ ls -lah build/libs/
 
 
 echo "Temperature: $(vcgencmd measure_temp)"
-
-# Start the application with docker-compose
-echo "🚀 Starting application instances for external nginx..."
-docker-compose down
 
 # Build and start all services (without nginx)
 echo "📦 Starting backend services..."
