@@ -128,7 +128,7 @@ services:
 
 volumes:
   h2-data:
-  /../app-uploads:
+  app-uploads:
   app-logs-1:
   app-logs-2:
   app-logs-3:
