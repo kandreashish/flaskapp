@@ -96,7 +96,7 @@ class FileStorageService {
                 logger.debug("Target location: {}", targetLocation)
 
                 // Delete any existing profile pictures for this user before uploading new one
-                deleteExistingProfilePictures(userId)
+                //deleteExistingProfilePictures(userId)
 
                 // Ensure the directory exists and is writable
                 ensureDirectoryExists(targetLocation.parent)
@@ -125,13 +125,44 @@ class FileStorageService {
                         throw IOException("File size mismatch. Expected: ${file.size}, Got: ${tempFileSize}")
                     }
 
-                    // Move temporary file to final location atomically
-                    Files.move(
-                        tempLocation,
-                        targetLocation,
-                        StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE
-                    )
+                    // Move temporary file to final location with fallback strategy
+                    try {
+                        // Try atomic move first
+                        Files.move(
+                            tempLocation,
+                            targetLocation,
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.ATOMIC_MOVE
+                        )
+                    } catch (atomicMoveEx: Exception) {
+                        logger.warn("Atomic move failed for user: {}, falling back to regular move: {}", userId, atomicMoveEx.message)
+
+                        // Fallback to regular move if atomic move fails
+                        try {
+                            Files.move(
+                                tempLocation,
+                                targetLocation,
+                                StandardCopyOption.REPLACE_EXISTING
+                            )
+                        } catch (regularMoveEx: Exception) {
+                            logger.warn("Regular move also failed for user: {}, trying copy and delete: {}", userId, regularMoveEx.message)
+
+                            // Final fallback: copy and then delete
+                            Files.copy(tempLocation, targetLocation, StandardCopyOption.REPLACE_EXISTING)
+                            Files.deleteIfExists(tempLocation)
+                        }
+                    }
+
+                    // Verify final file exists and has correct size
+                    if (!Files.exists(targetLocation)) {
+                        throw IOException("Final file was not created: $targetLocation")
+                    }
+
+                    val finalFileSize = Files.size(targetLocation)
+                    if (finalFileSize != file.size) {
+                        Files.deleteIfExists(targetLocation)
+                        throw IOException("Final file size mismatch. Expected: ${file.size}, Got: ${finalFileSize}")
+                    }
 
                     logger.info(
                         "Successfully uploaded profile picture for user: {} on attempt {}, file: {}",

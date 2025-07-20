@@ -26,9 +26,6 @@ git fetch
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse @{u})
 
-# reset to head
-git reset --hard HEAD
-
 if [ "$LOCAL" != "$REMOTE" ]; then
     echo "📥 Pulling latest changes..."
     git pull
