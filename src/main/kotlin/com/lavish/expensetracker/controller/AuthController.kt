@@ -48,6 +48,7 @@ class AuthController(
 
             if (response is SuccessAuthResponse && response.success) {
                 logger.info("Successful login for user: ${response.user?.email}")
+                logger.info("Successful login for user: ${response.user?.profilePic}")
                 ResponseEntity.ok(response)
             } else {
                 logger.warn("Login failed: ${(response as FailureAuthResponse).message}")

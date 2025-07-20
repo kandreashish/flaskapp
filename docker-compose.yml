@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   h2-server:
     image: openjdk:11-jre-slim
@@ -66,7 +64,7 @@ services:
     volumes:
       - h2-data:/app/h2-data
       - ./logs:/app/logs:rw
-      - ../uploads:/app/uploads:rw
+      - ./../uploads:/app/uploads:rw
       # Add Gradle cache volume for faster rebuilds
       - gradle-cache:/root/.gradle
     restart: unless-stopped
