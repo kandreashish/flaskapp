@@ -104,7 +104,7 @@ docker-compose down
 
 # Build and start all services (without nginx)
 echo "📦 Starting backend services..."
-docker-compose up -d
+docker-compose up
 
 # Wait a moment for services to start
 echo "⏳ Waiting for services to start..."
