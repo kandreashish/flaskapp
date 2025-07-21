@@ -18,8 +18,8 @@ class FileStorageService {
 
     @Value("\${app.upload.dir:uploads}")
     private lateinit var uploadDir: String
-
-    private val maxFileSize = 10 * 1024 * 1024L // 10MB in bytes
+    private val size = 5
+    private val maxFileSize = size * 1024 * 1024L // 10MB in bytes
     private val allowedContentTypes = setOf(
         "image/jpeg",
         "image/jpg",
@@ -122,7 +122,7 @@ class FileStorageService {
                     val tempFileSize = Files.size(tempLocation)
                     if (tempFileSize != file.size) {
                         Files.deleteIfExists(tempLocation)
-                        throw IOException("File size mismatch. Expected: ${file.size}, Got: ${tempFileSize}")
+                        throw IOException("File size mismatch. Expected: ${file.size}, Got: $tempFileSize")
                     }
 
                     // Move temporary file to final location with fallback strategy
@@ -225,7 +225,7 @@ class FileStorageService {
                         Thread.sleep(100L * attempt) // Brief backoff
                         continue // Retry the loop
                     } else {
-                        // Either last attempt or non-retryable error
+                        // Either last attempt or non-retractable error
                         throw lastException
                     }
                 }
@@ -329,7 +329,7 @@ class FileStorageService {
         if (file.size > maxFileSize) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "File size exceeds maximum limit of 10MB"
+                "File size exceeds maximum limit of $size-MB"
             )
         }
 
