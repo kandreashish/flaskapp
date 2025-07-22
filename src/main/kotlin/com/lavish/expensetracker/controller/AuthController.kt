@@ -144,6 +144,7 @@ class AuthController(
                 message = "Token refreshed successfully",
                 token = newJwtToken,
                 refreshToken = newRefreshToken,
+                expirationTime = jwtService.getTokenExpirationTime(newJwtToken) ?: 0,
                 user = ExpenseUser(
                     id = user.id,
                     name = user.name ?: "",

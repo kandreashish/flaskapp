@@ -41,8 +41,9 @@ data class SuccessAuthResponse(
     override val success: Boolean,
     override val message: String,
     val user: ExpenseUser? = null,
-    val token: String? = null,
-    val refreshToken: String? = null
+    val expirationTime: Long,
+    val token: String,
+    val refreshToken: String
 ) : AuthResponseBase
 
 data class FailureAuthResponse(

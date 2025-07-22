@@ -152,7 +152,8 @@ class AuthService(
                 firebaseUid = user.firebaseUid
             ),
             token = token,
-            refreshToken = refreshToken
+            refreshToken = refreshToken,
+            expirationTime = jwtService.getTokenExpirationTime(token) ?: 0L
         )
     }
 
