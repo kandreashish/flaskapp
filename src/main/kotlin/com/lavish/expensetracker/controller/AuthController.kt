@@ -154,6 +154,7 @@ class AuthController(
                     createdAt = user.createdAt,
                     updatedAt = user.updatedAt,
                     aliasName = user.aliasName,
+                    firebaseUid = user.firebaseUid
                 )
             )
 
