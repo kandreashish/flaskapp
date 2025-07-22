@@ -20,7 +20,7 @@ data class ExpenseUser(
     val aliasName: String,
 
     @Column(name = "firebase_uid", unique = true)
-    val firebaseUid: String? = null,
+    val firebaseUid: String,
 
     @Column(name = "family_id")
     val familyId: String? = null,
