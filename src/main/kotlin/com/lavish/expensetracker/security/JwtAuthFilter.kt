@@ -21,7 +21,7 @@ class JwtAuthFilter(
     private val objectMapper: ObjectMapper = ObjectMapper()
 ) : OncePerRequestFilter() {
 
-    private val logger = LoggerFactory.getLogger(JwtAuthFilter::class.java)
+    private val logger1 = LoggerFactory.getLogger(JwtAuthFilter::class.java)
 
     override fun doFilterInternal(
         request: HttpServletRequest,
@@ -49,16 +49,16 @@ class JwtAuthFilter(
                     )
                     authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
                     SecurityContextHolder.getContext().authentication = authToken
-                    logger.debug("Authenticated user: $userId")
+                    logger1.debug("Authenticated user: $userId")
                 } else {
                     // Token is expired or invalid
-                    logger.warn("Invalid or expired token for user: $userId")
+                    logger1.warn("Invalid or expired token for user: $userId")
                     sendTokenExpiredResponse(response)
                     return
                 }
             }
         } catch (e: Exception) {
-            logger.error("JWT authentication error: ${e.message}", e)
+            logger1.error("JWT authentication error: ${e.message}", e)
             sendTokenExpiredResponse(response)
             return
         }
