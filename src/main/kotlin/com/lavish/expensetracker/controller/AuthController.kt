@@ -1,11 +1,11 @@
 package com.lavish.expensetracker.controller
 
-import com.google.api.client.auth.oauth2.RefreshTokenRequest
 import com.google.firebase.auth.FirebaseAuthException
 import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.model.auth.AuthResponseBase
 import com.lavish.expensetracker.model.auth.FailureAuthResponse
 import com.lavish.expensetracker.model.auth.FirebaseLoginRequest
+import com.lavish.expensetracker.model.auth.RefreshTokenRequest
 import com.lavish.expensetracker.model.auth.SuccessAuthResponse
 import com.lavish.expensetracker.service.AuthService
 import com.lavish.expensetracker.service.JwtService

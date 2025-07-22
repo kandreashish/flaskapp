@@ -61,3 +61,8 @@ data class FirebaseUserInfo(
     val email: String?,
     val picture: String?
 )
+
+data class RefreshTokenRequest(
+    @field:NotBlank(message = "Refresh token is required")
+    val refreshToken: String
+)
