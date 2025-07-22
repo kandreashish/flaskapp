@@ -17,7 +17,15 @@ class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
-            error = ex.statusCode.toString().split(" ").last().uppercase(),
+            error = when (ex.statusCode) {
+                HttpStatus.BAD_REQUEST -> "BAD_REQUEST"
+                HttpStatus.UNAUTHORIZED -> "UNAUTHORIZED"
+                HttpStatus.FORBIDDEN -> "FORBIDDEN"
+                HttpStatus.NOT_FOUND -> "NOT_FOUND"
+                HttpStatus.CONFLICT -> "CONFLICT"
+                HttpStatus.INTERNAL_SERVER_ERROR -> "INTERNAL_SERVER_ERROR"
+                else -> "ERROR"
+            },
             message = ex.reason ?: "An error occurred"
         )
         return ResponseEntity(errorResponse, ex.statusCode)
@@ -56,7 +64,7 @@ class GlobalExceptionHandler {
             error = "EXPENSE_CREATION_FAILED",
             message = ex.message ?: "Failed to create expense. Please try again."
         )
-        return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
+        return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler(ExpenseValidationException::class)
@@ -91,7 +99,7 @@ class GlobalExceptionHandler {
     fun handleDataIntegrityViolationException(ex: DataIntegrityViolationException): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
             error = "DATA_INTEGRITY_VIOLATION",
-            message = "Data integrity constraint violation. Please check your input data."
+            message = ex.message ?: "Data integrity constraint violation. Please check your input data."
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
