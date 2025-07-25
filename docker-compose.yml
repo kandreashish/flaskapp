@@ -43,7 +43,7 @@ services:
       - "3000:3000"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://103.80.162.46:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://192.168.1.2:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
       - SPRING_DATASOURCE_USERNAME=sa
       - SPRING_DATASOURCE_PASSWORD=
       - SPRING_H2_CONSOLE_ENABLED=true
@@ -64,7 +64,7 @@ services:
     volumes:
       - h2-data:/app/h2-data
       - ./logs:/app/logs:rw
-      - ./../uploads:/app/uploads:rw
+      - /mnt/shared-images:/app/uploads:rw
       # Add Gradle cache volume for faster rebuilds
       - gradle-cache:/root/.gradle
     restart: unless-stopped
