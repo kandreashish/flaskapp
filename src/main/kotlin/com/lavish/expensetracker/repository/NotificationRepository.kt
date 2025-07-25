@@ -31,5 +31,11 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
 
     // Receiver-based methods for personalized notifications
     fun findByReceiverIdOrderByTimestampDesc(receiverId: String, pageable: Pageable): Page<Notification>
+    fun findByReceiverIdAndTimestampGreaterThanOrderByTimestampDesc(
+        receiverId: String,
+        date: Long,
+        pageable: Pageable
+    ): Page<Notification>
+
     fun findByReceiverIdAndIsReadFalseOrderByTimestampDesc(receiverId: String): List<Notification>
 }
