@@ -76,11 +76,21 @@ set -e\n\
 # Ensure directories exist and have correct permissions\n\
 mkdir -p /app/uploads/profile-pics /app/logs /app/tmp\n\
 \n\
-# Fix ownership if running as root (for mounted volumes)\n\
+# Fix ownership and permissions for mounted volumes\n\
 if [ "$(id -u)" = "0" ]; then\n\
-    chown -R appuser:appgroup /app/uploads /app/logs /app/tmp 2>/dev/null || true\n\
-    chmod -R 755 /app/uploads 2>/dev/null || true\n\
-    chmod -R 755 /app/logs 2>/dev/null || true\n\
+    # Running as root, fix permissions for mounted directories\n\
+    if [ -d "/app/uploads" ]; then\n\
+        chown -R appuser:appgroup /app/uploads 2>/dev/null || true\n\
+        chmod -R 755 /app/uploads 2>/dev/null || true\n\
+        # Ensure profile-pics subdirectory exists and is writable\n\
+        mkdir -p /app/uploads/profile-pics\n\
+        chown -R appuser:appgroup /app/uploads/profile-pics 2>/dev/null || true\n\
+        chmod -R 777 /app/uploads/profile-pics 2>/dev/null || true\n\
+    fi\n\
+    if [ -d "/app/logs" ]; then\n\
+        chown -R appuser:appgroup /app/logs 2>/dev/null || true\n\
+        chmod -R 755 /app/logs 2>/dev/null || true\n\
+    fi\n\
     # Use gosu to switch to appuser and execute Java\n\
     exec gosu appuser java \\\n\
         -XX:+UseContainerSupport \\\n\
@@ -95,6 +105,8 @@ if [ "$(id -u)" = "0" ]; then\n\
         -jar app.jar\n\
 else\n\
     # Already running as non-root user\n\
+    # Still try to create directories in case they dont exist\n\
+    mkdir -p /app/uploads/profile-pics 2>/dev/null || true\n\
     exec java \\\n\
         -XX:+UseContainerSupport \\\n\
         -XX:MaxRAMPercentage=75.0 \\\n\
