@@ -243,12 +243,31 @@ class FtpFileStorageService(
 
     private fun createDirectoryIfNotExists(ftpClient: FTPClient, directory: String) {
         try {
-            // Split the directory path into parts
-            val parts = directory.split("/").filter { it.isNotEmpty() }
+            // First, check what the current working directory is
+            val currentDir = ftpClient.printWorkingDirectory()
+            logger.info("Current FTP working directory: {}", currentDir)
+
+            // Try to navigate to the directory first to see if it exists
+            val canNavigate = ftpClient.changeWorkingDirectory(directory)
+            if (canNavigate) {
+                logger.info("FTP directory already exists: {}", directory)
+                ftpClient.changeWorkingDirectory(currentDir) // Go back to original directory
+                return
+            }
+
+            // Directory doesn't exist, try to create it
+            // Split the directory path into parts, but skip leading slash for relative paths
+            val cleanDirectory = if (directory.startsWith("/")) {
+                directory.substring(1) // Remove leading slash to make it relative
+            } else {
+                directory
+            }
+
+            val parts = cleanDirectory.split("/").filter { it.isNotEmpty() }
             var currentPath = ""
 
             for (part in parts) {
-                currentPath += "/$part"
+                currentPath = if (currentPath.isEmpty()) part else "$currentPath/$part"
 
                 // Try to change to the directory first
                 val changed = ftpClient.changeWorkingDirectory(currentPath)
@@ -258,15 +277,24 @@ class FtpFileStorageService(
                     if (created) {
                         logger.info("Created FTP directory: {}", currentPath)
                     } else {
-                        logger.warn("Failed to create FTP directory: {}. Reply: {}", currentPath, ftpClient.replyString)
+                        val replyCode = ftpClient.replyCode
+                        val replyString = ftpClient.replyString
+                        logger.warn("Failed to create FTP directory: {}. Reply Code: {}, Reply: {}",
+                                   currentPath, replyCode, replyString)
+
+                        // If we can't create the directory, try to continue with existing structure
+                        if (replyCode == 550) { // Permission denied or directory exists
+                            logger.info("Attempting to continue with existing directory structure")
+                            break
+                        }
                     }
                 } else {
                     logger.debug("FTP directory already exists: {}", currentPath)
                 }
-            }
 
-            // Reset to root directory
-            ftpClient.changeWorkingDirectory("/")
+                // Go back to root for next iteration
+                ftpClient.changeWorkingDirectory(currentDir)
+            }
 
         } catch (ex: Exception) {
             logger.error("Error creating FTP directory: {}", directory, ex)
