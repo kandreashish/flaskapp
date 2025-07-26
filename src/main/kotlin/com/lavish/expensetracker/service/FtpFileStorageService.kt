@@ -188,7 +188,7 @@ class FtpFileStorageService(
     private fun createFtpClient(): FTPClient {
         val ftpClient = FTPClient()
         ftpClient.connectTimeout = ftpConfig.connectTimeout
-        ftpClient.setDataTimeout(Duration.ofMillis(ftpConfig.dataTimeout.toLong()))
+        ftpClient.dataTimeout = Duration.ofMillis(ftpConfig.dataTimeout.toLong())
         return ftpClient
     }
 
