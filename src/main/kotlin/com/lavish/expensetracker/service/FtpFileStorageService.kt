@@ -82,12 +82,21 @@ class FtpFileStorageService(
                 try {
                     connectToFtp(ftpClient)
 
+                    // Ensure directories exist before upload
+                    createDirectoryIfNotExists(ftpClient, ftpConfig.baseDirectory)
+                    createDirectoryIfNotExists(ftpClient, ftpConfig.profilePicsDirectory)
+
                     // Upload file to FTP server
                     val remotePath = "${ftpConfig.profilePicsDirectory}/$fileName"
+                    logger.info("Uploading file to FTP path: {}", remotePath)
+
                     val success = ftpClient.storeFile(remotePath, file.inputStream)
 
                     if (!success) {
-                        throw IOException("Failed to upload file to FTP server. Reply: ${ftpClient.replyString}")
+                        val replyCode = ftpClient.replyCode
+                        val replyString = ftpClient.replyString
+                        logger.error("FTP upload failed - Reply Code: {}, Reply: {}", replyCode, replyString)
+                        throw IOException("Failed to upload file to FTP server. Reply Code: $replyCode, Reply: $replyString")
                     }
 
                     logger.info("Successfully uploaded profile picture for user: {} to FTP path: {}", userId, remotePath)
@@ -234,18 +243,26 @@ class FtpFileStorageService(
 
     private fun createDirectoryIfNotExists(ftpClient: FTPClient, directory: String) {
         try {
-            // Try to change to the directory first
-            val changed = ftpClient.changeWorkingDirectory(directory)
-            if (!changed) {
-                // Directory doesn't exist, create it
-                val created = ftpClient.makeDirectory(directory)
-                if (!created) {
-                    logger.warn("Failed to create FTP directory: {}. Reply: {}", directory, ftpClient.replyString)
+            // Split the directory path into parts
+            val parts = directory.split("/").filter { it.isNotEmpty() }
+            var currentPath = ""
+
+            for (part in parts) {
+                currentPath += "/$part"
+
+                // Try to change to the directory first
+                val changed = ftpClient.changeWorkingDirectory(currentPath)
+                if (!changed) {
+                    // Directory doesn't exist, create it
+                    val created = ftpClient.makeDirectory(currentPath)
+                    if (created) {
+                        logger.info("Created FTP directory: {}", currentPath)
+                    } else {
+                        logger.warn("Failed to create FTP directory: {}. Reply: {}", currentPath, ftpClient.replyString)
+                    }
                 } else {
-                    logger.info("Created FTP directory: {}", directory)
+                    logger.debug("FTP directory already exists: {}", currentPath)
                 }
-            } else {
-                logger.info("FTP directory already exists: {}", directory)
             }
 
             // Reset to root directory
