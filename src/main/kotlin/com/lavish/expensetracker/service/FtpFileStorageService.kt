@@ -5,18 +5,18 @@ import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPReply
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.time.Duration
 import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.locks.ReentrantLock
 import javax.annotation.PostConstruct
+import javax.annotation.PreDestroy
 
 @Service
 class FtpFileStorageService(
@@ -24,6 +24,12 @@ class FtpFileStorageService(
 ) {
 
     private val logger = LoggerFactory.getLogger(FtpFileStorageService::class.java)
+
+    // Connection pool for better performance
+    private val connectionPool = ConcurrentLinkedQueue<FTPClient>()
+    private val poolLock = ReentrantLock()
+    private val maxPoolSize = 5
+    private val minPoolSize = 2
 
     private val maxFileSize = 5 * 1024 * 1024L // 5MB in bytes
     private val allowedContentTypes = setOf(
@@ -36,12 +42,20 @@ class FtpFileStorageService(
 
     @PostConstruct
     fun initializeFtpDirectories() {
-        logger.info("Initializing FTP directories on server: {}:{}", ftpConfig.host, ftpConfig.port)
+        logger.info("Initializing FTP directories and connection pool on server: {}:{}", ftpConfig.host, ftpConfig.port)
 
-        val ftpClient = createFtpClient()
+        // Initialize connection pool
+        repeat(minPoolSize) {
+            try {
+                val ftpClient = createAndConnectFtpClient()
+                connectionPool.offer(ftpClient)
+            } catch (ex: Exception) {
+                logger.warn("Failed to create initial FTP connection for pool", ex)
+            }
+        }
+
+        val ftpClient = borrowConnection()
         try {
-            connectToFtp(ftpClient)
-
             // Create base upload directory
             createDirectoryIfNotExists(ftpClient, ftpConfig.baseDirectory)
 
@@ -54,7 +68,23 @@ class FtpFileStorageService(
             logger.error("Failed to initialize FTP directories", ex)
             throw RuntimeException("Failed to initialize FTP directories: ${ex.message}", ex)
         } finally {
-            disconnectFromFtp(ftpClient)
+            returnConnection(ftpClient)
+        }
+    }
+
+    @PreDestroy
+    fun cleanup() {
+        logger.info("Cleaning up FTP connection pool")
+        while (connectionPool.isNotEmpty()) {
+            val client = connectionPool.poll()
+            try {
+                if (client?.isConnected == true) {
+                    client.logout()
+                    client.disconnect()
+                }
+            } catch (ex: Exception) {
+                logger.warn("Error cleaning up FTP connection", ex)
+            }
         }
     }
 
@@ -123,27 +153,24 @@ class FtpFileStorageService(
                                     "Failed to upload file after $maxAttempts attempts")
     }
 
+    // Optimized method for streaming files directly
     fun getFileInputStream(fileName: String): InputStream {
-        val ftpClient = createFtpClient()
+        val ftpClient = borrowConnection()
 
         try {
-            connectToFtp(ftpClient)
-
             val remotePath = "${ftpConfig.profilePicsDirectory}/$fileName"
-            val outputStream = ByteArrayOutputStream()
 
-            val success = ftpClient.retrieveFile(remotePath, outputStream)
-            if (!success) {
-                throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found on FTP server")
-            }
+            // Use direct streaming instead of buffering entire file
+            val inputStream = ftpClient.retrieveFileStream(remotePath)
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found on FTP server")
 
-            return ByteArrayInputStream(outputStream.toByteArray())
+            // Return a custom InputStream that handles connection cleanup
+            return FtpStreamWrapper(inputStream, ftpClient, this)
 
         } catch (ex: Exception) {
             logger.error("Failed to retrieve file: {}", fileName, ex)
+            returnConnection(ftpClient)
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving file")
-        } finally {
-            disconnectFromFtp(ftpClient)
         }
     }
 
@@ -320,5 +347,92 @@ class FtpFileStorageService(
         val timestamp = System.currentTimeMillis()
         val random = UUID.randomUUID().toString().substring(0, 8)
         return "profile_${timestamp}_$random.$extension"
+    }
+
+    // Connection pool management
+    private fun borrowConnection(): FTPClient {
+        poolLock.lock()
+        try {
+            var client = connectionPool.poll()
+
+            // Validate connection and create new one if needed
+            if (client == null || !client.isConnected || !isConnectionHealthy(client)) {
+                client?.let { safeDisconnect(it) }
+                client = createAndConnectFtpClient()
+            }
+
+            return client
+        } finally {
+            poolLock.unlock()
+        }
+    }
+
+    fun returnConnection(client: FTPClient) {
+        poolLock.lock()
+        try {
+            if (client.isConnected && isConnectionHealthy(client) && connectionPool.size < maxPoolSize) {
+                connectionPool.offer(client)
+            } else {
+                safeDisconnect(client)
+            }
+        } finally {
+            poolLock.unlock()
+        }
+    }
+
+    private fun isConnectionHealthy(client: FTPClient): Boolean {
+        return try {
+            client.sendNoOp()
+            true
+        } catch (ex: Exception) {
+            false
+        }
+    }
+
+    private fun safeDisconnect(client: FTPClient) {
+        try {
+            if (client.isConnected) {
+                client.logout()
+                client.disconnect()
+            }
+        } catch (ex: Exception) {
+            logger.warn("Error disconnecting FTP client", ex)
+        }
+    }
+
+    private fun createAndConnectFtpClient(): FTPClient {
+        val ftpClient = createFtpClient()
+        connectToFtp(ftpClient)
+        return ftpClient
+    }
+}
+
+// Custom InputStream wrapper that handles FTP connection cleanup
+class FtpStreamWrapper(
+    private val inputStream: InputStream,
+    private val ftpClient: FTPClient,
+    private val ftpService: FtpFileStorageService
+) : InputStream() {
+
+    private var closed = false
+
+    override fun read(): Int = inputStream.read()
+
+    override fun read(b: ByteArray): Int = inputStream.read(b)
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int = inputStream.read(b, off, len)
+
+    override fun available(): Int = inputStream.available()
+
+    override fun close() {
+        if (!closed) {
+            try {
+                inputStream.close()
+                ftpClient.completePendingCommand() // Important for FTP streams
+            } finally {
+                ftpService.returnConnection(ftpClient)
+                closed = true
+            }
+        }
     }
 }
