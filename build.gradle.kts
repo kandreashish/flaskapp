@@ -49,6 +49,9 @@ dependencies {
     // Use lighter logging
     implementation("org.springframework.boot:spring-boot-starter-log4j2")
 
+    // FTP client for remote file storage
+    implementation("commons-net:commons-net:3.10.0")
+
     // Swagger/OpenAPI dependencies
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-api:2.3.0")
