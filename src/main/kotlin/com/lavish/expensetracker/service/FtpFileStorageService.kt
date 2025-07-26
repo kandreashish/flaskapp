@@ -100,7 +100,7 @@ class FtpFileStorageService(
                     }
 
                     logger.info("Successfully uploaded profile picture for user: {} to FTP path: {}", userId, remotePath)
-                    return "$baseUrl/api/files/profile-pics/$fileName"
+                    return "http://103.80.162.46/api/files/profile-pics/$fileName"
 
                 } finally {
                     disconnectFromFtp(ftpClient)
