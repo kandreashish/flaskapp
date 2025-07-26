@@ -80,7 +80,8 @@ services:
     user: "0:0"  # Start as root to fix permissions, entrypoint will switch to appuser
     # Ensure directories exist on host with correct permissions
     depends_on:
-      - h2-server
+      h2-server:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/actuator/health"]
       interval: 30s
