@@ -14,6 +14,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.time.Duration
 import java.util.*
 import javax.annotation.PostConstruct
 
@@ -24,7 +25,7 @@ class FtpFileStorageService(
 
     private val logger = LoggerFactory.getLogger(FtpFileStorageService::class.java)
 
-    @Value("\${app.base.url:http://localhost}")
+    @Value("\${app.base.url:http://localhost:3000}")
     private lateinit var baseUrl: String
 
     private val maxFileSize = 5 * 1024 * 1024L // 5MB in bytes
@@ -187,7 +188,7 @@ class FtpFileStorageService(
     private fun createFtpClient(): FTPClient {
         val ftpClient = FTPClient()
         ftpClient.connectTimeout = ftpConfig.connectTimeout
-        ftpClient.dataTimeout = ftpConfig.dataTimeout
+        ftpClient.setDataTimeout(Duration.ofMillis(ftpConfig.dataTimeout.toLong()))
         return ftpClient
     }
 
