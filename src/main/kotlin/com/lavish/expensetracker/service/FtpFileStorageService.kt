@@ -25,9 +25,6 @@ class FtpFileStorageService(
 
     private val logger = LoggerFactory.getLogger(FtpFileStorageService::class.java)
 
-    @Value("\${app.base.url:http://localhost:3000}")
-    private lateinit var baseUrl: String
-
     private val maxFileSize = 5 * 1024 * 1024L // 5MB in bytes
     private val allowedContentTypes = setOf(
         "image/jpeg",
