@@ -57,8 +57,8 @@ services:
       - APP_FTP_PORT=2221
       - APP_FTP_USERNAME=android
       - APP_FTP_PASSWORD=android
-      - APP_FTP_BASE_DIRECTORY=/usb1_1/uploads
-      - APP_FTP_PROFILE_PICS_DIRECTORY=/usb1_1/uploads/profile-pics
+      - APP_FTP_BASE_DIRECTORY=/server/uploads
+      - APP_FTP_PROFILE_PICS_DIRECTORY=/server/uploads/profile-pics
       - APP_FTP_PASSIVE_MODE=true
       - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=5MB
       - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=5MB
