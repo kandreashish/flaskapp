@@ -53,10 +53,10 @@ services:
       # File upload configuration
       - APP_UPLOAD_DIR=/app/uploads
       - APP_BASE_URL=http://192.168.1.254:3000
-      - APP_FTP_HOST=192.168.1.254
-      - APP_FTP_PORT=21
-      - APP_FTP_USERNAME=ftpadmin
-      - APP_FTP_PASSWORD=ashish123
+      - APP_FTP_HOST=192.168.1.19
+      - APP_FTP_PORT=2221
+      - APP_FTP_USERNAME=android
+      - APP_FTP_PASSWORD=android
       - APP_FTP_BASE_DIRECTORY=/usb1_1/uploads
       - APP_FTP_PROFILE_PICS_DIRECTORY=/usb1_1/uploads/profile-pics
       - APP_FTP_PASSIVE_MODE=true
