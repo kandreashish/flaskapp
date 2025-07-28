@@ -38,6 +38,7 @@ class SecurityConfig(
                     .requestMatchers("/h2-console/**").permitAll() // H2 console
                     .requestMatchers("/error").permitAll() // Error page
                     .requestMatchers("/actuator/health").permitAll() // Health check
+                    .requestMatchers("/.well-known/**").permitAll() // SSL certificate verification
 
                     // Swagger/OpenAPI endpoints
                     .requestMatchers("/v3/api-docs/**").permitAll()
