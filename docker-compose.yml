@@ -1,32 +1,4 @@
 services:
-  h2-server:
-    image: openjdk:11-jre-slim
-    container_name: h2-server
-    ports:
-      - "9092:9092"  # TCP server port
-      - "8082:8082"  # Web console port
-    volumes:
-      - h2-data:/opt/h2-data
-    command: >
-      sh -c "
-      apt-get update && apt-get install -y wget netcat-openbsd &&
-      wget -O /tmp/h2.jar https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar &&
-      java -cp /tmp/h2.jar org.h2.tools.Server
-      -tcp -tcpAllowOthers -tcpPort 9092
-      -web -webAllowOthers -webPort 8082
-      -baseDir /opt/h2-data
-      -ifNotExists
-      "
-    restart: unless-stopped
-    networks:
-      - expense-network
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 9092 && nc -z localhost 8082"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-
   expense-tracker:
     image: expense-tracker:latest
     container_name: expense-tracker
@@ -79,9 +51,6 @@ services:
     # Fix user permissions for mounted volumes
     user: "0:0"  # Start as root to fix permissions, entrypoint will switch to appuser
     # Ensure directories exist on host with correct permissions
-    depends_on:
-      h2-server:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
       interval: 30s
