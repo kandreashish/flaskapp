@@ -17,48 +17,16 @@ class SwaggerConfig {
     @Bean
     fun customOpenAPI(): OpenAPI {
         return OpenAPI()
-            .openapi("3.0.3")  // Add the required OpenAPI version
+            .openapi("3.0.3")
             .info(
                 Info()
                     .title("Family Expense Tracker API")
-                    .version("v1.0")
-                    .description("""
-                        ## 🏠 Family Expense Tracker API Documentation
-                        
-                        This API provides comprehensive family and expense management functionality including:
-                        
-                        ### 👨‍👩‍👧‍👦 Family Management
-                        - Create and manage families
-                        - Send and manage invitations
-                        - Handle join requests
-                        - Member management (add/remove)
-                        
-                        ### 💰 Expense Tracking
-                        - Create and manage expenses
-                        - Category-based organization
-                        - Family expense sharing
-                        - Comprehensive reporting
-                        
-                        ### 🔔 Notification System
-                        - Real-time push notifications
-                        - In-app notification management
-                        - Family activity updates
-                        
-                        ### 🔐 Security
-                        - JWT-based authentication
-                        - Role-based access control
-                        - Secure API endpoints
-                        
-                        ---
-                        
-                        **Note:** All endpoints require authentication unless specified otherwise.
-                        Use the "Authorize" button to add your JWT token for testing.
-                    """.trimIndent())
+                    .version("1.0.0")
+                    .description("Family Expense Tracker API Documentation")
                     .contact(
                         Contact()
-                            .name("Expense Tracker Support")
+                            .name("Support")
                             .email("support@expensetracker.com")
-                            .url("https://github.com/your-repo/expense-tracker")
                     )
                     .license(
                         License()
@@ -69,11 +37,8 @@ class SwaggerConfig {
             .servers(
                 listOf(
                     Server()
-                        .url("http://localhost:8080")
-                        .description("Local Development Server"),
-                    Server()
-                        .url("https://your-production-url.com")
-                        .description("Production Server")
+                        .url("http://localhost:3000")
+                        .description("Local Development Server")
                 )
             )
             .addSecurityItem(
@@ -87,7 +52,7 @@ class SwaggerConfig {
                             .type(SecurityScheme.Type.HTTP)
                             .scheme("bearer")
                             .bearerFormat("JWT")
-                            .description("Enter your JWT token in the format: Bearer {token}")
+                            .description("Enter JWT token")
                     )
             )
     }
