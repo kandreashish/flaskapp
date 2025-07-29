@@ -250,7 +250,7 @@ class FtpFileStorageService(
 
         } catch (ex: Exception) {
             logger.error("Failed to connect to FTP server: {}:{}", ftpConfig.host, ftpConfig.port, ex)
-            throw ex
+            //throw ex
         }
     }
 
