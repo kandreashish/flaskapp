@@ -99,25 +99,13 @@ echo "Temperature: $(vcgencmd measure_temp)"
 echo "🚀 Starting application with docker-compose..."
 docker-compose down
 
-# Start h2-server first and wait for it to be healthy
-echo "🗄️  Starting H2 database server..."
-docker-compose up -d h2-server
-
-# Wait for h2-server to be healthy
-echo "⏳ Waiting for H2 server to be healthy..."
-while [ "$(docker inspect --format='{{.State.Health.Status}}' h2-server 2>/dev/null)" != "healthy" ]; do
-    echo "   H2 server status: $(docker inspect --format='{{.State.Health.Status}}' h2-server 2>/dev/null || echo 'starting')"
-    sleep 5
-done
-
-echo "✅ H2 server is healthy! Starting expense-tracker..."
-
-# Now start the expense-tracker
+# Start the expense-tracker
+echo "🚀 Starting expense-tracker..."
 docker-compose up -d expense-tracker
 
-# Follow logs for both services
+# Follow logs for the service
 echo "📋 Following logs... (Press Ctrl+C to stop following logs)"
-docker-compose logs -f
+docker-compose logs -f expense-tracker
 
 echo "🎉 All done! Your application is now running."
 
