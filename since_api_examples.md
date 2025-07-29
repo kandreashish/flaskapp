@@ -1,3 +1,6 @@
+<!-- Favicon for browser tab -->
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/github/explore/main/topics/api/api.png" />
+
 # Get Expenses Since Timestamp/Date - API Examples
 
 ## Authentication Setup
