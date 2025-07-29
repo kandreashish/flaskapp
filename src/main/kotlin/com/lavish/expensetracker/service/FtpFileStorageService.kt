@@ -44,31 +44,36 @@ class FtpFileStorageService(
     fun initializeFtpDirectories() {
         logger.info("Initializing FTP directories and connection pool on server: {}:{}", ftpConfig.host, ftpConfig.port)
 
-        // Initialize connection pool
-        repeat(minPoolSize) {
-            try {
-                val ftpClient = createAndConnectFtpClient()
-                connectionPool.offer(ftpClient)
-            } catch (ex: Exception) {
-                logger.warn("Failed to create initial FTP connection for pool", ex)
-            }
-        }
-
-        val ftpClient = borrowConnection()
         try {
-            // Create base upload directory
-            createDirectoryIfNotExists(ftpClient, ftpConfig.baseDirectory)
+            // Initialize connection pool - suppress all exceptions
+            repeat(minPoolSize) {
+                try {
+                    val ftpClient = createAndConnectFtpClient()
+                    connectionPool.offer(ftpClient)
+                } catch (ex: Exception) {
+                    logger.warn("Failed to create initial FTP connection for pool - continuing without FTP: {}", ex.message)
+                }
+            }
 
-            // Create profile-pics subdirectory
-            createDirectoryIfNotExists(ftpClient, ftpConfig.profilePicsDirectory)
-
-            logger.info("FTP directories initialization completed successfully")
-
+            // Only try to create directories if we have at least one connection
+            if (connectionPool.isNotEmpty()) {
+                val ftpClient = borrowConnection()
+                try {
+                    // Create base upload directory
+                    createDirectoryIfNotExists(ftpClient, ftpConfig.baseDirectory)
+                    // Create profile-pics subdirectory
+                    createDirectoryIfNotExists(ftpClient, ftpConfig.profilePicsDirectory)
+                    logger.info("FTP directories initialization completed successfully")
+                } catch (ex: Exception) {
+                    logger.warn("Failed to initialize FTP directories - continuing without FTP: {}", ex.message)
+                } finally {
+                    returnConnection(ftpClient)
+                }
+            } else {
+                logger.warn("No FTP connections available - server will start without FTP functionality")
+            }
         } catch (ex: Exception) {
-            logger.error("Failed to initialize FTP directories", ex)
-            throw RuntimeException("Failed to initialize FTP directories: ${ex.message}", ex)
-        } finally {
-            returnConnection(ftpClient)
+            logger.warn("FTP initialization failed completely - server will continue without FTP: {}", ex.message)
         }
     }
 
@@ -249,8 +254,8 @@ class FtpFileStorageService(
             logger.debug("Successfully connected to FTP server: {}:{}", ftpConfig.host, ftpConfig.port)
 
         } catch (ex: Exception) {
-            logger.error("Failed to connect to FTP server: {}:{}", ftpConfig.host, ftpConfig.port, ex)
-            //throw ex
+            logger.warn("FTP connection failed: {}:{} - {}", ftpConfig.host, ftpConfig.port, ex.message)
+            // Suppress all FTP connection exceptions to prevent server startup issues
         }
     }
 

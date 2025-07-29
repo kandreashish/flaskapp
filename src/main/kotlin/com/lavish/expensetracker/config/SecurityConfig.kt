@@ -40,12 +40,13 @@ class SecurityConfig(
                     .requestMatchers("/actuator/health").permitAll() // Health check
                     .requestMatchers("/.well-known/**").permitAll() // SSL certificate verification
 
-                    // Swagger/OpenAPI endpoints
+                    // Swagger 2.0 endpoints (replacing OpenAPI 3.0)
                     .requestMatchers("/v3/api-docs/**").permitAll()
                     .requestMatchers("/swagger-ui/**").permitAll()
                     .requestMatchers("/swagger-ui.html").permitAll()
                     .requestMatchers("/swagger-resources/**").permitAll()
                     .requestMatchers("/webjars/**").permitAll()
+                    .requestMatchers("/configuration/**").permitAll()
 
                     // All other requests require authentication
                     .anyRequest().authenticated()

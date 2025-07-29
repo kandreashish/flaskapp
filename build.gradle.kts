@@ -52,7 +52,7 @@ dependencies {
     // FTP client for remote file storage
     implementation("commons-net:commons-net:3.10.0")
 
-    // Swagger/OpenAPI dependencies
+    // Swagger/OpenAPI 3.0 dependencies (SpringDoc - compatible with Spring Boot 3.x)
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-api:2.3.0")
 
