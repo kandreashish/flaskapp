@@ -47,7 +47,7 @@ class ExpenseController(
             "UTILITIES", "HEALTH", "SHOPPING", "EDUCATION", "OTHERS"
         )
         private const val DEFAULT_PAGE_SIZE = 10
-        private const val MAX_PAGE_SIZE = 100
+        private const val MAX_PAGE_SIZE = 500
         private const val MAX_AMOUNT = 1000000.0
         private const val MAX_DESCRIPTION_LENGTH = 500
         private const val MAX_AMOUNT_STRING_LENGTH = 10
