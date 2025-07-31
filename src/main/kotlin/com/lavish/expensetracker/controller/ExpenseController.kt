@@ -556,7 +556,6 @@ class ExpenseController(
                 modifiedBy = currentUser.id,
                 expenseCreatedOn = currentTime,
                 lastModifiedOn = currentTime,
-                updatedUserAlias = currentUser.profilePic ?: currentUser.name ?: "Unknown ExpenseUser",
                 updatedUserName = currentUser.name ?: currentUser.email
             )
 

@@ -36,9 +36,6 @@ data class Expense(
     @Column(name = "last_modified_on")
     val lastModifiedOn: Long,
 
-    @Column(name = "updated_user_alias")
-    val updatedUserAlias: String,
-
     @Column(name = "updated_user_name")
     val updatedUserName: String,
 
@@ -59,7 +56,6 @@ fun Expense.toDto() = ExpenseDto(
     modifiedBy = this.modifiedBy,
     lastModifiedOn = this.lastModifiedOn,
     synced = this.synced,
-    updatedUserAlias = this.updatedUserAlias,
     updatedUserName = this.updatedUserName
 )
 
@@ -76,6 +72,5 @@ fun ExpenseDto.toEntity() = Expense(
     modifiedBy = this.modifiedBy,
     lastModifiedOn = this.lastModifiedOn,
     synced = this.synced,
-    updatedUserAlias = this.updatedUserAlias,
     updatedUserName = this.updatedUserName
 )
