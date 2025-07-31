@@ -27,7 +27,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val validatedPage = maxOf(0, page) // Ensure page is not negative
         val validatedSize = when {
             size <= 0 -> 10 // Default to 10 if size is 0 or negative
-            size > 100 -> 100 // Cap at 100 to prevent performance issues
+            size > 500 -> 500 // Cap at 100 to prevent performance issues
             else -> size
         }
         return Pair(validatedPage, validatedSize)
