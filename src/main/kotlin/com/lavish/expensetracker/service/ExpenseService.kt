@@ -995,7 +995,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
     ): PagedResponse<ExpenseDto> {
         val validatedSize = when {
             size <= 0 -> 10
-            size > 100 -> 100
+            size > 500 -> 500
             else -> size
         }
 
