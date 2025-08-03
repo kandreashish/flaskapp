@@ -127,7 +127,8 @@ class PushNotificationService {
         type: NotificationType,
         tokens: List<String>,
         amount: String?,
-        description: String
+        description: String,
+        userId: String? = null
     ): List<String> {
         if (tokens.isEmpty()) return emptyList()
 
@@ -143,6 +144,7 @@ class PushNotificationService {
             .putData("title", title)
             .putData("body", description)
             .putData("amount", amount ?: "₹0.00")
+            .putData("senderId", userId ?: "unknown")
             .build()
 
         return try {
