@@ -245,10 +245,7 @@ class ExpenseController(
             )
 
         } catch (e: Exception) {
-            logger.error(
-                "Failed to send expense notification for user ${user.id}, expense ${expense.expenseId}: ${e.message}",
-                e
-            )
+            logger.error("Failed to send expense notification for user ${user.id}, expense ${expense.expenseId}: ${e.message}", e)
         }
     }
 
@@ -367,7 +364,7 @@ class ExpenseController(
             val formattedAmount = formatAmount(amount, expenseUser)
             val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
                 title, body, type,
-                fcmTokens, formattedAmount, description
+                fcmTokens, formattedAmount, description, expenseUser.id
             )
 
             val successfulNotifications = fcmTokens.size - invalidTokens.size
