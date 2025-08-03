@@ -576,4 +576,74 @@ class NotificationController @Autowired constructor(
             NotificationType.FAMILY_EXPENSE_DELETED -> "Family Expense Management"
         }
     }
+
+    @GetMapping("/since")
+    fun getNotificationsSince(
+        @RequestParam timestamp: Long,
+        @RequestParam(defaultValue = "10") size: Int
+    ): PagedResponse<Notification> {
+        val startTime = System.currentTimeMillis()
+        logger.info("=== GET /api/notifications/since - Starting getNotificationsSince ===")
+        logger.info("Request parameters - timestamp: {}, size: {}", timestamp, size)
+
+        try {
+            val userId = authUtil.getCurrentUserId()
+            logger.info("Retrieved1 current user ID: {}", userId)
+
+            // Validate size parameter
+            val validatedSize = when {
+                size <= 0 -> {
+                    logger.warn("Invalid1 size parameter: {} (<=0), using default size: {}", size, DEFAULT_SIZE)
+                    DEFAULT_SIZE
+                }
+                size > MAX_SIZE -> {
+                    logger.warn("Size1 parameter: {} exceeds maximum allowed: {}, using max size", size, MAX_SIZE)
+                    MAX_SIZE
+                }
+                else -> {
+                    logger.debug("Using1 provided size parameter: {}", size)
+                    size
+                }
+            }
+
+            val pageable = PageRequest.of(0, validatedSize)
+            logger.debug("Created1 PageRequest with page: 0, size: {}", validatedSize)
+
+            logger.info("Fetching notifications for userId: {} after timestamp: {}", userId, timestamp)
+            val result = notificationRepository.findByReceiverIdAndTimestampGreaterThanOrderByTimestampDesc(
+                userId,
+                timestamp,
+                pageable
+            )
+
+            logger.info("Retrieved {} notifications for userId: {} after timestamp: {}",
+                result.totalElements, userId, timestamp)
+
+            val response = PagedResponse(
+                content = result.content,
+                page = 0,
+                size = validatedSize,
+                totalElements = result.totalElements,
+                totalPages = result.totalPages,
+                isFirst = true,
+                isLast = result.isLast,
+                hasNext = result.hasNext(),
+                hasPrevious = false,
+                lastExpenseId = if (result.content.isNotEmpty()) result.content.last().id.toString() else null
+            )
+
+            val executionTime = System.currentTimeMillis() - startTime
+            logger.info(
+                "Successfully retrieved notifications since timestamp - Content size: {}, Total elements: {}, Execution time: {}ms",
+                response.content.size, response.totalElements, executionTime
+            )
+            logger.info("=== GET /api/notifications/since - Completed successfully ===")
+
+            return response
+        } catch (e: Exception) {
+            val executionTime = System.currentTimeMillis() - startTime
+            logger.error("=== GET /api/notifications/since - Failed after {}ms ===", executionTime, e)
+            throw e
+        }
+    }
 }
