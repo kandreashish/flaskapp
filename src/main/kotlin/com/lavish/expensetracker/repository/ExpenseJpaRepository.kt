@@ -200,6 +200,21 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         @Param("endDate") endDate: Long
     ): BigDecimal
 
+    @Query("SELECT COUNT(e) FROM Expense e WHERE e.userId = :userId AND (:familyId IS NULL AND e.familyId IS NULL OR e.familyId = :familyId) AND e.date >= :startDate AND e.date <= :endDate")
+    fun countExpensesByUserIdAndDateRange(
+        @Param("userId") userId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long,
+        @Param("familyId") familyId: String?
+    ): Long
+
+    @Query("SELECT COUNT(e) FROM Expense e WHERE e.familyId = :familyId AND e.date >= :startDate AND e.date <= :endDate")
+    fun countExpensesByFamilyIdAndDateRange(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): Long
+
     // Combined family and user family queries using custom SQL
     @Query(
         """

@@ -854,7 +854,10 @@ class ExpenseController(
                 "year" to year,
                 "month" to month,
                 "totalAmount" to totalAmount,
-                "userId" to currentUser.id
+                "userId" to currentUser.id,
+                "expenseCount" to expenseService.getExpenseCountByUserIdAndMonth(
+                    currentUser.id, year, month
+                )
             )
         )
     }
@@ -901,6 +904,9 @@ class ExpenseController(
                 "year" to year,
                 "month" to month,
                 "totalAmount" to totalAmount,
+                "expenseCount" to expenseService.getFamilyExpenseCountByUserIdAndMonth(
+                    familyId, year, month
+                )
             )
         )
     }

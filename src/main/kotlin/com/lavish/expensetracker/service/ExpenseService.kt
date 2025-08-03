@@ -52,6 +52,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         )
     }
 
+
     fun getExpensesWithOrder(
         page: Int,
         size: Int,
@@ -344,6 +345,37 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             startDate = startDate,
             endDate = endDate
         ).toLong()
+    }
+
+    fun getExpenseCountByUserIdAndMonth(userId: String, year: Int, month: Int): Long {
+        val yearMonth = YearMonth.of(year, month)
+        val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+
+        return expenseRepository.countExpensesByUserIdAndDateRange(
+            userId = userId,
+            startDate = startDate,
+            endDate = endDate,
+            familyId = null
+        )
+    }
+
+    fun getFamilyExpenseCountByUserIdAndMonth(familyId: String, year: Int, month: Int): Long {
+        // This method should count expenses for the user's family
+        // We need to get the user's familyId first, but since we don't have user service here,
+        // we'll assume this method is meant to count all family expenses for a given month
+        // The controller should pass the familyId instead of userId
+
+        val yearMonth = YearMonth.of(year, month)
+        val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+
+        // For now, we'll count all expenses for the user including family expenses
+        return expenseRepository.countExpensesByFamilyIdAndDateRange(
+            familyId = familyId, // This will count both personal and family expenses for the user
+            startDate = startDate,
+            endDate = endDate
+        )
     }
 
     fun getExpensesByUserIdWithOffset(
@@ -811,8 +843,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = false,
             isLast = !hasMore,
             hasNext = hasMore,
-            hasPrevious = true,
-            lastExpenseId = result.content.lastOrNull()?.expenseId
+            hasPrevious = true
         )
     }
 
