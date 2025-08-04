@@ -14,7 +14,7 @@ class ExpenseCleanupService(
     private val expenseRepository: ExpenseRepository
 ) {
     private val logger = LoggerFactory.getLogger(ExpenseCleanupService::class.java)
-
+    
     companion object {
         // Delete soft-deleted records older than 90 days
         private const val CLEANUP_THRESHOLD_DAYS = 90L
@@ -28,15 +28,15 @@ class ExpenseCleanupService(
     fun cleanupOldDeletedExpenses() {
         try {
             logger.info("Starting cleanup of old soft-deleted expenses")
-
+            
             val cutoffTime = LocalDateTime.now()
                 .minusDays(CLEANUP_THRESHOLD_DAYS)
                 .toEpochSecond(ZoneOffset.UTC) * 1000
-
+            
             val deletedCount = performCleanup(cutoffTime)
-
+            
             logger.info("Cleanup completed. Permanently deleted $deletedCount old soft-deleted expenses")
-
+            
         } catch (e: Exception) {
             logger.error("Error during expense cleanup: ${e.message}", e)
         }
@@ -48,11 +48,11 @@ class ExpenseCleanupService(
     @Transactional
     fun manualCleanup(daysOld: Long = CLEANUP_THRESHOLD_DAYS): Int {
         logger.info("Manual cleanup initiated for expenses deleted more than $daysOld days ago")
-
+        
         val cutoffTime = LocalDateTime.now()
             .minusDays(daysOld)
             .toEpochSecond(ZoneOffset.UTC) * 1000
-
+        
         return performCleanup(cutoffTime)
     }
 
@@ -64,7 +64,7 @@ class ExpenseCleanupService(
         if (expenseRepository is ExpenseRepositoryImpl) {
             return cleanupInMemoryRepository(cutoffTime)
         }
-
+        
         // For other repository implementations, we can't perform cleanup
         logger.warn("Cleanup not supported for current repository implementation: ${expenseRepository::class.simpleName}")
         return 0
@@ -77,7 +77,7 @@ class ExpenseCleanupService(
         // This would require adding a cleanup method to ExpenseRepositoryImpl
         // For now, we'll just log that cleanup would happen here
         logger.info("In-memory repository cleanup would remove expenses deleted before timestamp: $cutoffTime")
-
+        
         // TODO: Implement actual cleanup in ExpenseRepositoryImpl
         // For safety, returning 0 for now since in-memory data is temporary anyway
         return 0
