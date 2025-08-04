@@ -38,5 +38,9 @@ data class ExpenseUser(
     val profilePic: String? = null,
 
     @Column(name = "currencyPreference", nullable = false)
-    val currencyPreference: String = "₹"
+    val currencyPreference: String = "₹",
+
+    @ElementCollection
+    @Column(name = "sent_join_requests")
+    val sentJoinRequests: MutableList<String> = mutableListOf()
 )
