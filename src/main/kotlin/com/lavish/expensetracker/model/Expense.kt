@@ -42,6 +42,14 @@ data class ExpenseDto(
     val lastModifiedOn: Long,
 
     @SerialName("synced")
-    val synced: Boolean = false
-)
+    val synced: Boolean = false,
 
+    @SerialName("deleted")
+    val deleted: Boolean = false,
+
+    @SerialName("deletedOn")
+    val deletedOn: Long? = null,
+
+    @SerialName("deletedBy")
+    val deletedBy: String? = null
+)

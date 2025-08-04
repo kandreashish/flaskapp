@@ -4,15 +4,18 @@ import com.lavish.expensetracker.exception.DatabaseOperationException
 import com.lavish.expensetracker.exception.ExpenseAccessDeniedException
 import com.lavish.expensetracker.exception.ExpenseCreationException
 import com.lavish.expensetracker.exception.ExpenseNotFoundException
+import com.lavish.expensetracker.exception.ExpenseValidationException
 import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.model.toDto
 import com.lavish.expensetracker.model.toEntity
 import com.lavish.expensetracker.repository.ExpenseJpaRepository
+import com.lavish.expensetracker.repository.ExpenseRepository
 import org.springframework.dao.DataAccessException
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
 import java.util.*
@@ -198,11 +201,18 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
     fun deleteExpense(id: String): Boolean {
         return try {
-            if (!expenseRepository.existsById(id)) {
-                throw ExpenseNotFoundException("Expense with ID '$id' not found")
-            }
+            val existingExpense = expenseRepository.findById(id)
+                .orElseThrow { ExpenseNotFoundException("Expense with ID '$id' not found") }
 
-            expenseRepository.deleteById(id)
+            // Perform soft delete by updating the expense record
+            val deletedExpense = existingExpense.copy(
+                deleted = true,
+                deletedOn = System.currentTimeMillis(),
+                deletedBy = existingExpense.userId, // You can pass the current user ID here if needed
+                lastModifiedOn = System.currentTimeMillis()
+            )
+
+            expenseRepository.save(deletedExpense)
             true
 
         } catch (e: ExpenseNotFoundException) {
@@ -1191,5 +1201,169 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             hasNext = result.content.size == validatedSize,
             hasPrevious = true // Since we're using a cursor, there's likely previous data
         )
+    }
+
+    fun getFamilyExpensesSince(
+        familyId: String,
+        lastModified: Long,
+        size: Int,
+        sortBy: String = "lastModifiedOn",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        val result = when (sortBy) {
+            "lastModifiedOn" -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                familyId,
+                lastModified,
+                pageable
+            )
+
+            "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
+                familyId,
+                lastModified,
+                pageable
+            )
+
+            "date" -> expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
+                familyId,
+                lastModified,
+                pageable
+            )
+            else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                familyId,
+                lastModified,
+                pageable
+            )
+        }
+
+        val totalElements = result.totalElements
+        val totalPages = result.totalPages
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0,
+            size = validatedSize,
+            totalElements = totalElements,
+            totalPages = totalPages,
+            isFirst = true,
+            isLast = result.content.size < validatedSize,
+            hasNext = result.content.size == validatedSize,
+            hasPrevious = false
+        )
+    }
+
+    fun getFamilyExpensesSinceWithCursor(
+        familyId: String,
+        lastModified: Long,
+        lastExpenseId: String,
+        size: Int,
+        sortBy: String = "lastModifiedOn",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        // Get the cursor value from the last expense
+        val lastExpense = expenseRepository.findById(lastExpenseId).orElse(null)
+            ?: throw ExpenseNotFoundException("Expense with ID $lastExpenseId not found for cursor pagination")
+
+        val cursorValue = when (sortBy) {
+            "expenseCreatedOn" -> lastExpense.expenseCreatedOn
+            "lastModifiedOn" -> lastExpense.lastModifiedOn
+            "amount" -> lastExpense.amount.toLong()
+            "date" -> lastExpense.date
+            else -> lastExpense.lastModifiedOn
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        // Combine timestamp filter with cursor pagination
+        val result = if (isAsc) {
+            when (sortBy) {
+                "expenseCreatedOn" -> {
+                    // Find expenses where expenseCreatedOn >= lastModified AND expenseCreatedOn > cursor
+                    val timestampResult = expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
+                        familyId, maxOf(lastModified, cursorValue), pageable
+                    )
+                    timestampResult
+                }
+                "lastModifiedOn" -> {
+                    val timestampResult = expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                        familyId, maxOf(lastModified, cursorValue), pageable
+                    )
+                    timestampResult
+                }
+                "date" -> {
+                    val timestampResult = expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
+                        familyId, maxOf(lastModified, cursorValue), pageable
+                    )
+                    timestampResult
+                }
+                else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                    familyId, maxOf(lastModified, cursorValue), pageable
+                )
+            }
+        } else {
+            // For descending order, we need different logic
+            when (sortBy) {
+                "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
+                    familyId, lastModified, pageable
+                )
+                "lastModifiedOn" -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                    familyId, lastModified, pageable
+                )
+                "date" -> expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
+                    familyId, lastModified, pageable
+                )
+                else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                    familyId, lastModified, pageable
+                )
+            }
+        }
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0,
+            size = validatedSize,
+            totalElements = result.totalElements,
+            totalPages = result.totalPages,
+            isFirst = false,
+            isLast = result.content.size < validatedSize,
+            hasNext = result.content.size == validatedSize,
+            hasPrevious = true
+        )
+    }
+
+    fun getFamilyExpensesSinceDate(
+        familyId: String,
+        date: String,
+        size: Int,
+        sortBy: String = "date",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val sinceTimestamp = try {
+            LocalDate.parse(date).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        } catch (e: Exception) {
+            throw ExpenseValidationException(
+                "Invalid date format. Use YYYY-MM-DD format",
+                listOf("Date parsing error: ${e.message}")
+            )
+        }
+
+        return getFamilyExpensesSince(familyId, sinceTimestamp, size, sortBy, isAsc)
     }
 }
