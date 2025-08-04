@@ -39,8 +39,10 @@ data class Expense(
     @Column(name = "updated_user_name")
     val updatedUserName: String,
 
+    @Column(name = "synced")
     val synced: Boolean,
 
+    @Column(name = "deleted")
     val deleted: Boolean = false,
 
     @Column(name = "deleted_on")

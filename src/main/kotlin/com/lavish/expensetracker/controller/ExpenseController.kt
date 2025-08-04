@@ -543,7 +543,7 @@ class ExpenseController(
                     )
                 }
 
-                logger.debug("Family membership validated for user ${currentUser.id} in family ${expense.familyId}")
+                logger.debug("Family membership1 validated for user ${currentUser.id} in family ${expense.familyId}")
             }
 
             val currentTime = System.currentTimeMillis()
@@ -668,7 +668,7 @@ class ExpenseController(
                     )
                 }
 
-                logger.debug("Family membership validated for user ${currentUser.id} in family ${expense.familyId}")
+                logger.debug("Family membership6 validated for user ${currentUser.id} in family ${expense.familyId}")
             }
 
             logger.debug("Updating expense $id with new data")
@@ -745,7 +745,7 @@ class ExpenseController(
                     )
                 }
 
-                logger.debug("Family membership validated for user ${currentUser.id} in family ${existingExpense.familyId}")
+                logger.debug("Family membership5 validated for user ${currentUser.id} in family ${existingExpense.familyId}")
             }
 
             if (expenseService.deleteExpense(id)) {
