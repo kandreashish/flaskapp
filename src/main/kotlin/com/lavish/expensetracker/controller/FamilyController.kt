@@ -1634,7 +1634,7 @@ class FamilyController @Autowired constructor(
                 ?: return ApiResponseUtil.notFound("Requester user not found")
 
             // Check if there's a pending join request from this user
-            if (!family.pendingJoinRequests.contains(requesterUser.email)) {
+            if (!family.pendingJoinRequests.contains(requesterUser.id)) {
                 return ApiResponseUtil.notFound("No pending join request found for this user")
             }
 
@@ -1738,7 +1738,7 @@ class FamilyController @Autowired constructor(
                 ?: return ApiResponseUtil.notFound("Requester user not found")
 
             // Check if there's a pending join request from this user
-            if (!family.pendingJoinRequests.contains(requesterUser.email)) {
+            if (!family.pendingJoinRequests.contains(requesterUser.id)) {
                 return ApiResponseUtil.notFound("No pending join request found for this user")
             }
 
