@@ -137,28 +137,28 @@ class ExpenseRepositoryImpl : ExpenseRepository {
         return createPageFromList(filteredExpenses, pageable)
     }
 
-    fun findByUserIdAndLastModifiedOnGreaterThan(userId: String, lastModified: Long, pageable: Pageable): Page<ExpenseDto> {
+    override fun findByUserIdAndLastModifiedOnGreaterThan(userId: String, lastModified: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.userId == userId && expense.lastModifiedOn > lastModified
         }
         return createPageFromList(filteredExpenses, pageable)
     }
 
-    fun findByUserIdAndExpenseCreatedOnGreaterThan(userId: String, createdOn: Long, pageable: Pageable): Page<ExpenseDto> {
+    override fun findByUserIdAndExpenseCreatedOnGreaterThan(userId: String, createdOn: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.userId == userId && expense.expenseCreatedOn > createdOn
         }
         return createPageFromList(filteredExpenses, pageable)
     }
 
-    fun findByUserIdAndDateGreaterThan(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto> {
+    override fun findByUserIdAndDateGreaterThan(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.userId == userId && expense.date > date
         }
         return createPageFromList(filteredExpenses, pageable)
     }
 
-    fun findByUserIdAndDateGreaterThanEqual(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto> {
+    override fun findByUserIdAndDateGreaterThanEqual(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.userId == userId && expense.date >= date
         }
@@ -166,11 +166,15 @@ class ExpenseRepositoryImpl : ExpenseRepository {
     }
 
     // Count methods
-    fun countByUserId(userId: String): Long {
+    override fun countByUserId(userId: String): Long {
         return expenses.values.count { it.userId == userId && !it.deleted }.toLong()
     }
 
-    fun countByFamilyId(familyId: String): Long {
+    override fun countByFamilyId(familyId: String): Long {
+        return expenses.values.count { it.familyId == familyId && !it.deleted }.toLong()
+    }
+
+    override fun countByFamilyIdOrUserFamilyId(familyId: String): Long {
         return expenses.values.count { it.familyId == familyId && !it.deleted }.toLong()
     }
 
