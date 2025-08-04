@@ -1793,5 +1793,144 @@ class FamilyController @Autowired constructor(
             ApiResponseUtil.internalServerError("An error occurred while accepting join request")
         }
     }
+    @PostMapping("/request-to-join")
+    @Operation(
+        summary = "Send a join request",
+        description = "Allows a user to send a request to join a family"
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Join request sent successfully",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "400",
+                description = "Bad request or invalid alias format",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "404",
+                description = "User, family, or join request not found",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "409",
+                description = "Conflict, family is full or user already in family",
+                content = [Content(mediaType = "application/json")]
+            ),
+            ApiResponse(
+                responseCode = "500",
+                description = "Internal server error",
+                content = [Content(mediaType = "application/json")]
+            )
+        ]
+    )
+    fun requestToJoinFamily(
+        @Valid @RequestBody request: JoinFamilyRequest
+    ): ResponseEntity<*> {
+        logger.info("Requesting to join family with alias: ${request.aliasName}")
+
+        return try {
+            // Validate alias name
+            validateAliasName(request.aliasName)?.let { error ->
+                logger.warn("Invalid alias1 name: $error")
+                return ApiResponseUtil.badRequest(error)
+            }
+
+            val userId = authUtil.getCurrentUserId()
+            val user = userRepository.findById(userId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "family join request"))
+
+            // Check if user is already in a family
+            if (user.familyId != null) {
+                return ApiResponseUtil.conflict(logUserAlreadyInFamily(userId, user.familyId, "family join request"))
+            }
+
+            // Find the family by alias
+            val family = findFamilyByAlias(request.aliasName)
+                ?: return ApiResponseUtil.notFound(logFamilyNotFoundByAlias(request.aliasName, "family join request"))
+
+            // Check if family is full
+            if (family.membersIds.size >= family.maxSize) {
+                return ApiResponseUtil.conflict(
+                    logFamilyFull(
+                        family.familyId,
+                        family.membersIds.size,
+                        family.maxSize,
+                        "family join request"
+                    )
+                )
+            }
+
+            // Check if user already has a pending request
+            if (family.pendingJoinRequests.contains(userId)) {
+                return ApiResponseUtil.conflict("Join request already pending for this family")
+            }
+
+            // Check if user is already a member
+            if (family.membersIds.contains(userId)) {
+                return ApiResponseUtil.conflict("User is already a member of this family")
+            }
+
+            // Add user to pending join requests
+            val updatedFamily = family.copy(
+                pendingJoinRequests = (family.pendingJoinRequests + userId).toMutableList(),
+                updatedAt = System.currentTimeMillis()
+            )
+            familyRepository.save(updatedFamily)
+
+            // Get family head to send notification
+            val familyHead = userRepository.findById(family.headId).orElse(null)
+            if (familyHead != null) {
+                // Create notification for family head
+                val notification = createNotification(
+                    title = "New Family Join Request",
+                    message = "${user.name} wants to join your family '${family.name}'",
+                    familyId = family.familyId,
+                    senderName = (user.name ?: user.email),
+                    senderId = userId,
+                    receiverId = family.headId,
+                    type = NotificationType.JOIN_FAMILY_REQUEST,
+                    familyAliasName = family.aliasName,
+                    actionable = true
+                )
+
+                saveNotificationSafely(notification)
+
+                // Send push notification to family head
+                sendPushNotification(
+                    token = familyHead.fcmToken,
+                    title = "New Family Join Request",
+                    message = "${user.name} wants to join your family '${family.name}'",
+                    data = mapOf(
+                        "type" to "JOIN_FAMILY_REQUEST",
+                        "familyId" to family.familyId,
+                        "requesterId" to userId,
+                        "requesterName" to (user.name ?: user.email),
+                        "familyName" to family.name,
+                        "familyAlias" to family.aliasName
+                    ),
+                    recipientEmail = familyHead.email
+                )
+
+                logger.info("Join request notification sent to family head: ${familyHead.email}")
+            }
+
+            logger.info("User $userId successfully requested to join family ${family.familyId}")
+
+            ResponseEntity.ok(mapOf(
+                "message" to "Join request sent successfully",
+                "familyName" to family.name,
+                "familyAlias" to family.aliasName,
+                "status" to "pending"
+            ))
+
+        } catch (ex: Exception) {
+            logger.error("Exception in requestToJoinFamily", ex)
+            ApiResponseUtil.internalServerError("An error occurred while sending join request")
+        }
+    }
 }
 
