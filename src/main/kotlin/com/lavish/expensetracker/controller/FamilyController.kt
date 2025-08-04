@@ -1640,7 +1640,7 @@ class FamilyController @Autowired constructor(
 
             // Remove the user's email from pending join requests
             val updatedFamily = family.copy(
-                pendingJoinRequests = (family.pendingJoinRequests - requesterUser.email).toMutableList(),
+                pendingJoinRequests = (family.pendingJoinRequests - requesterUser.id).toMutableList(),
                 updatedAt = System.currentTimeMillis()
             )
             familyRepository.save(updatedFamily)
@@ -1762,7 +1762,7 @@ class FamilyController @Autowired constructor(
             // Add user to family and remove from pending join requests
             val updatedFamily = family.copy(
                 membersIds = (family.membersIds + requesterUser.id).toMutableList(),
-                pendingJoinRequests = (family.pendingJoinRequests - requesterUser.email).toMutableList(),
+                pendingJoinRequests = (family.pendingJoinRequests - requesterUser.id).toMutableList(),
                 updatedAt = System.currentTimeMillis()
             )
             familyRepository.save(updatedFamily)
