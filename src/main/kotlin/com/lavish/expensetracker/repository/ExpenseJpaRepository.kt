@@ -214,8 +214,11 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     fun findByUserIdAndFamilyIdIsNullAndDeletedFalse(userId: String, pageable: Pageable): Page<Expense>
 
     // Methods that include deleted expenses (for sync/"since" queries)
-    fun findByFamilyIdAndLastModifiedOnGreaterThanIncludeDeleted(familyId: String, lastModified: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndLastModifiedOnGreaterThanIncludeDeleted(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>
+    @Query("SELECT e FROM Expense e WHERE e.familyId = :familyId AND e.lastModifiedOn > :lastModified")
+    fun findByFamilyIdAndLastModifiedOnGreaterThanIncludeDeleted(@Param("familyId") familyId: String, @Param("lastModified") lastModified: Long, pageable: Pageable): Page<Expense>
+
+    @Query("SELECT e FROM Expense e WHERE e.userId = :userId AND e.lastModifiedOn > :lastModified")
+    fun findByUserIdAndLastModifiedOnGreaterThanIncludeDeleted(@Param("userId") userId: String, @Param("lastModified") lastModified: Long, pageable: Pageable): Page<Expense>
 
     @Query("SELECT COUNT(e) FROM Expense e WHERE e.userId = :userId AND (:familyId IS NULL AND e.familyId IS NULL OR e.familyId = :familyId) AND e.date >= :startDate AND e.date <= :endDate")
     fun countExpensesByUserIdAndDateRange(
@@ -418,7 +421,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     // Cleanup methods for soft-deleted expenses
     @Query("DELETE FROM Expense e WHERE e.deleted = true AND e.deletedOn < :cutoffTime")
     @Modifying
-    fun deleteOldSoftDeletedExpenses(@Param("cutoffTime") cutoffTime: Long, @Param("batchSize") batchSize: Int): Int
+    fun deleteOldSoftDeletedExpenses(@Param("cutoffTime") cutoffTime: Long): Int
 
     @Query("SELECT COUNT(e) FROM Expense e WHERE e.deleted = true")
     fun countSoftDeletedExpenses(): Long
