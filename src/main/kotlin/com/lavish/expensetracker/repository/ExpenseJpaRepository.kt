@@ -185,7 +185,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         pageable: Pageable
     ): Page<Expense>
 
-    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId AND (:familyId IS NULL AND e.familyId IS NULL OR e.familyId = :familyId) AND e.date >= :startDate AND e.date <= :endDate")
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId AND e.deleted = false AND (:familyId IS NULL AND e.familyId IS NULL OR e.familyId = :familyId) AND e.date >= :startDate AND e.date <= :endDate")
     fun sumExpensesByUserIdAndFamilyIdAndDateRange(
         @Param("userId") userId: String,
         @Param("familyId") familyId: String?,
@@ -194,7 +194,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     ): BigDecimal
 
 
-    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.familyId = :familyId AND e.date >= :startDate AND e.date <= :endDate")
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.familyId = :familyId AND e.deleted = false AND e.date >= :startDate AND e.date <= :endDate")
     fun sumExpensesByFamilyIdAndDateRange(
         @Param("familyId") familyId: String,
         @Param("startDate") startDate: Long,
