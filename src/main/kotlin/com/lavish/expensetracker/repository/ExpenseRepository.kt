@@ -28,4 +28,15 @@ interface ExpenseRepository {
     fun findByFamilyIdAndLastModifiedOnGreaterThan(familyId: String, lastModified: Long, pageable: Pageable): Page<ExpenseDto>
     fun findByFamilyIdAndExpenseCreatedOnGreaterThan(familyId: String, expenseCreatedOn: Long, pageable: Pageable): Page<ExpenseDto>
     fun findByFamilyIdAndDateGreaterThanEqual(familyId: String, date: Long, pageable: Pageable): Page<ExpenseDto>
+
+    // Methods for user expenses since timestamp
+    fun findByUserIdAndLastModifiedOnGreaterThan(userId: String, lastModified: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByUserIdAndExpenseCreatedOnGreaterThan(userId: String, createdOn: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByUserIdAndDateGreaterThan(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByUserIdAndDateGreaterThanEqual(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto>
+
+    // Count methods
+    fun countByUserId(userId: String): Long
+    fun countByFamilyId(familyId: String): Long
+    fun countByFamilyIdOrUserFamilyId(familyId: String): Long
 }
