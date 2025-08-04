@@ -370,7 +370,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     fun findByUserIdAndFamilyId(userId: String, familyId: String, pageable: Pageable): Page<Expense>
 
     // Cursor-based pagination methods for personal expenses (familyId is null/empty)
-    fun findByUserIdAndFamilyIdIsNullAndIsDeletedFalseAndDateGreaterThanOrderByDateAsc(
+    fun findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
         userId: String,
         date: Long,
         pageable: Pageable
