@@ -578,58 +578,84 @@ class NotificationController @Autowired constructor(
     }
 
     @GetMapping("/since")
-    fun getNotificationsSince(
+    fun getNotificationsSinceTimestamp(
         @RequestParam timestamp: Long,
-        @RequestParam(defaultValue = "10") size: Int
-    ): PagedResponse<Notification> {
+        @RequestParam(defaultValue = "50") size: Int
+    ): ResponseEntity<PagedResponse<Notification>> {
         val startTime = System.currentTimeMillis()
-        logger.info("=== GET /api/notifications/since - Starting getNotificationsSince ===")
+        logger.info("=== GET /api/notifications/since - Starting getNotificationsSinceTimestamp ===")
         logger.info("Request parameters - timestamp: {}, size: {}", timestamp, size)
 
         try {
             val userId = authUtil.getCurrentUserId()
-            logger.info("Retrieved1 current user ID: {}", userId)
+            logger.info("Retrieved current user ID: {}", userId)
 
             // Validate size parameter
             val validatedSize = when {
                 size <= 0 -> {
-                    logger.warn("Invalid1 size parameter: {} (<=0), using default size: {}", size, DEFAULT_SIZE)
+                    logger.warn("Invalid size parameter: {} (<=0), using default size: {}", size, DEFAULT_SIZE)
                     DEFAULT_SIZE
                 }
+
                 size > MAX_SIZE -> {
-                    logger.warn("Size1 parameter: {} exceeds maximum allowed: {}, using max size", size, MAX_SIZE)
+                    logger.warn("Size parameter: {} exceeds maximum allowed: {}, using max size", size, MAX_SIZE)
                     MAX_SIZE
                 }
+
                 else -> {
-                    logger.debug("Using1 provided size parameter: {}", size)
+                    logger.debug("Using provided size parameter: {}", size)
                     size
                 }
             }
 
-            val pageable = PageRequest.of(0, validatedSize)
-            logger.debug("Created1 PageRequest with page: 0, size: {}", validatedSize)
+            // Validate timestamp parameter
+            if (timestamp < 0) {
+                logger.warn("Invalid timestamp parameter: {} (<0)", timestamp)
+                return ResponseEntity.badRequest().body(
+                    PagedResponse(
+                        content = emptyList(),
+                        page = 0,
+                        size = 0,
+                        totalElements = 0,
+                        totalPages = 0,
+                        isFirst = true,
+                        isLast = true,
+                        hasNext = false,
+                        hasPrevious = false,
+                        lastExpenseId = null
+                    )
+                )
+            }
 
-            logger.info("Fetching notifications for userId: {} after timestamp: {}", userId, timestamp)
-            val result = notificationRepository.findByReceiverIdAndTimestampGreaterThanOrderByTimestampDesc(
+            val pageable = PageRequest.of(0, validatedSize)
+            logger.debug("Created PageRequest with page: 0, size: {}", validatedSize)
+
+            logger.info("Retrieving notifications for userId: {} after timestamp: {}", userId, timestamp)
+
+            val notifications = notificationRepository.findByReceiverIdAndTimestampGreaterThanOrderByTimestampDesc(
                 userId,
                 timestamp,
                 pageable
             )
 
-            logger.info("Retrieved {} notifications for userId: {} after timestamp: {}",
-                result.totalElements, userId, timestamp)
+            logger.info(
+                "Retrieved {} notifications for userId: {} after timestamp: {}",
+                notifications.totalElements,
+                userId,
+                timestamp
+            )
 
             val response = PagedResponse(
-                content = result.content,
+                content = notifications.content,
                 page = 0,
                 size = validatedSize,
-                totalElements = result.totalElements,
-                totalPages = result.totalPages,
+                totalElements = notifications.totalElements,
+                totalPages = notifications.totalPages,
                 isFirst = true,
-                isLast = result.isLast,
-                hasNext = result.hasNext(),
-                hasPrevious = false,
-                lastExpenseId = if (result.content.isNotEmpty()) result.content.last().id.toString() else null
+                isLast = notifications.isLast,
+                hasNext = notifications.hasNext(),
+                hasPrevious = notifications.hasPrevious(),
+                lastExpenseId = if (notifications.content.isNotEmpty()) notifications.content.last().id.toString() else null
             )
 
             val executionTime = System.currentTimeMillis() - startTime
@@ -639,11 +665,25 @@ class NotificationController @Autowired constructor(
             )
             logger.info("=== GET /api/notifications/since - Completed successfully ===")
 
-            return response
+            return ResponseEntity.ok(response)
+
         } catch (e: Exception) {
             val executionTime = System.currentTimeMillis() - startTime
             logger.error("=== GET /api/notifications/since - Failed after {}ms ===", executionTime, e)
-            throw e
+            return ResponseEntity.internalServerError().body(
+                PagedResponse(
+                    content = emptyList(),
+                    page = 0,
+                    size = 0,
+                    totalElements = 0,
+                    totalPages = 0,
+                    isFirst = true,
+                    isLast = true,
+                    hasNext = false,
+                    hasPrevious = false,
+                    lastExpenseId = null
+                )
+            )
         }
     }
 }
