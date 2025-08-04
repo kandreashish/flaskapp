@@ -6,8 +6,8 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConfigurationProperties(prefix = "app.ftp")
 data class FtpConfig(
-    var host: String = "192.168.1.19",
-    var port: Int = 2221,
+    var host: String = "192.168.1.21",
+    var port: Int = 6969,
     var username: String = "android",
     var password: String = "android",
     var baseDirectory: String = "/server/uploads",

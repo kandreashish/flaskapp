@@ -66,7 +66,7 @@ class FileStorageService {
 
         } catch (ex: Exception) {
             logger.error("Failed to initialize upload directories", ex)
-            throw RuntimeException("Failed to initialize upload directories: ${ex.message}", ex)
+            //throw RuntimeException("Failed to initialize upload directories: ${ex.message}", ex)
         }
     }
 
