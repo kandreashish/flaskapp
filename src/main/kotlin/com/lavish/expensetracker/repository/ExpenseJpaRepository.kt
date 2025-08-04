@@ -4,7 +4,6 @@ import com.lavish.expensetracker.model.Expense
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
@@ -206,20 +205,6 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     fun findByFamilyIdAndExpenseCreatedOnGreaterThan(familyId: String, expenseCreatedOn: Long, pageable: Pageable): Page<Expense>
     fun findByFamilyIdAndDateGreaterThanEqual(familyId: String, date: Long, pageable: Pageable): Page<Expense>
 
-    // Methods that exclude deleted expenses (for normal queries)
-    fun findByUserIdAndDeletedFalse(userId: String, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndDeletedFalse(familyId: String, pageable: Pageable): Page<Expense>
-    fun findByCategoryAndDeletedFalse(category: String, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndCategoryAndDeletedFalse(userId: String, category: String, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyIdIsNullAndDeletedFalse(userId: String, pageable: Pageable): Page<Expense>
-
-    // Methods that include deleted expenses (for sync/"since" queries)
-    @Query("SELECT e FROM Expense e WHERE e.familyId = :familyId AND e.lastModifiedOn > :lastModified")
-    fun findByFamilyIdAndLastModifiedOnGreaterThanIncludeDeleted(@Param("familyId") familyId: String, @Param("lastModified") lastModified: Long, pageable: Pageable): Page<Expense>
-
-    @Query("SELECT e FROM Expense e WHERE e.userId = :userId AND e.lastModifiedOn > :lastModified")
-    fun findByUserIdAndLastModifiedOnGreaterThanIncludeDeleted(@Param("userId") userId: String, @Param("lastModified") lastModified: Long, pageable: Pageable): Page<Expense>
-
     @Query("SELECT COUNT(e) FROM Expense e WHERE e.userId = :userId AND (:familyId IS NULL AND e.familyId IS NULL OR e.familyId = :familyId) AND e.date >= :startDate AND e.date <= :endDate")
     fun countExpensesByUserIdAndDateRange(
         @Param("userId") userId: String,
@@ -367,7 +352,6 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
 
     // Personal expenses methods (where familyId is null or empty)
     fun findByUserIdAndFamilyIdIsNull(userId: String, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndFamilyId(userId: String, familyId: String, pageable: Pageable): Page<Expense>
 
     // Cursor-based pagination methods for personal expenses (familyId is null/empty)
     fun findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
@@ -417,18 +401,4 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         lastModified: Long,
         pageable: Pageable
     ): Page<Expense>
-
-    // Cleanup methods for soft-deleted expenses
-    @Query("DELETE FROM Expense e WHERE e.deleted = true AND e.deletedOn < :cutoffTime")
-    @Modifying
-    fun deleteOldSoftDeletedExpenses(@Param("cutoffTime") cutoffTime: Long): Int
-
-    @Query("SELECT COUNT(e) FROM Expense e WHERE e.deleted = true")
-    fun countSoftDeletedExpenses(): Long
-
-    @Query("SELECT COUNT(e) FROM Expense e WHERE e.deleted = true AND e.deletedOn >= :since")
-    fun countSoftDeletedExpensesSince(@Param("since") since: Long): Long
-
-    @Query("SELECT COUNT(e) FROM Expense e WHERE e.deleted = true AND e.deletedOn < :cutoff")
-    fun countSoftDeletedExpensesOlderThan(@Param("cutoff") cutoff: Long): Long
 }
