@@ -10,7 +10,6 @@ import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.model.toDto
 import com.lavish.expensetracker.model.toEntity
 import com.lavish.expensetracker.repository.ExpenseJpaRepository
-import com.lavish.expensetracker.repository.ExpenseRepository
 import org.springframework.dao.DataAccessException
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -1049,7 +1048,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val result = when (sortBy) {
             "date" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndIsDeletedFalseAndDateGreaterThanOrderByDateAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
                         userId, cursorExpense.date, pageable
                     )
                 } else {
@@ -1098,7 +1097,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             else -> {
                 // Default to date sorting
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndIsDeletedFalseAndDateGreaterThanOrderByDateAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
                         userId, cursorExpense.date, pageable
                     )
                 } else {
