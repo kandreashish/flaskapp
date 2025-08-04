@@ -43,50 +43,50 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     ): Page<Expense>
 
     // Cursor-based pagination methods for creation date sorting
-    fun findByUserIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+    fun findByUserIdAndDeletedFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
         userId: String,
         createdOn: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    fun findByUserIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+    fun findByUserIdAndDeletedFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
         userId: String,
         createdOn: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    fun findByFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+    fun findByFamilyIdAndDeletedFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
         familyId: String,
         createdOn: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    fun findByFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+    fun findByFamilyIdAndDeletedFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
         familyId: String,
         createdOn: Long,
         pageable: Pageable
     ): Page<Expense>
 
     // Cursor-based pagination methods for last modified date sorting
-    fun findByUserIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+    fun findByUserIdAndDeletedFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
         userId: String,
         lastModified: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    fun findByUserIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+    fun findByUserIdAndDeletedFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
         userId: String,
         lastModified: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    fun findByFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+    fun findByFamilyIdAndDeletedFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
         familyId: String,
         lastModified: Long,
         pageable: Pageable
     ): Page<Expense>
 
-    fun findByFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+    fun findByFamilyIdAndDeletedFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
         familyId: String,
         lastModified: Long,
         pageable: Pageable
@@ -370,7 +370,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     fun findByUserIdAndFamilyId(userId: String, familyId: String, pageable: Pageable): Page<Expense>
 
     // Cursor-based pagination methods for personal expenses (familyId is null/empty)
-    fun findByUserIdAndFamilyIdIsNullAndDateGreaterThanOrderByDateAsc(
+    fun findByUserIdAndFamilyIdIsNullAndIsDeletedFalseAndDateGreaterThanOrderByDateAsc(
         userId: String,
         date: Long,
         pageable: Pageable
