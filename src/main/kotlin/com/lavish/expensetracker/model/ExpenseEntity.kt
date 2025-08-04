@@ -39,7 +39,15 @@ data class Expense(
     @Column(name = "updated_user_name")
     val updatedUserName: String,
 
-    val synced: Boolean
+    val synced: Boolean,
+
+    val deleted: Boolean = false,
+
+    @Column(name = "deleted_on")
+    val deletedOn: Long? = null,
+
+    @Column(name = "deleted_by")
+    val deletedBy: String? = null
 )
 
 // Mapper functions to convert between Entity and DTO
@@ -56,7 +64,10 @@ fun Expense.toDto() = ExpenseDto(
     modifiedBy = this.modifiedBy,
     lastModifiedOn = this.lastModifiedOn,
     synced = this.synced,
-    updatedUserName = this.updatedUserName
+    updatedUserName = this.updatedUserName,
+    deleted = this.deleted,
+    deletedOn = this.deletedOn,
+    deletedBy = this.deletedBy
 )
 
 fun ExpenseDto.toEntity() = Expense(
@@ -72,5 +83,8 @@ fun ExpenseDto.toEntity() = Expense(
     modifiedBy = this.modifiedBy,
     lastModifiedOn = this.lastModifiedOn,
     synced = this.synced,
-    updatedUserName = this.updatedUserName
+    updatedUserName = this.updatedUserName,
+    deleted = this.deleted,
+    deletedOn = this.deletedOn,
+    deletedBy = this.deletedBy
 )

@@ -70,18 +70,15 @@ class ExpenseRepositoryImpl : ExpenseRepository {
 
     override fun findByUserIdAndDateBetween(userId: String, startDate: Long, endDate: Long, page: Int, size: Int): PagedResponse<ExpenseDto> {
         val filteredExpenses = expenses.values.filter {
-            it.userId == userId && it.date in startDate..endDate
+            it.userId == userId && it.date in startDate..endDate && !it.deleted
         }.sortedByDescending { it.expenseCreatedOn }
         return createPagedResponse(filteredExpenses, page, size)
     }
 
     override fun findByFamilyIdOrUserFamilyId(familyId: String, pageable: Pageable): Page<ExpenseDto> {
-        // For the in-memory implementation, we need to simulate Spring Data's Page interface
-        // This method should find expenses that either:
-        // 1. Have the specified familyId, OR
-        // 2. Were created by users who belong to this family
+        // Filter for non-deleted expenses only
         val filteredExpenses = expenses.values.filter { expense ->
-            expense.familyId == familyId
+            expense.familyId == familyId && !expense.deleted
         }
 
         // Apply sorting from pageable
@@ -113,6 +110,100 @@ class ExpenseRepositoryImpl : ExpenseRepository {
         }
 
         // Return a simple Page implementation using Spring's PageImpl
+        return org.springframework.data.domain.PageImpl(content, pageable, totalElements)
+    }
+
+    // New methods for soft delete and "since" functionality
+
+    // Methods for "since" queries (include deleted expenses for sync)
+    override fun findByFamilyIdAndLastModifiedOnGreaterThan(familyId: String, lastModified: Long, pageable: Pageable): Page<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter { expense ->
+            expense.familyId == familyId && expense.lastModifiedOn > lastModified
+        }
+        return createPageFromList(filteredExpenses, pageable)
+    }
+
+    override fun findByFamilyIdAndExpenseCreatedOnGreaterThan(familyId: String, expenseCreatedOn: Long, pageable: Pageable): Page<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter { expense ->
+            expense.familyId == familyId && expense.expenseCreatedOn > expenseCreatedOn
+        }
+        return createPageFromList(filteredExpenses, pageable)
+    }
+
+    override fun findByFamilyIdAndDateGreaterThanEqual(familyId: String, date: Long, pageable: Pageable): Page<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter { expense ->
+            expense.familyId == familyId && expense.date >= date
+        }
+        return createPageFromList(filteredExpenses, pageable)
+    }
+
+    fun findByUserIdAndLastModifiedOnGreaterThan(userId: String, lastModified: Long, pageable: Pageable): Page<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter { expense ->
+            expense.userId == userId && expense.lastModifiedOn > lastModified
+        }
+        return createPageFromList(filteredExpenses, pageable)
+    }
+
+    fun findByUserIdAndExpenseCreatedOnGreaterThan(userId: String, createdOn: Long, pageable: Pageable): Page<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter { expense ->
+            expense.userId == userId && expense.expenseCreatedOn > createdOn
+        }
+        return createPageFromList(filteredExpenses, pageable)
+    }
+
+    fun findByUserIdAndDateGreaterThan(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter { expense ->
+            expense.userId == userId && expense.date > date
+        }
+        return createPageFromList(filteredExpenses, pageable)
+    }
+
+    fun findByUserIdAndDateGreaterThanEqual(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto> {
+        val filteredExpenses = expenses.values.filter { expense ->
+            expense.userId == userId && expense.date >= date
+        }
+        return createPageFromList(filteredExpenses, pageable)
+    }
+
+    // Count methods
+    fun countByUserId(userId: String): Long {
+        return expenses.values.count { it.userId == userId && !it.deleted }.toLong()
+    }
+
+    fun countByFamilyId(familyId: String): Long {
+        return expenses.values.count { it.familyId == familyId && !it.deleted }.toLong()
+    }
+
+    // Helper method to create Page from list with proper sorting
+    private fun createPageFromList(items: Collection<ExpenseDto>, pageable: Pageable): Page<ExpenseDto> {
+        val sortedItems = when {
+            pageable.sort.isSorted -> {
+                val sortOrder = pageable.sort.first()
+                when (sortOrder?.property) {
+                    "date" -> if (sortOrder.isAscending) items.sortedBy { it.date }
+                             else items.sortedByDescending { it.date }
+                    "amount" -> if (sortOrder.isAscending) items.sortedBy { it.amount }
+                               else items.sortedByDescending { it.amount }
+                    "expenseCreatedOn" -> if (sortOrder.isAscending) items.sortedBy { it.expenseCreatedOn }
+                                         else items.sortedByDescending { it.expenseCreatedOn }
+                    "lastModifiedOn" -> if (sortOrder.isAscending) items.sortedBy { it.lastModifiedOn }
+                                       else items.sortedByDescending { it.lastModifiedOn }
+                    else -> items.sortedByDescending { it.lastModifiedOn }
+                }
+            }
+            else -> items.sortedByDescending { it.lastModifiedOn }
+        }
+
+        val totalElements = sortedItems.size.toLong()
+        val startIndex = pageable.offset.toInt()
+        val endIndex = minOf(startIndex + pageable.pageSize, sortedItems.size)
+
+        val content = if (startIndex < sortedItems.size) {
+            sortedItems.subList(startIndex, endIndex)
+        } else {
+            emptyList()
+        }
+
         return org.springframework.data.domain.PageImpl(content, pageable, totalElements)
     }
 
