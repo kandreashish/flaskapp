@@ -1048,11 +1048,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val result = when (sortBy) {
             "date" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
                         userId, cursorExpense.date, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDateLessThanOrderByDateDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateLessThanOrderByDateDesc(
                         userId, cursorExpense.date, pageable
                     )
                 }
@@ -1060,11 +1060,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
             "amount" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndAmountGreaterThanOrderByAmountAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndAmountGreaterThanOrderByAmountAsc(
                         userId, cursorExpense.amount, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndAmountLessThanOrderByAmountDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndAmountLessThanOrderByAmountDesc(
                         userId, cursorExpense.amount, pageable
                     )
                 }
@@ -1072,11 +1072,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
             "expenseCreatedOn" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
                         userId, cursorExpense.expenseCreatedOn, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
                         userId, cursorExpense.expenseCreatedOn, pageable
                     )
                 }
@@ -1084,11 +1084,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
             "lastModifiedOn" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
                         userId, cursorExpense.lastModifiedOn, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
                         userId, cursorExpense.lastModifiedOn, pageable
                     )
                 }
@@ -1097,11 +1097,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             else -> {
                 // Default to date sorting
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
                         userId, cursorExpense.date, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDateLessThanOrderByDateDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateLessThanOrderByDateDesc(
                         userId, cursorExpense.date, pageable
                     )
                 }
