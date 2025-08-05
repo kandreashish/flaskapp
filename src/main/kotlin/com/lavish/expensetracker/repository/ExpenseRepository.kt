@@ -39,4 +39,14 @@ interface ExpenseRepository {
     fun countByUserId(userId: String): Long
     fun countByFamilyId(familyId: String): Long
     fun countByFamilyIdOrUserFamilyId(familyId: String): Long
+
+    // Cursor-based pagination methods with delete filtering
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateGreaterThanOrderByDateAsc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateLessThanOrderByDateDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountGreaterThanOrderByAmountAsc(familyId: String, cursorValue: Int, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountLessThanOrderByAmountDesc(familyId: String, cursorValue: Int, pageable: Pageable): Page<ExpenseDto>
 }
