@@ -362,8 +362,11 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     // Personal expenses methods (where familyId is null or empty)
     fun findByUserIdAndFamilyIdIsNull(userId: String, pageable: Pageable): Page<Expense>
 
+    // Add method to filter out deleted personal expenses
+    fun findByUserIdAndFamilyIdIsNullAndDeletedFalse(userId: String, pageable: Pageable): Page<Expense>
+
     // Cursor-based pagination methods for personal expenses (familyId is null/empty)
-    fun findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
+    fun findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
         userId: String,
         date: Long,
         pageable: Pageable

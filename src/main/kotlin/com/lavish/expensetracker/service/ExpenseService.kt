@@ -1008,7 +1008,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
         val sort = Sort.by(direction, sortBy)
         val pageable = PageRequest.of(validatedPage, validatedSize, sort)
-        val result = expenseRepository.findByUserIdAndFamilyIdIsNull(userId, pageable)
+        val result = expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalse(userId, pageable)
 
         return PagedResponse(
             content = result.content.map { it.toDto() },
@@ -1048,7 +1048,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val result = when (sortBy) {
             "date" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
                         userId, cursorExpense.date, pageable
                     )
                 } else {
@@ -1097,7 +1097,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             else -> {
                 // Default to date sorting
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
                         userId, cursorExpense.date, pageable
                     )
                 } else {
