@@ -224,7 +224,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     @Query(
         """
         SELECT e FROM Expense e 
-        WHERE e.familyId = :familyId
+        WHERE e.familyId = :familyId AND e.deleted = false
     """
     )
     fun findByFamilyIdOrUserFamilyId(@Param("familyId") familyId: String, pageable: Pageable): Page<Expense>
@@ -233,6 +233,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         """
         SELECT COUNT(e) FROM Expense e 
         WHERE e.familyId = :familyId
+        AND e.deleted = false
     """
     )
     fun countByFamilyIdOrUserFamilyId(@Param("familyId") familyId: String): Long
@@ -243,6 +244,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.date > :cursorDate
+        AND e.deleted = false
         ORDER BY e.date ASC
     """
     )
@@ -257,6 +259,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.date < :cursorDate
+        AND e.deleted = false
         ORDER BY e.date DESC
     """
     )
@@ -271,6 +274,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.amount > :cursorAmount
+        AND e.deleted = false
         ORDER BY e.amount ASC
     """
     )
@@ -285,6 +289,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.amount < :cursorAmount
+        AND e.deleted = false
         ORDER BY e.amount DESC
     """
     )
@@ -299,6 +304,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.expenseCreatedOn > :cursorCreated
+        AND e.deleted = false
         ORDER BY e.expenseCreatedOn ASC
     """
     )
@@ -313,6 +319,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.expenseCreatedOn < :cursorCreated
+        AND e.deleted = false
         ORDER BY e.expenseCreatedOn DESC
     """
     )
@@ -327,6 +334,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.lastModifiedOn > :cursorModified
+        AND e.deleted = false
         ORDER BY e.lastModifiedOn ASC
     """
     )
@@ -341,6 +349,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         SELECT e FROM Expense e 
         WHERE e.familyId = :familyId
         AND e.lastModifiedOn < :cursorModified
+        AND e.deleted = false
         ORDER BY e.lastModifiedOn DESC
     """
     )
