@@ -246,7 +246,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.date ASC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDateGreaterThanOrderByDateAsc(
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateGreaterThanOrderByDateAsc(
         @Param("familyId") familyId: String,
         @Param("cursorDate") cursorDate: Long,
         pageable: Pageable
@@ -260,7 +260,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.date DESC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDateLessThanOrderByDateDesc(
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateLessThanOrderByDateDesc(
         @Param("familyId") familyId: String,
         @Param("cursorDate") cursorDate: Long,
         pageable: Pageable
@@ -274,7 +274,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.amount ASC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndAmountGreaterThanOrderByAmountAsc(
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountGreaterThanOrderByAmountAsc(
         @Param("familyId") familyId: String,
         @Param("cursorAmount") cursorAmount: Int,
         pageable: Pageable
@@ -288,7 +288,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.amount DESC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndAmountLessThanOrderByAmountDesc(
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountLessThanOrderByAmountDesc(
         @Param("familyId") familyId: String,
         @Param("cursorAmount") cursorAmount: Int,
         pageable: Pageable
@@ -302,7 +302,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.expenseCreatedOn ASC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
         @Param("familyId") familyId: String,
         @Param("cursorCreated") cursorCreated: Long,
         pageable: Pageable
@@ -316,7 +316,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.expenseCreatedOn DESC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
         @Param("familyId") familyId: String,
         @Param("cursorCreated") cursorCreated: Long,
         pageable: Pageable
@@ -330,7 +330,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.lastModifiedOn ASC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
         @Param("familyId") familyId: String,
         @Param("cursorModified") cursorModified: Long,
         pageable: Pageable
@@ -344,7 +344,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.lastModifiedOn DESC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
         @Param("familyId") familyId: String,
         @Param("cursorModified") cursorModified: Long,
         pageable: Pageable
