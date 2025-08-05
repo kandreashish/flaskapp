@@ -12,7 +12,7 @@ data class FtpConfig(
     var password: String = "android",
     var baseDirectory: String = "/server/uploads",
     var profilePicsDirectory: String = "/server/uploads/profile_pics",
-    var connectTimeout: Int = 30000,
-    var dataTimeout: Int = 30000,
+    var connectTimeout: Int = 10000,
+    var dataTimeout: Int = 10000,
     var passiveMode: Boolean = true
 )
