@@ -75,8 +75,9 @@ class NotificationController @Autowired constructor(
                     logger.debug("Cursor notification found: {}", cursorNotification)
 
                     // Get notifications for the current user as receiver, ordered by timestamp descending
+                    // For cursor pagination with DESC order, we need LESS THAN to get older notifications
                     val notifications =
-                        notificationRepository.findByReceiverIdAndTimestampGreaterThanOrderByTimestampDesc(
+                        notificationRepository.findByReceiverIdAndTimestampLessThanOrderByTimestampDesc(
                             userId,
                             cursorNotification.timestamp,
                             pageable

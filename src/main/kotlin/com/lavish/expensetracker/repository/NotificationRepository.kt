@@ -37,5 +37,12 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
         pageable: Pageable
     ): Page<Notification>
 
+    // Correct method for cursor-based pagination (get older notifications)
+    fun findByReceiverIdAndTimestampLessThanOrderByTimestampDesc(
+        receiverId: String,
+        date: Long,
+        pageable: Pageable
+    ): Page<Notification>
+
     fun findByReceiverIdAndIsReadFalseOrderByTimestampDesc(receiverId: String): List<Notification>
 }
