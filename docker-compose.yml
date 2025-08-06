@@ -22,18 +22,15 @@ services:
       - SPRING_H2_CONSOLE_PATH=/h2-console
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_SQL_INIT_MODE=always
-      # File upload configuration
-      - APP_UPLOAD_DIR=/app/uploads
-      - APP_BASE_URL=http://192.168.1.254:3000
-      - APP_FTP_HOST=192.168.1.21
-      - APP_FTP_PORT=6969
-      - APP_FTP_USERNAME=android
-      - APP_FTP_PASSWORD=android
-      - APP_FTP_BASE_DIRECTORY=/server/uploads
-      - APP_FTP_PROFILE_PICS_DIRECTORY=/server/uploads/profile-pics
-      - APP_FTP_PASSIVE_MODE=true
-      - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=5MB
-      - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=5MB
+      # Firebase configuration
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      - FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET:-}
+      # File upload configuration (reduced since files go to Firebase Storage)
+      - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=10MB
+      - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=10MB
+      - SPRING_SERVLET_MULTIPART_LOCATION=/tmp
       # Optimized JVM settings for Raspberry Pi
       - JAVA_OPTS=-Xms256m -Xmx448m -XX:+UseG1GC -XX:G1HeapRegionSize=4m -XX:+UseStringDeduplication
       - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=DEBUG

@@ -4,7 +4,7 @@ import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.model.UserDevice
 import com.lavish.expensetracker.service.UserDeviceService
 import com.lavish.expensetracker.service.UserService
-import com.lavish.expensetracker.service.FtpFileStorageService
+import com.lavish.expensetracker.service.FileStorageService
 import com.lavish.expensetracker.util.AuthUtil
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -18,7 +18,7 @@ import org.springframework.web.server.ResponseStatusException
 class UserController(
     private val userService: UserService,
     private val userDeviceService: UserDeviceService,
-    private val ftpFileStorageService: FtpFileStorageService,
+    private val fileStorageService: FileStorageService,
     private val authUtil: AuthUtil
 ) {
 
@@ -176,8 +176,8 @@ class UserController(
         val currentUser = getCurrentUserWithValidation()
 
         return try {
-            // Upload the file to FTP server and get the URL
-            val profilePicUrl = ftpFileStorageService.uploadProfilePicture(file, currentUser.id)
+            // Upload the file to Firebase Storage and get the URL
+            val profilePicUrl = fileStorageService.uploadProfilePicture(file, currentUser.id)
 
             // Update the user's profile picture URL in the database
             val updatedUser = userService.updateProfilePicture(currentUser.id, profilePicUrl)

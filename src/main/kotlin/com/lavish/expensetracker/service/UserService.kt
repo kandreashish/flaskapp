@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 class UserService(
     private val userRepository: ExpenseUserRepository,
     private val userDeviceService: UserDeviceService,
-    private val ftpFileStorageService: FtpFileStorageService
+    private val fileStorageService: FileStorageService
 ) {
 
     fun findByFirebaseUid(firebaseUid: String): ExpenseUser? {
@@ -77,12 +77,9 @@ class UserService(
     fun updateProfilePicture(userId: String, profilePicUrl: String): ExpenseUser? {
         val existingUser = userRepository.findById(userId).orElse(null) ?: return null
 
-        // Delete old profile picture if it exists and is a local file
+        // Delete old profile picture if it exists
         existingUser.profilePic?.let { oldPicUrl ->
-            if (oldPicUrl.contains("/api/files/profile-pics/")) {
-                val fileName = oldPicUrl.substringAfterLast("/")
-                ftpFileStorageService.deleteFile(fileName)
-            }
+            fileStorageService.deleteProfilePicture(oldPicUrl)
         }
 
         val updatedUser = existingUser.copy(

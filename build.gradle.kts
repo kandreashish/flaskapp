@@ -39,6 +39,7 @@ dependencies {
 
     // Firebase with explicit Guava dependency to prevent conflicts
     implementation("com.google.firebase:firebase-admin:9.5.0")
+    implementation("com.google.cloud:google-cloud-storage:2.30.1") // Added for Firebase Storage
     implementation("com.google.guava:guava:32.1.3-jre") // Explicit Guava version compatible with Firebase
 
     implementation("io.jsonwebtoken:jjwt-api:0.12.3")
@@ -48,9 +49,6 @@ dependencies {
 
     // Use lighter logging
     implementation("org.springframework.boot:spring-boot-starter-log4j2")
-
-    // FTP client for remote file storage
-    implementation("commons-net:commons-net:3.10.0")
 
     // Swagger/OpenAPI 3.0 dependencies (SpringDoc - compatible with Spring Boot 3.x)
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
