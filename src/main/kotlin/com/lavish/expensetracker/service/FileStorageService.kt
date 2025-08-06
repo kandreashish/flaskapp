@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.service
 
+import com.google.cloud.storage.Acl
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
@@ -256,13 +257,16 @@ class FileStorageService(
 
     private fun generateDownloadUrl(objectPath: String): String {
         return try {
-            // Generate a signed URL that's valid for 7 days
             val blobId = BlobId.of(firebaseStorageBucket, objectPath)
             val blob = storage.get(blobId) ?: throw RuntimeException("Blob not found after upload")
 
-            // Generate signed URL with 7 days expiration
-            val signedUrl = blob.signUrl(7, TimeUnit.DAYS)
-            signedUrl.toString()
+            // Make the blob publicly readable
+            blob.createAcl(Acl.of(Acl.User.ofAllUsers(), Acl.Role.READER))
+
+            // Return short public URL instead of signed URL
+            val publicUrl = "https://firebasestorage.googleapis.com/v0/b/$firebaseStorageBucket/o/${objectPath.replace("/", "%2F")}?alt=media"
+            logger.info("Generated short public URL for path: {}", objectPath)
+            publicUrl
 
         } catch (ex: Exception) {
             logger.error("Failed to generate download URL for path: {}", objectPath, ex)
