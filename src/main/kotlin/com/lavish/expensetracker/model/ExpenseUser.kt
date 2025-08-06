@@ -34,7 +34,7 @@ data class ExpenseUser(
     @Column(name = "fcm_token")
     val fcmToken: String? = null,
 
-    @Column(name = "profile_pic", nullable = true)
+    @Column(name = "profile_pic", nullable = true, length = 1000)
     val profilePic: String? = null,
 
     @Column(name = "currencyPreference", nullable = false)

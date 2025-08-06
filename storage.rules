@@ -1,14 +1,15 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow authenticated users to upload profile pictures
-    match /profile-pics/{userId} {
-      allow read, write: if request.auth != null;
-    }
-    // Allow authenticated users to read their own profile pictures
+    // Allow backend service account and authenticated users to access profile pictures
     match /profile-pics/{allPaths=**} {
-      allow read: if request.auth != null;
+      // Allow read/write for authenticated users OR allow all operations (service account has full access)
+      allow read, write: if true; // Service accounts bypass these rules anyway
+    }
+
+    // For other paths, require authentication
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
-

@@ -6,7 +6,6 @@ import com.google.firebase.FirebaseOptions
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.core.io.ClassPathResource
 import javax.annotation.PostConstruct
 
 @Configuration
@@ -20,21 +19,9 @@ class FirebaseConfig {
             if (FirebaseApp.getApps().isEmpty()) {
                 logger.info("Initializing Firebase App...")
 
-                // Try to load credentials from the service account file first
-                val credentials = try {
-                    val serviceAccountResource = ClassPathResource("serviceAccountKey.json")
-                    if (serviceAccountResource.exists()) {
-                        logger.info("Loading Firebase credentials from serviceAccountKey.json")
-                        GoogleCredentials.fromStream(serviceAccountResource.inputStream)
-                    } else {
-                        // Fallback to environment variables
-                        logger.info("Loading Firebase credentials from environment variables")
-                        loadCredentialsFromEnvironment()
-                    }
-                } catch (ex: Exception) {
-                    logger.warn("Failed to load from serviceAccountKey.json, trying environment variables", ex)
-                    loadCredentialsFromEnvironment()
-                }
+                // Force loading from environment variables for consistency
+                logger.info("Loading Firebase credentials from environment variables")
+                val credentials = loadCredentialsFromEnvironment()
 
                 val options = FirebaseOptions.builder()
                     .setCredentials(credentials)
@@ -59,20 +46,39 @@ class FirebaseConfig {
     private fun loadCredentialsFromEnvironment(): GoogleCredentials {
         val projectId = System.getenv("FIREBASE_PROJECT_ID")
             ?: throw IllegalArgumentException("FIREBASE_PROJECT_ID environment variable is required")
+        val privateKeyId = System.getenv("FIREBASE_PRIVATE_KEY_ID")
+            ?: throw IllegalArgumentException("FIREBASE_PRIVATE_KEY_ID environment variable is required")
         val privateKey = System.getenv("FIREBASE_PRIVATE_KEY")
             ?: throw IllegalArgumentException("FIREBASE_PRIVATE_KEY environment variable is required")
         val clientEmail = System.getenv("FIREBASE_CLIENT_EMAIL")
             ?: throw IllegalArgumentException("FIREBASE_CLIENT_EMAIL environment variable is required")
+        val clientId = System.getenv("FIREBASE_CLIENT_ID")
+            ?: throw IllegalArgumentException("FIREBASE_CLIENT_ID environment variable is required")
+
+        logger.info("Loading Firebase credentials from environment variables for project: $projectId")
+        logger.debug("Private key preview: ${privateKey.take(50)}...")
+
+        // The private key from environment already contains \n literals, so we need to convert them to actual newlines
+        val escapedPrivateKey = privateKey.replace("\\n", "\n")
 
         val serviceAccountJson = """
         {
             "type": "service_account",
             "project_id": "$projectId",
-            "private_key": "${privateKey.replace("\\n", "\n")}",
+            "private_key_id": "$privateKeyId",
+            "private_key": "$escapedPrivateKey",
             "client_email": "$clientEmail",
-            "token_uri": "https://oauth2.googleapis.com/token"
+            "client_id": "$clientId",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/${clientEmail.replace("@", "%40")}",
+            "universe_domain": "googleapis.com"
         }
         """.trimIndent()
+
+        logger.debug("Service account JSON structure created successfully")
+        logger.debug("Generated JSON preview: ${serviceAccountJson.take(200)}...")
 
         return GoogleCredentials.fromStream(serviceAccountJson.byteInputStream())
     }

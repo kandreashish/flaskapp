@@ -49,6 +49,7 @@ out/
 .env.local
 .env.production
 .env.staging
+load-env.sh
 serviceAccountKey.json
 **/serviceAccountKey.json
 src/main/resources/serviceAccountKey.json

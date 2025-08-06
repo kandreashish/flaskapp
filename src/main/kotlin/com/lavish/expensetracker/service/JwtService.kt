@@ -77,8 +77,29 @@ class JwtService {
     }
 
     private fun getSigningKey(): javax.crypto.SecretKey {
-        val keyBytes = Decoders.BASE64.decode(secretKey)
+        logger.info("JWT Secret Key length: ${secretKey.length}, value preview: ${secretKey.take(10)}...")
+
+        // Handle both hexadecimal and base64 encoded keys
+        val keyBytes = try {
+            // First try as hexadecimal (if it contains only hex characters)
+            if (secretKey.matches(Regex("^[0-9a-fA-F]+$"))) {
+                // Convert hex string to bytes
+                secretKey.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            } else {
+                // Fallback to base64 decoding
+                Decoders.BASE64.decode(secretKey)
+            }
+        } catch (e: Exception) {
+            logger.error("Error decoding JWT secret key: ${e.message}", e)
+            throw IllegalArgumentException("Invalid JWT secret key format", e)
+        }
+
+        if (keyBytes.isEmpty()) {
+            logger.error("JWT secret key is empty! secretKey value: '$secretKey'")
+            throw IllegalArgumentException("JWT secret key cannot be empty. Check that JWT_SECRET environment variable is set.")
+        }
+
+        logger.info("Successfully created JWT signing key with ${keyBytes.size * 8} bits")
         return Keys.hmacShaKeyFor(keyBytes)
     }
 }
-
