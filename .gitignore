@@ -44,24 +44,11 @@ out/
 # macOS
 .DS_Store
 
-# SECURITY: Firebase service account keys
-serviceAccountKey.json
-**/serviceAccountKey.json
-src/main/resources/serviceAccountKey.json
-
-# Environment variables
+# SECURITY: Environment variables and Firebase service account keys
 .env
 .env.local
 .env.production
-
-# H2 Database files (optional - keep if you want to persist data)
-data/h2/
-*.mv.db
-*.trace.db
-
-# Logs
-logs/
-*.log
-
-# Docker
-docker-compose.override.yml
+.env.staging
+serviceAccountKey.json
+**/serviceAccountKey.json
+src/main/resources/serviceAccountKey.json

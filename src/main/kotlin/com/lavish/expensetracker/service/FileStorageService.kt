@@ -43,12 +43,27 @@ class FileStorageService(
             if (firebaseStorageBucket.isBlank()) {
                 // Get bucket name from the Firebase app's project ID
                 val projectId = firebaseApp.options.projectId
-                firebaseStorageBucket = "$projectId.appspot.com"
+                firebaseStorageBucket = "$projectId.firebasestorage.app"
                 logger.info("Using default Firebase Storage bucket: {}", firebaseStorageBucket)
             }
 
             // Use the default StorageOptions (this will automatically use the same credentials as Firebase)
-            storage = StorageOptions.getDefaultInstance().service
+            storage = StorageOptions.newBuilder()
+                .setProjectId(firebaseApp.options.projectId)
+                .build()
+                .service
+
+            // Verify bucket exists by attempting to list it
+            try {
+                val bucket = storage.get(firebaseStorageBucket)
+                if (bucket != null) {
+                    logger.info("Firebase Storage bucket {} verified successfully", firebaseStorageBucket)
+                } else {
+                    logger.info("Firebase Storage bucket {} will be created on first upload", firebaseStorageBucket)
+                }
+            } catch (ex: Exception) {
+                logger.warn("Could not verify bucket existence, but this is normal for new buckets: {}", ex.message)
+            }
 
             logger.info("Firebase Storage initialization completed successfully with bucket: {}", firebaseStorageBucket)
 
