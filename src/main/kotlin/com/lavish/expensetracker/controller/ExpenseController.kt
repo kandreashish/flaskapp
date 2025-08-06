@@ -47,7 +47,7 @@ class ExpenseController(
             "UTILITIES", "HEALTH", "SHOPPING", "EDUCATION", "OTHERS"
         )
         private const val DEFAULT_PAGE_SIZE = 10
-        private const val MAX_PAGE_SIZE = 100
+        private const val MAX_PAGE_SIZE = 500
         private const val MAX_AMOUNT = 1000000.0
         private const val MAX_DESCRIPTION_LENGTH = 500
         private const val MAX_AMOUNT_STRING_LENGTH = 10
@@ -245,10 +245,7 @@ class ExpenseController(
             )
 
         } catch (e: Exception) {
-            logger.error(
-                "Failed to send expense notification for user ${user.id}, expense ${expense.expenseId}: ${e.message}",
-                e
-            )
+            logger.error("Failed to send expense notification for user ${user.id}, expense ${expense.expenseId}: ${e.message}", e)
         }
     }
 
@@ -367,7 +364,7 @@ class ExpenseController(
             val formattedAmount = formatAmount(amount, expenseUser)
             val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
                 title, body, type,
-                fcmTokens, formattedAmount, description
+                fcmTokens, formattedAmount, description, expenseUser.id
             )
 
             val successfulNotifications = fcmTokens.size - invalidTokens.size
@@ -546,7 +543,7 @@ class ExpenseController(
                     )
                 }
 
-                logger.debug("Family membership validated for user ${currentUser.id} in family ${expense.familyId}")
+                logger.debug("Family membership1 validated for user ${currentUser.id} in family ${expense.familyId}")
             }
 
             val currentTime = System.currentTimeMillis()
@@ -556,7 +553,6 @@ class ExpenseController(
                 modifiedBy = currentUser.id,
                 expenseCreatedOn = currentTime,
                 lastModifiedOn = currentTime,
-                updatedUserAlias = currentUser.profilePic ?: currentUser.name ?: "Unknown ExpenseUser",
                 updatedUserName = currentUser.name ?: currentUser.email
             )
 
@@ -672,7 +668,7 @@ class ExpenseController(
                     )
                 }
 
-                logger.debug("Family membership validated for user ${currentUser.id} in family ${expense.familyId}")
+                logger.debug("Family membership6 validated for user ${currentUser.id} in family ${expense.familyId}")
             }
 
             logger.debug("Updating expense $id with new data")
@@ -749,7 +745,7 @@ class ExpenseController(
                     )
                 }
 
-                logger.debug("Family membership validated for user ${currentUser.id} in family ${existingExpense.familyId}")
+                logger.debug("Family membership5 validated for user ${currentUser.id} in family ${existingExpense.familyId}")
             }
 
             if (expenseService.deleteExpense(id)) {
@@ -855,7 +851,10 @@ class ExpenseController(
                 "year" to year,
                 "month" to month,
                 "totalAmount" to totalAmount,
-                "userId" to currentUser.id
+                "userId" to currentUser.id,
+                "expenseCount" to expenseService.getExpenseCountByUserIdAndMonth(
+                    currentUser.id, year, month
+                )
             )
         )
     }
@@ -902,6 +901,9 @@ class ExpenseController(
                 "year" to year,
                 "month" to month,
                 "totalAmount" to totalAmount,
+                "expenseCount" to expenseService.getFamilyExpenseCountByUserIdAndMonth(
+                    familyId, year, month
+                )
             )
         )
     }
@@ -966,6 +968,142 @@ class ExpenseController(
                     validatedParams.sortBy, validatedParams.isAsc
                 )
             }
+        }
+    }
+
+    @GetMapping("/family/since")
+    fun getFamilyExpensesSince(
+        @RequestParam lastModified: Long,
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(required = false) lastExpenseId: String?,
+        @RequestParam(defaultValue = "lastModifiedOn") sortBy: String,
+        @RequestParam(defaultValue = "true") isAsc: Boolean
+    ): PagedResponse<ExpenseDto> {
+        val currentUser = getCurrentUserWithValidation()
+        logger.info("Getting family expenses since timestamp for user: ${currentUser.id}, lastModified: $lastModified, size: $size, sortBy: $sortBy, isAsc: $isAsc")
+
+        val familyId = currentUser.familyId
+
+        if (!familyId.isNullOrBlank()) {
+            val family = familyRepository.findById(familyId).orElse(null)
+            if (family == null) {
+                logger.warn("User ${currentUser.id} attempted to access expenses for non-existent family: ${familyId}")
+                throw ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "The specified family does not exist"
+                )
+            }
+
+            if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                logger.warn("User ${currentUser.id} attempted to access expenses for family ${familyId} but is not a member")
+                throw ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "Cannot access expenses for a family you are not a member of"
+                )
+            }
+
+            logger.debug("Family membership validated for user ${currentUser.id} in family ${familyId}")
+        }
+
+        if (familyId.isNullOrBlank()) {
+            logger.warn("ExpenseUser ${currentUser.id} is not part of any family, returning empty family expenses")
+            throw ResponseStatusException(
+                HttpStatus.PRECONDITION_FAILED,
+                "you are not a member of any family, cannot fetch family expenses"
+            )
+        }
+
+        val params = PaginationParams(0, size, lastExpenseId, sortBy, isAsc)
+
+        return executeWithPagination(params, VALID_SYNC_SORT_FIELDS) { validatedParams ->
+            if (validatedParams.lastExpenseId != null) {
+                logger.debug("Using cursor-based pagination for family expenses since timestamp with lastExpenseId: ${validatedParams.lastExpenseId}")
+                expenseService.getFamilyExpensesSinceWithCursor(
+                    familyId, lastModified, validatedParams.lastExpenseId,
+                    validatedParams.size, validatedParams.sortBy, validatedParams.isAsc
+                )
+            } else {
+                logger.debug("Using timestamp-based pagination for family expenses since: $lastModified")
+                expenseService.getFamilyExpensesSince(
+                    familyId, lastModified, validatedParams.size,
+                    validatedParams.sortBy, validatedParams.isAsc
+                )
+            }
+        }.also {
+            logger.info("Successfully retrieved ${it.content.size} family expenses since timestamp for user: ${currentUser.id}, family: $familyId")
+        }
+    }
+
+    @GetMapping("/family/since-date")
+    fun getFamilyExpensesSinceDate(
+        @RequestParam date: String,
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(required = false) lastExpenseId: String?,
+        @RequestParam(defaultValue = "date") sortBy: String,
+        @RequestParam(defaultValue = "true") isAsc: Boolean
+    ): PagedResponse<ExpenseDto> {
+        val currentUser = getCurrentUserWithValidation()
+        logger.info("Getting family expenses since date for user: ${currentUser.id}, date: $date, size: $size, sortBy: $sortBy, isAsc: $isAsc")
+
+        val familyId = currentUser.familyId
+
+        if (!familyId.isNullOrBlank()) {
+            val family = familyRepository.findById(familyId).orElse(null)
+            if (family == null) {
+                logger.warn("User ${currentUser.id} attempted to access expenses for non-existent family: ${familyId}")
+                throw ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "The specified family does not exist"
+                )
+            }
+
+            if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id) {
+                logger.warn("User ${currentUser.id} attempted to access expenses for family ${familyId} but is not a member")
+                throw ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "Cannot access expenses for a family you are not a member of"
+                )
+            }
+
+            logger.debug("Family membership validated for user ${currentUser.id} in family ${familyId}")
+        }
+
+        if (familyId.isNullOrBlank()) {
+            logger.warn("ExpenseUser ${currentUser.id} is not part of any family, returning empty family expenses")
+            throw ResponseStatusException(
+                HttpStatus.PRECONDITION_FAILED,
+                "you are not a member of any family, cannot fetch family expenses"
+            )
+        }
+
+        val sinceTimestamp = try {
+            LocalDate.parse(date).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        } catch (e: Exception) {
+            throw ExpenseValidationException(
+                "Invalid date format. Use YYYY-MM-DD format",
+                listOf("Date parsing error: ${e.message}")
+            )
+        }
+
+        val validSortFields = listOf("date", "lastModifiedOn", "expenseCreatedOn", "amount")
+        val params = PaginationParams(0, size, lastExpenseId, sortBy, isAsc)
+
+        return executeWithPagination(params, validSortFields) { validatedParams ->
+            if (validatedParams.lastExpenseId != null) {
+                logger.debug("Using cursor-based pagination for family expenses since date with lastExpenseId: ${validatedParams.lastExpenseId}")
+                expenseService.getFamilyExpensesSinceWithCursor(
+                    familyId, sinceTimestamp, validatedParams.lastExpenseId,
+                    validatedParams.size, validatedParams.sortBy, validatedParams.isAsc
+                )
+            } else {
+                logger.debug("Using date-based pagination for family expenses since: $date")
+                expenseService.getFamilyExpensesSince(
+                    familyId, sinceTimestamp, validatedParams.size,
+                    validatedParams.sortBy, validatedParams.isAsc
+                )
+            }
+        }.also {
+            logger.info("Successfully retrieved ${it.content.size} family expenses since date for user: ${currentUser.id}, family: $familyId")
         }
     }
 }

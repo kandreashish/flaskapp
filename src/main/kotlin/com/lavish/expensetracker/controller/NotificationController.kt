@@ -48,10 +48,12 @@ class NotificationController @Autowired constructor(
                     logger.warn("Invalid size parameter: {} (<=0), using default size: {}", size, DEFAULT_SIZE)
                     DEFAULT_SIZE
                 }
+
                 size > MAX_SIZE -> {
                     logger.warn("Size parameter: {} exceeds maximum allowed: {}, using max size", size, MAX_SIZE)
                     MAX_SIZE
                 }
+
                 else -> {
                     logger.debug("Using provided size parameter: {}", size)
                     size
@@ -73,11 +75,25 @@ class NotificationController @Autowired constructor(
                     logger.debug("Cursor notification found: {}", cursorNotification)
 
                     // Get notifications for the current user as receiver, ordered by timestamp descending
-                    val notifications = notificationRepository.findByReceiverIdOrderByTimestampDesc(userId, pageable)
-                    logger.info("Retrieved {} notifications for userId: {} with cursor pagination", notifications.totalElements, userId)
+                    val notifications =
+                        notificationRepository.findByReceiverIdAndTimestampGreaterThanOrderByTimestampDesc(
+                            userId,
+                            cursorNotification.timestamp,
+                            pageable
+                        )
+                    logger.info(
+                        "Retrieved {} notifications for userId: {} with cursor pagination",
+                        notifications.totalElements,
+                        userId
+                    )
                     notifications
                 } catch (e: Exception) {
-                    logger.error("Error during cursor-based pagination for userId: {}, lastNotificationId: {}", userId, lastNotificationId, e)
+                    logger.error(
+                        "Error during cursor-based pagination for userId: {}, lastNotificationId: {}",
+                        userId,
+                        lastNotificationId,
+                        e
+                    )
                     throw e
                 }
             } else {
@@ -85,7 +101,11 @@ class NotificationController @Autowired constructor(
                 try {
                     // First page: get latest notifications for the current user as receiver
                     val notifications = notificationRepository.findByReceiverIdOrderByTimestampDesc(userId, pageable)
-                    logger.info("Retrieved {} notifications for userId: {} (first page)", notifications.totalElements, userId)
+                    logger.info(
+                        "Retrieved {} notifications for userId: {} (first page)",
+                        notifications.totalElements,
+                        userId
+                    )
                     notifications
                 } catch (e: Exception) {
                     logger.error("Error during first page pagination for userId: {}", userId, e)
@@ -107,8 +127,10 @@ class NotificationController @Autowired constructor(
             )
 
             val executionTime = System.currentTimeMillis() - startTime
-            logger.info("Successfully retrieved notifications - Content size: {}, Total elements: {}, Total pages: {}, Execution time: {}ms",
-                response.content.size, response.totalElements, response.totalPages, executionTime)
+            logger.info(
+                "Successfully retrieved notifications - Content size: {}, Total elements: {}, Total pages: {}, Execution time: {}ms",
+                response.content.size, response.totalElements, response.totalPages, executionTime
+            )
             logger.info("=== GET /api/notifications - Completed successfully ===")
 
             return response
@@ -150,8 +172,10 @@ class NotificationController @Autowired constructor(
     fun createNotification(@RequestBody notification: Notification): ResponseEntity<BasicResponse> {
         val startTime = System.currentTimeMillis()
         logger.info("=== POST /api/notifications - Starting createNotification ===")
-        logger.info("Incoming notification data - type: {}, title: {}, familyId: {}, senderId: {}, receiverId: {}",
-            notification.type, notification.title, notification.familyId, notification.senderId, notification.receiverId)
+        logger.info(
+            "Incoming notification data - type: {}, title: {}, familyId: {}, senderId: {}, receiverId: {}",
+            notification.type, notification.title, notification.familyId, notification.senderId, notification.receiverId
+        )
 
         try {
             logger.debug("Validating notification data before save")
@@ -213,8 +237,10 @@ class NotificationController @Autowired constructor(
     ): ResponseEntity<BasicResponse> {
         val startTime = System.currentTimeMillis()
         logger.info("=== PUT /api/notifications/{} - Starting updateNotification ===", id)
-        logger.info("Update request - id: {}, type: {}, title: {}, familyId: {}",
-            id, notification.type, notification.title, notification.familyId)
+        logger.info(
+            "Update request - id: {}, type: {}, title: {}, familyId: {}",
+            id, notification.type, notification.title, notification.familyId
+        )
 
         try {
             logger.debug("Checking if notification exists with id: {}", id)
@@ -253,7 +279,11 @@ class NotificationController @Autowired constructor(
             if (!notificationRepository.existsById(id)) {
                 logger.warn("Notification not found with id: {} for deletion", id)
                 val executionTime = System.currentTimeMillis() - startTime
-                logger.info("=== DELETE /api/notifications/{} - Completed with not found in {}ms ===", id, executionTime)
+                logger.info(
+                    "=== DELETE /api/notifications/{} - Completed with not found in {}ms ===",
+                    id,
+                    executionTime
+                )
                 return ResponseEntity.ok(BasicResponse("Notification not found", "error"))
             }
 
@@ -295,13 +325,21 @@ class NotificationController @Autowired constructor(
                 logger.info("Notification with id: {} successfully marked as read", updated.id)
 
                 val executionTime = System.currentTimeMillis() - startTime
-                logger.info("=== PUT /api/notifications/{}/mark-read - Completed successfully in {}ms ===", id, executionTime)
+                logger.info(
+                    "=== PUT /api/notifications/{}/mark-read - Completed successfully in {}ms ===",
+                    id,
+                    executionTime
+                )
 
                 ResponseEntity.ok(BasicResponse("Notification marked as read successfully", "success", data = updated))
             } else {
                 logger.warn("Notification not found with id: {} for marking as read", id)
                 val executionTime = System.currentTimeMillis() - startTime
-                logger.info("=== PUT /api/notifications/{}/mark-read - Completed with not found in {}ms ===", id, executionTime)
+                logger.info(
+                    "=== PUT /api/notifications/{}/mark-read - Completed with not found in {}ms ===",
+                    id,
+                    executionTime
+                )
                 ResponseEntity.ok(BasicResponse("Notification not found", "error"))
             }
         } catch (e: Exception) {
@@ -373,10 +411,16 @@ class NotificationController @Autowired constructor(
 
                 // Security check: only allow users to see their own notifications
                 if (notif.receiverId != userId) {
-                    logger.warn("Access denied: User {} attempted to access notification {} belonging to user {}",
-                        userId, id, notif.receiverId)
+                    logger.warn(
+                        "Access denied: User {} attempted to access notification {} belonging to user {}",
+                        userId, id, notif.receiverId
+                    )
                     val executionTime = System.currentTimeMillis() - startTime
-                    logger.info("=== GET /api/notifications/{}/details - Access denied after {}ms ===", id, executionTime)
+                    logger.info(
+                        "=== GET /api/notifications/{}/details - Access denied after {}ms ===",
+                        id,
+                        executionTime
+                    )
                     return ResponseEntity.status(403).body(
                         BasicResponse("Access denied: You can only view your own notifications", "error")
                     )
@@ -410,13 +454,27 @@ class NotificationController @Autowired constructor(
 
                 logger.info("Successfully created notification detail response for id: {}", id)
                 val executionTime = System.currentTimeMillis() - startTime
-                logger.info("=== GET /api/notifications/{}/details - Completed successfully in {}ms ===", id, executionTime)
+                logger.info(
+                    "=== GET /api/notifications/{}/details - Completed successfully in {}ms ===",
+                    id,
+                    executionTime
+                )
 
-                ResponseEntity.ok(BasicResponse("Notification details retrieved successfully", "success", detailResponse))
+                ResponseEntity.ok(
+                    BasicResponse(
+                        "Notification details retrieved successfully",
+                        "success",
+                        detailResponse
+                    )
+                )
             } else {
                 logger.warn("Notification not found with id: {} for details", id)
                 val executionTime = System.currentTimeMillis() - startTime
-                logger.info("=== GET /api/notifications/{}/details - Completed with not found in {}ms ===", id, executionTime)
+                logger.info(
+                    "=== GET /api/notifications/{}/details - Completed with not found in {}ms ===",
+                    id,
+                    executionTime
+                )
                 ResponseEntity.ok(BasicResponse("Notification not found", "error"))
             }
         } catch (e: Exception) {
@@ -516,6 +574,116 @@ class NotificationController @Autowired constructor(
             NotificationType.FAMILY_EXPENSE_ADDED -> "Family Expense Management"
             NotificationType.FAMILY_EXPENSE_UPDATED -> "Family Expense Management"
             NotificationType.FAMILY_EXPENSE_DELETED -> "Family Expense Management"
+        }
+    }
+
+    @GetMapping("/since")
+    fun getNotificationsSinceTimestamp(
+        @RequestParam timestamp: Long,
+        @RequestParam(defaultValue = "50") size: Int
+    ): ResponseEntity<PagedResponse<Notification>> {
+        val startTime = System.currentTimeMillis()
+        logger.info("=== GET /api/notifications/since - Starting getNotificationsSinceTimestamp ===")
+        logger.info("Request parameters - timestamp: {}, size: {}", timestamp, size)
+
+        try {
+            val userId = authUtil.getCurrentUserId()
+            logger.info("Retrieved current user ID: {}", userId)
+
+            // Validate size parameter
+            val validatedSize = when {
+                size <= 0 -> {
+                    logger.warn("Invalid size parameter: {} (<=0), using default size: {}", size, DEFAULT_SIZE)
+                    DEFAULT_SIZE
+                }
+
+                size > MAX_SIZE -> {
+                    logger.warn("Size parameter: {} exceeds maximum allowed: {}, using max size", size, MAX_SIZE)
+                    MAX_SIZE
+                }
+
+                else -> {
+                    logger.debug("Using provided size parameter: {}", size)
+                    size
+                }
+            }
+
+            // Validate timestamp parameter
+            if (timestamp < 0) {
+                logger.warn("Invalid timestamp parameter: {} (<0)", timestamp)
+                return ResponseEntity.badRequest().body(
+                    PagedResponse(
+                        content = emptyList(),
+                        page = 0,
+                        size = 0,
+                        totalElements = 0,
+                        totalPages = 0,
+                        isFirst = true,
+                        isLast = true,
+                        hasNext = false,
+                        hasPrevious = false,
+                        lastExpenseId = null
+                    )
+                )
+            }
+
+            val pageable = PageRequest.of(0, validatedSize)
+            logger.debug("Created PageRequest with page: 0, size: {}", validatedSize)
+
+            logger.info("Retrieving notifications for userId: {} after timestamp: {}", userId, timestamp)
+
+            val notifications = notificationRepository.findByReceiverIdAndTimestampGreaterThanOrderByTimestampDesc(
+                userId,
+                timestamp,
+                pageable
+            )
+
+            logger.info(
+                "Retrieved {} notifications for userId: {} after timestamp: {}",
+                notifications.totalElements,
+                userId,
+                timestamp
+            )
+
+            val response = PagedResponse(
+                content = notifications.content,
+                page = 0,
+                size = validatedSize,
+                totalElements = notifications.totalElements,
+                totalPages = notifications.totalPages,
+                isFirst = true,
+                isLast = notifications.isLast,
+                hasNext = notifications.hasNext(),
+                hasPrevious = notifications.hasPrevious(),
+                lastExpenseId = if (notifications.content.isNotEmpty()) notifications.content.last().id.toString() else null
+            )
+
+            val executionTime = System.currentTimeMillis() - startTime
+            logger.info(
+                "Successfully retrieved notifications since timestamp - Content size: {}, Total elements: {}, Execution time: {}ms",
+                response.content.size, response.totalElements, executionTime
+            )
+            logger.info("=== GET /api/notifications/since - Completed successfully ===")
+
+            return ResponseEntity.ok(response)
+
+        } catch (e: Exception) {
+            val executionTime = System.currentTimeMillis() - startTime
+            logger.error("=== GET /api/notifications/since - Failed after {}ms ===", executionTime, e)
+            return ResponseEntity.internalServerError().body(
+                PagedResponse(
+                    content = emptyList(),
+                    page = 0,
+                    size = 0,
+                    totalElements = 0,
+                    totalPages = 0,
+                    isFirst = true,
+                    isLast = true,
+                    hasNext = false,
+                    hasPrevious = false,
+                    lastExpenseId = null
+                )
+            )
         }
     }
 }

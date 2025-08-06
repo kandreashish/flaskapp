@@ -77,10 +77,9 @@ class UserService(
     fun updateProfilePicture(userId: String, profilePicUrl: String): ExpenseUser? {
         val existingUser = userRepository.findById(userId).orElse(null) ?: return null
 
+        // Delete old profile picture if it exists
         existingUser.profilePic?.let { oldPicUrl ->
-            if (oldPicUrl.contains("/api/files/profile-pics/") && oldPicUrl != profilePicUrl) {
-                fileStorageService.deleteProfilePicture(oldPicUrl)
-            }
+            fileStorageService.deleteProfilePicture(oldPicUrl)
         }
 
         val updatedUser = existingUser.copy(

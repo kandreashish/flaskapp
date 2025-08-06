@@ -23,4 +23,30 @@ interface ExpenseRepository {
 
     // Missing method for family expenses with Spring Data pagination
     fun findByFamilyIdOrUserFamilyId(familyId: String, pageable: Pageable): Page<ExpenseDto>
+
+    // New methods for family expenses since timestamp
+    fun findByFamilyIdAndLastModifiedOnGreaterThan(familyId: String, lastModified: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdAndExpenseCreatedOnGreaterThan(familyId: String, expenseCreatedOn: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdAndDateGreaterThanEqual(familyId: String, date: Long, pageable: Pageable): Page<ExpenseDto>
+
+    // Methods for user expenses since timestamp
+    fun findByUserIdAndLastModifiedOnGreaterThan(userId: String, lastModified: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByUserIdAndExpenseCreatedOnGreaterThan(userId: String, createdOn: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByUserIdAndDateGreaterThan(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByUserIdAndDateGreaterThanEqual(userId: String, date: Long, pageable: Pageable): Page<ExpenseDto>
+
+    // Count methods
+    fun countByUserId(userId: String): Long
+    fun countByFamilyId(familyId: String): Long
+    fun countByFamilyIdOrUserFamilyId(familyId: String): Long
+
+    // Cursor-based pagination methods with delete filtering
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateGreaterThanOrderByDateAsc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateLessThanOrderByDateDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountGreaterThanOrderByAmountAsc(familyId: String, cursorValue: Int, pageable: Pageable): Page<ExpenseDto>
+    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountLessThanOrderByAmountDesc(familyId: String, cursorValue: Int, pageable: Pageable): Page<ExpenseDto>
 }

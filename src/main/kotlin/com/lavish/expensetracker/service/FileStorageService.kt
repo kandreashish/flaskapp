@@ -1,25 +1,32 @@
 package com.lavish.expensetracker.service
 
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.BlobInfo
+import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageOptions
+import com.google.firebase.FirebaseApp
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import java.io.IOException
-import java.nio.file.*
-import java.util.*
+import java.util.concurrent.TimeUnit
 import javax.annotation.PostConstruct
 
 @Service
-class FileStorageService {
+class FileStorageService(
+    private val firebaseApp: FirebaseApp  // Inject FirebaseApp to ensure proper initialization order
+) {
 
     private val logger = LoggerFactory.getLogger(FileStorageService::class.java)
 
-    @Value("\${app.upload.dir:uploads}")
-    private lateinit var uploadDir: String
+    @Value("\${firebase.storage.bucket:}")
+    private lateinit var firebaseStorageBucket: String
 
-    private val maxFileSize = 10 * 1024 * 1024L // 10MB in bytes
+    private lateinit var storage: Storage
+
+    private val maxFileSize = 1 * 1024 * 1024L // 5MB in bytes
     private val allowedContentTypes = setOf(
         "image/jpeg",
         "image/jpg",
@@ -29,50 +36,31 @@ class FileStorageService {
     )
 
     @PostConstruct
-    fun initializeUploadDirectories() {
-        logger.info("Initializing upload directories with uploadDir: {}", uploadDir)
+    fun initializeFirebaseStorage() {
+        logger.info("Initializing Firebase Storage")
         try {
-            val uploadPath = Paths.get(uploadDir)
-            val profilePicsPath = Paths.get(uploadDir, "profile-pics")
-
-            logger.info("Upload path: {}", uploadPath.toAbsolutePath())
-            logger.info("Profile pics path: {}", profilePicsPath.toAbsolutePath())
-
-            // Create base upload directory
-            if (!Files.exists(uploadPath)) {
-                logger.info("Creating base upload directory: {}", uploadPath.toAbsolutePath())
-                Files.createDirectories(uploadPath)
-                logger.info("Successfully created base upload directory")
-            } else {
-                logger.info("Base upload directory already exists")
+            // Use the injected Firebase app instead of getInstance()
+            if (firebaseStorageBucket.isBlank()) {
+                // Get bucket name from the Firebase app's project ID
+                val projectId = firebaseApp.options.projectId
+                firebaseStorageBucket = "$projectId.appspot.com"
+                logger.info("Using default Firebase Storage bucket: {}", firebaseStorageBucket)
             }
 
-            // Create profile-pics subdirectory
-            if (!Files.exists(profilePicsPath)) {
-                logger.info("Creating profile-pics directory: {}", profilePicsPath.toAbsolutePath())
-                Files.createDirectories(profilePicsPath)
-                logger.info("Successfully created profile-pics directory")
-            } else {
-                logger.info("Profile-pics directory already exists")
-            }
+            // Use the default StorageOptions (this will automatically use the same credentials as Firebase)
+            storage = StorageOptions.getDefaultInstance().service
 
-            // Check permissions
-            if (!Files.isWritable(profilePicsPath)) {
-                logger.error("Profile-pics directory is not writable: {}", profilePicsPath.toAbsolutePath())
-                throw RuntimeException("Upload directory is not writable")
-            }
-
-            logger.info("Upload directories initialization completed successfully")
+            logger.info("Firebase Storage initialization completed successfully with bucket: {}", firebaseStorageBucket)
 
         } catch (ex: Exception) {
-            logger.error("Failed to initialize upload directories", ex)
-            throw RuntimeException("Failed to initialize upload directories: ${ex.message}", ex)
+            logger.error("Failed to initialize Firebase Storage", ex)
+            throw RuntimeException("Failed to initialize Firebase Storage: ${ex.message}", ex)
         }
     }
 
     fun uploadProfilePicture(file: MultipartFile, userId: String): String {
         logger.debug(
-            "Starting profile picture upload for user: {}, file: {}, size: {}",
+            "Starting profile picture upload to Firebase Storage for user: {}, file: {}, size: {}",
             userId,
             file.originalFilename,
             file.size
@@ -89,204 +77,99 @@ class FileStorageService {
                 validateFile(file)
                 logger.debug("File validation passed for user: {}", userId)
 
-                // Always use jpg extension for consistency, regardless of original format
+                // Generate consistent file name
                 val fileName = generateConsistentFileName(userId)
-                val targetLocation = Paths.get(uploadDir, "profile-pics", fileName)
+                val objectPath = "profile-pics/$fileName"
 
-                logger.debug("Target location: {}", targetLocation)
+                // Create blob info with metadata
+                val blobId = BlobId.of(firebaseStorageBucket, objectPath)
+                val blobInfo = BlobInfo.newBuilder(blobId)
+                    .setContentType(file.contentType ?: "image/jpeg")
+                    .setMetadata(mapOf(
+                        "userId" to userId,
+                        "uploadedAt" to System.currentTimeMillis().toString(),
+                        "originalFilename" to (file.originalFilename ?: "unknown")
+                    ))
+                    .build()
 
-                // Delete any existing profile pictures for this user before uploading new one
-                deleteExistingProfilePictures(userId)
+                // Upload file to Firebase Storage
+                val blob = storage.create(blobInfo, file.bytes)
 
-                // Ensure the directory exists and is writable
-                ensureDirectoryExists(targetLocation.parent)
-                verifyDirectoryWritable(targetLocation.parent)
+                if (blob == null) {
+                    throw RuntimeException("Failed to create blob in Firebase Storage")
+                }
 
-                // Check available disk space before upload
-                checkDiskSpace(targetLocation.parent, file.size)
+                logger.info(
+                    "Successfully uploaded profile picture for user: {} on attempt {}, path: {}",
+                    userId,
+                    attempt,
+                    objectPath
+                )
 
-                // Create temporary file first, then move to final location
-                val tempLocation = Paths.get(uploadDir, "profile-pics", "${fileName}.tmp")
+                // Generate and return download URL
+                val downloadUrl = generateDownloadUrl(objectPath)
+                return downloadUrl
 
-                try {
-                    // Write to temporary file first
-                    file.inputStream.use { inputStream ->
-                        Files.copy(inputStream, tempLocation, StandardCopyOption.REPLACE_EXISTING)
+            } catch (ex: Exception) {
+                logger.error(
+                    "Error during Firebase Storage upload for user: {}, attempt: {}",
+                    userId,
+                    attempt,
+                    ex
+                )
+
+                lastException = when (ex) {
+                    is IllegalArgumentException -> {
+                        ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Invalid file or parameters: ${ex.message}"
+                        )
                     }
-
-                    // Verify temporary file was written correctly
-                    if (!Files.exists(tempLocation)) {
-                        throw IOException("Temporary file was not created: $tempLocation")
-                    }
-
-                    val tempFileSize = Files.size(tempLocation)
-                    if (tempFileSize != file.size) {
-                        Files.deleteIfExists(tempLocation)
-                        throw IOException("File size mismatch. Expected: ${file.size}, Got: ${tempFileSize}")
-                    }
-
-                    // Move temporary file to final location atomically
-                    Files.move(
-                        tempLocation,
-                        targetLocation,
-                        StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE
-                    )
-
-                    logger.info(
-                        "Successfully uploaded profile picture for user: {} on attempt {}, file: {}",
-                        userId,
-                        attempt,
-                        fileName
-                    )
-
-                    // Return the URL for accessing the file
-                    return "/api/files/profile-pics/$fileName"
-
-                } catch (ex: IOException) {
-                    // Clean up any temporary files
-                    try {
-                        Files.deleteIfExists(tempLocation)
-                        Files.deleteIfExists(targetLocation)
-                    } catch (cleanupEx: Exception) {
-                        logger.warn("Failed to cleanup files after upload error: {}", cleanupEx.message)
-                    }
-
-                    logger.error(
-                        "IOException during file copy for user: {}, attempt: {}, file: {}",
-                        userId,
-                        attempt,
-                        fileName,
-                        ex
-                    )
-
-                    // Convert IOException to appropriate ResponseStatusException
-                    lastException = when (ex) {
-                        is NoSuchFileException -> {
+                    is RuntimeException -> {
+                        if (ex.message?.contains("storage") == true) {
                             ResponseStatusException(
                                 HttpStatus.INTERNAL_SERVER_ERROR,
-                                "Upload directory not found. Please contact administrator."
+                                "Firebase Storage error: ${ex.message}"
                             )
-                        }
-                        is AccessDeniedException -> {
+                        } else {
                             ResponseStatusException(
                                 HttpStatus.INTERNAL_SERVER_ERROR,
-                                "Permission denied. Unable to write to upload directory."
-                            )
-                        }
-                        is FileSystemException -> {
-                            ResponseStatusException(
-                                HttpStatus.INSUFFICIENT_STORAGE,
-                                "File system error. Possibly insufficient disk space."
-                            )
-                        }
-                        else -> {
-                            ResponseStatusException(
-                                HttpStatus.INTERNAL_SERVER_ERROR,
-                                "Failed to store file $fileName: ${ex.message}"
+                                "Upload failed: ${ex.message}"
                             )
                         }
                     }
-
-                    // Check if this error is retry able and if we have attempts left
-                    if (attempt < maxAttempts && isRetryAbleError(ex)) {
-                        logger.warn("Retrying upload for user: {} after error: {}", userId, ex.message)
-                        Thread.sleep(100L * attempt) // Brief backoff
-                        continue // Retry the loop
-                    } else {
-                        // Either last attempt or non-retryable error
-                        throw lastException
+                    else -> {
+                        ResponseStatusException(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Unexpected error during file upload: ${ex.message}"
+                        )
                     }
                 }
 
-            } catch (ex: ResponseStatusException) {
-                logger.error("Upload failed for user: {} on attempt {}: {}", userId, attempt, ex.reason)
-                // ResponseStatusException should not be retried
-                throw ex
-            } catch (ex: Exception) {
-                logger.error("Unexpected error during upload for user: {} on attempt {}", userId, attempt, ex)
-                lastException = ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Unexpected error during file upload: ${ex.message}"
-                )
-
-                // Retry unexpected errors if we have attempts left
-                if (attempt < maxAttempts) {
+                // Retry for certain types of errors
+                if (attempt < maxAttempts && isRetryableError(ex)) {
+                    logger.warn("Retrying upload for user: {} after error: {}", userId, ex.message)
                     Thread.sleep(100L * attempt) // Brief backoff
-                    continue // Retry the loop
+                    continue
                 } else {
                     throw lastException
                 }
             }
         }
 
-        // This should never be reached due to the for loop structure, but kept for safety
         throw lastException ?: ResponseStatusException(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "File upload failed after $maxAttempts attempts"
         )
     }
 
-    private fun isRetryAbleError(ex: IOException): Boolean {
-        return when (ex) {
-            is FileSystemException -> true // Might be temporary
-            is NoSuchFileException -> false // Directory issue, unlikely to resolve on retry
-            is AccessDeniedException -> false // Permission issue, won't resolve on retry
-            else -> true // Other IO errors might be temporary
-        }
-    }
-
-    /**
-     * Ensures the target directory exists and creates it if necessary
-     */
-    private fun ensureDirectoryExists(directory: Path) {
-        try {
-            if (!Files.exists(directory)) {
-                logger.debug("Creating directory: {}", directory)
-                Files.createDirectories(directory)
-                logger.info("Successfully created directory: {}", directory)
-            } else {
-                logger.debug("Directory already exists: {}", directory)
-            }
-        } catch (ex: IOException) {
-            logger.error("Failed to create directory: {}", directory, ex)
-            throw ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Failed to create upload directory: ${ex.message}"
-            )
-        } catch (ex: SecurityException) {
-            logger.error("Security exception creating directory: {}", directory, ex)
-            throw ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "Permission denied creating upload directory"
-            )
-        }
-    }
-
-    /**
-     * Checks if there's sufficient disk space for the upload
-     */
-    private fun checkDiskSpace(directory: Path, fileSize: Long) {
-        try {
-            val store = Files.getFileStore(directory)
-            val usableSpace = store.usableSpace
-            val requiredSpace = fileSize + (1024 * 1024) // File size + 1MB buffer
-
-            logger.debug("Disk space check - Available: $usableSpace bytes, Required: $requiredSpace bytes")
-
-            if (usableSpace < requiredSpace) {
-                logger.error("Insufficient disk space. Available: $usableSpace, Required: $requiredSpace")
-                throw ResponseStatusException(
-                    HttpStatus.INSUFFICIENT_STORAGE,
-                    "Insufficient disk space for file upload"
-                )
-            }
-        } catch (ex: IOException) {
-            logger.warn("Could not check disk space for directory: $directory", ex)
-            // Continue with upload - disk space check is not critical
-        } catch (ex: ResponseStatusException) {
-            // Re-throw insufficient storage exception
-            throw ex
+    private fun isRetryableError(ex: Exception): Boolean {
+        return when {
+            ex.message?.contains("timeout", ignoreCase = true) == true -> true
+            ex.message?.contains("network", ignoreCase = true) == true -> true
+            ex.message?.contains("connection", ignoreCase = true) == true -> true
+            ex is RuntimeException && ex.message?.contains("storage") == true -> true
+            else -> false
         }
     }
 
@@ -298,7 +181,7 @@ class FileStorageService {
         if (file.size > maxFileSize) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "File size exceeds maximum limit of 10MB"
+                "File size exceeds maximum limit of 5MB"
             )
         }
 
@@ -316,166 +199,94 @@ class FileStorageService {
         return "profile_${userId}.jpg"
     }
 
-    private fun extractFileNameFromUrl(url: String): String? {
+    private fun generateDownloadUrl(objectPath: String): String {
         return try {
-            url.substringAfterLast('/')
-        } catch (_: Exception) {
-            null
-        }
-    }
+            // Generate a signed URL that's valid for 7 days
+            val blobId = BlobId.of(firebaseStorageBucket, objectPath)
+            val blob = storage.get(blobId) ?: throw RuntimeException("Blob not found after upload")
 
-    fun getFilePath(fileName: String): Path {
-        return Paths.get(uploadDir, "profile-pics", fileName)
-    }
-
-    fun getUploadDirectoryInfo(): Map<String, Any> {
-        logger.info("Getting upload directory info for debugging")
-
-        val info = mutableMapOf<String, Any>()
-
-        try {
-            val uploadPath = Paths.get(uploadDir).toAbsolutePath()
-            val profilePicsPath = Paths.get(uploadDir, "profile-pics").toAbsolutePath()
-
-            info["uploadDir"] = uploadDir
-            info["uploadPathAbsolute"] = uploadPath.toString()
-            info["profilePicsPathAbsolute"] = profilePicsPath.toString()
-            info["uploadPathExists"] = Files.exists(uploadPath)
-            info["profilePicsPathExists"] = Files.exists(profilePicsPath)
-            info["uploadPathReadable"] = Files.isReadable(uploadPath)
-            info["uploadPathWritable"] = Files.isWritable(uploadPath)
-            info["profilePicsPathReadable"] = Files.isReadable(profilePicsPath)
-            info["profilePicsPathWritable"] = Files.isWritable(profilePicsPath)
-
-            // List files in profile-pics directory
-            if (Files.exists(profilePicsPath) && Files.isDirectory(profilePicsPath)) {
-                val files = Files.list(profilePicsPath).use { stream ->
-                    stream.map { file ->
-                        mapOf(
-                            "name" to file.fileName.toString(),
-                            "size" to Files.size(file),
-                            "readable" to Files.isReadable(file),
-                            "lastModified" to Files.getLastModifiedTime(file).toString()
-                        )
-                    }.toList()
-                }
-                info["files"] = files
-                info["fileCount"] = files.size
-            } else {
-                info["files"] = emptyList<Map<String, Any>>()
-                info["fileCount"] = 0
-                info["directoryIssue"] = "Directory does not exist or is not a directory"
-            }
-
-            // Check disk space
-            val store = Files.getFileStore(profilePicsPath)
-            info["totalSpace"] = store.totalSpace
-            info["usableSpace"] = store.usableSpace
-            info["unallocatedSpace"] = store.unallocatedSpace
+            // Generate signed URL with 7 days expiration
+            val signedUrl = blob.signUrl(7, TimeUnit.DAYS)
+            signedUrl.toString()
 
         } catch (ex: Exception) {
-            logger.error("Error collecting upload directory info", ex)
-            info["error"] = ex.message ?: "Unknown error"
+            logger.error("Failed to generate download URL for path: {}", objectPath, ex)
+            // Return a fallback URL pattern that your frontend can handle
+            "https://firebasestorage.googleapis.com/v0/b/$firebaseStorageBucket/o/${objectPath.replace("/", "%2F")}?alt=media"
         }
-
-        return info
     }
 
     fun deleteProfilePicture(profilePicUrl: String): Boolean {
-        logger.debug("Attempting to delete profile picture: $profilePicUrl")
+        logger.debug("Attempting to delete profile picture from Firebase Storage: {}", profilePicUrl)
 
         return try {
-            val fileName = extractFileNameFromUrl(profilePicUrl)
-            if (fileName == null) {
-                logger.warn("Could not extract filename from URL: $profilePicUrl")
+            val objectPath = extractObjectPathFromUrl(profilePicUrl)
+            if (objectPath == null) {
+                logger.warn("Could not extract object path from URL: {}", profilePicUrl)
                 return false
             }
 
-            val filePath = Paths.get(uploadDir, "profile-pics", fileName)
-            logger.debug("Target file path for deletion: {}", filePath)
+            val blobId = BlobId.of(firebaseStorageBucket, objectPath)
+            val deleted = storage.delete(blobId)
 
-            if (!Files.exists(filePath)) {
-                logger.warn("Profile picture file does not exist: $filePath")
-                return true // Consider it "deleted" if it doesn't exist
-            }
-
-            // Check if we have permission to delete the file
-            if (!Files.isWritable(filePath.parent)) {
-                logger.error("No write permission to delete file: $filePath")
-                return false
-            }
-
-            val deleted = Files.deleteIfExists(filePath)
             if (deleted) {
-                logger.info("Successfully deleted profile picture: $fileName")
+                logger.info("Successfully deleted profile picture from Firebase Storage: {}", objectPath)
             } else {
-                logger.warn("File was not deleted (may not have existed): $fileName")
+                logger.warn("Profile picture was not found in Firebase Storage: {}", objectPath)
             }
 
             return deleted
 
-        } catch (ex: SecurityException) {
-            logger.error("Security exception while deleting profile picture: $profilePicUrl", ex)
-            false
-        } catch (ex: AccessDeniedException) {
-            logger.error("Access denied while deleting profile picture: $profilePicUrl", ex)
-            false
-        } catch (ex: DirectoryNotEmptyException) {
-            logger.error("Directory not empty while deleting profile picture: $profilePicUrl", ex)
-            false
-        } catch (ex: IOException) {
-            logger.error("IO exception while deleting profile picture: $profilePicUrl", ex)
-            false
         } catch (ex: Exception) {
-            logger.error("Unexpected error while deleting profile picture: $profilePicUrl", ex)
+            logger.error("Error while deleting profile picture from Firebase Storage: {}", profilePicUrl, ex)
             false
         }
     }
 
-    private fun verifyDirectoryWritable(directory: Path) {
-        if (!Files.isWritable(directory)) {
-            logger.error("Directory is not writable: {}", directory.toAbsolutePath())
-            throw ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Upload directory is not writable"
-            )
-        }
-
-        // Test write by creating a temporary file
-        try {
-            val testFile = directory.resolve(".write-test-${UUID.randomUUID()}")
-            Files.write(testFile, "test".toByteArray())
-            Files.deleteIfExists(testFile)
+    private fun extractObjectPathFromUrl(url: String): String? {
+        return try {
+            when {
+                // Handle signed URLs
+                url.contains("googleapis.com/v0/b/") -> {
+                    val parts = url.split("/o/")
+                    if (parts.size >= 2) {
+                        val objectPart = parts[1].split("?")[0]
+                        java.net.URLDecoder.decode(objectPart, "UTF-8")
+                    } else null
+                }
+                // Handle direct URLs or other formats
+                url.contains("profile-pics/") -> {
+                    val startIndex = url.indexOf("profile-pics/")
+                    url.substring(startIndex)
+                }
+                else -> null
+            }
         } catch (ex: Exception) {
-            logger.error("Failed to write test file to directory: {}", directory.toAbsolutePath(), ex)
-            throw ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Upload directory write test failed: ${ex.message}"
-            )
+            logger.warn("Failed to extract object path from URL: {}", url, ex)
+            null
         }
     }
 
     /**
-     * Deletes any existing profile pictures for the user
+     * Get a new download URL for an existing file (useful for URL refresh)
      */
-    private fun deleteExistingProfilePictures(userId: String) {
-        val fileName = generateConsistentFileName(userId)
-        val filePath = Paths.get(uploadDir, "profile-pics", fileName)
+    fun refreshDownloadUrl(userId: String): String? {
+        return try {
+            val fileName = generateConsistentFileName(userId)
+            val objectPath = "profile-pics/$fileName"
+            val blobId = BlobId.of(firebaseStorageBucket, objectPath)
 
-        try {
-            if (Files.exists(filePath)) {
-                logger.info("Deleting existing profile picture for user: $userId, file: $fileName")
-                Files.delete(filePath)
-                logger.info("Successfully deleted existing profile picture")
+            // Check if file exists
+            val blob = storage.get(blobId)
+            if (blob != null && blob.exists()) {
+                generateDownloadUrl(objectPath)
             } else {
-                logger.info("No existing profile picture found for user: $userId")
+                logger.warn("Profile picture not found for user: {}", userId)
+                null
             }
         } catch (ex: Exception) {
-            logger.error("Failed to delete existing profile picture for user: $userId", ex)
-            throw ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Failed to delete existing profile picture: ${ex.message}"
-            )
+            logger.error("Failed to refresh download URL for user: {}", userId, ex)
+            null
         }
     }
 }

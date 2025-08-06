@@ -10,6 +10,10 @@ import org.springframework.web.server.ResponseStatusException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.DataAccessException
 import org.springframework.web.servlet.NoHandlerFoundException
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException
+import org.springframework.security.core.AuthenticationException
+import jakarta.servlet.http.HttpServletRequest
 
 @ControllerAdvice
 class GlobalExceptionHandler {
@@ -17,10 +21,45 @@ class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
-            error = ex.statusCode.toString().split(" ").last().uppercase(),
+            error = when (ex.statusCode) {
+                HttpStatus.BAD_REQUEST -> "BAD_REQUEST"
+                HttpStatus.UNAUTHORIZED -> "UNAUTHORIZED"
+                HttpStatus.FORBIDDEN -> "FORBIDDEN"
+                HttpStatus.NOT_FOUND -> "NOT_FOUND"
+                HttpStatus.CONFLICT -> "CONFLICT"
+                HttpStatus.INTERNAL_SERVER_ERROR -> "INTERNAL_SERVER_ERROR"
+                else -> "ERROR"
+            },
             message = ex.reason ?: "An error occurred"
         )
         return ResponseEntity(errorResponse, ex.statusCode)
+    }
+
+    @ExceptionHandler(AccessDeniedException::class)
+    fun handleAccessDeniedException(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "ACCESS_DENIED",
+            message = ex.message ?: "Access denied. You don't have permission to access this resource."
+        )
+        return ResponseEntity(errorResponse, HttpStatus.FORBIDDEN)
+    }
+
+    @ExceptionHandler(AuthenticationException::class)
+    fun handleAuthenticationException(ex: AuthenticationException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "AUTHENTICATION_FAILED",
+            message = ex.message ?: "Authentication failed. Please provide valid credentials."
+        )
+        return ResponseEntity(errorResponse, HttpStatus.UNAUTHORIZED)
+    }
+
+    @ExceptionHandler(AuthenticationCredentialsNotFoundException::class)
+    fun handleAuthenticationCredentialsNotFoundException(ex: AuthenticationCredentialsNotFoundException): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "AUTHENTICATION_REQUIRED",
+            message = ex.message ?: "Authentication credentials are required. Please provide a valid JWT token."
+        )
+        return ResponseEntity(errorResponse, HttpStatus.UNAUTHORIZED)
     }
 
     @ExceptionHandler(IllegalArgumentException::class)
@@ -41,22 +80,13 @@ class GlobalExceptionHandler {
         return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
     }
 
-    @ExceptionHandler(Exception::class)
-    fun handleGenericException(ex: Exception): ResponseEntity<ApiErrorResponse> {
-        val errorResponse = ApiErrorResponse(
-            error = "INTERNAL_SERVER_ERROR",
-            message = ex.message ?: "An unexpected error occurred. Please try again later."
-        )
-        return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
-    }
-
     @ExceptionHandler(ExpenseCreationException::class)
     fun handleExpenseCreationException(ex: ExpenseCreationException): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
             error = "EXPENSE_CREATION_FAILED",
             message = ex.message ?: "Failed to create expense. Please try again."
         )
-        return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
+        return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler(ExpenseValidationException::class)
@@ -91,7 +121,7 @@ class GlobalExceptionHandler {
     fun handleDataIntegrityViolationException(ex: DataIntegrityViolationException): ResponseEntity<ApiErrorResponse> {
         val errorResponse = ApiErrorResponse(
             error = "DATA_INTEGRITY_VIOLATION",
-            message = "Data integrity constraint violation. Please check your input data."
+            message = ex.message ?: "Data integrity constraint violation. Please check your input data."
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
@@ -121,5 +151,14 @@ class GlobalExceptionHandler {
             message = ex.message ?: "API endpoint not found: ${ex.requestURL}"
         )
         return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
+    }
+
+    @ExceptionHandler(Exception::class)
+    fun handleGenericException(ex: Exception): ResponseEntity<ApiErrorResponse> {
+        val errorResponse = ApiErrorResponse(
+            error = "INTERNAL_SERVER_ERROR",
+            message = ex.message ?: "An unexpected error occurred. Please try again later."
+        )
+        return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
     }
 }

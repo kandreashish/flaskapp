@@ -1,6 +1,8 @@
 package com.lavish.expensetracker.config
 
 import com.lavish.expensetracker.security.JwtAuthFilter
+import com.lavish.expensetracker.security.CustomAuthenticationEntryPoint
+import com.lavish.expensetracker.security.CustomAccessDeniedHandler
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.Customizer
@@ -15,7 +17,11 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
 @EnableWebSecurity
-class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
+class SecurityConfig(
+    private val jwtAuthFilter: JwtAuthFilter,
+    private val customAuthenticationEntryPoint: CustomAuthenticationEntryPoint,
+    private val customAccessDeniedHandler: CustomAccessDeniedHandler
+) {
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
@@ -32,19 +38,26 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
                     .requestMatchers("/h2-console/**").permitAll() // H2 console
                     .requestMatchers("/error").permitAll() // Error page
                     .requestMatchers("/actuator/health").permitAll() // Health check
+                    .requestMatchers("/.well-known/**").permitAll() // SSL certificate verification
 
-                    // Swagger/OpenAPI endpoints
+                    // Swagger 2.0 endpoints (replacing OpenAPI 3.0)
                     .requestMatchers("/v3/api-docs/**").permitAll()
                     .requestMatchers("/swagger-ui/**").permitAll()
                     .requestMatchers("/swagger-ui.html").permitAll()
                     .requestMatchers("/swagger-resources/**").permitAll()
                     .requestMatchers("/webjars/**").permitAll()
+                    .requestMatchers("/configuration/**").permitAll()
 
                     // All other requests require authentication
                     .anyRequest().authenticated()
             }
             .sessionManagement { session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            }
+            .exceptionHandling { exceptions ->
+                exceptions
+                    .authenticationEntryPoint(customAuthenticationEntryPoint)
+                    .accessDeniedHandler(customAccessDeniedHandler)
             }
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
             .headers { headers ->

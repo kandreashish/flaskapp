@@ -4,6 +4,7 @@ import com.lavish.expensetracker.exception.DatabaseOperationException
 import com.lavish.expensetracker.exception.ExpenseAccessDeniedException
 import com.lavish.expensetracker.exception.ExpenseCreationException
 import com.lavish.expensetracker.exception.ExpenseNotFoundException
+import com.lavish.expensetracker.exception.ExpenseValidationException
 import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.model.PagedResponse
 import com.lavish.expensetracker.model.toDto
@@ -13,6 +14,7 @@ import org.springframework.dao.DataAccessException
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
 import java.util.*
@@ -27,7 +29,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val validatedPage = maxOf(0, page) // Ensure page is not negative
         val validatedSize = when {
             size <= 0 -> 10 // Default to 10 if size is 0 or negative
-            size > 100 -> 100 // Cap at 100 to prevent performance issues
+            size > 500 -> 500 // Cap at 100 to prevent performance issues
             else -> size
         }
         return Pair(validatedPage, validatedSize)
@@ -51,6 +53,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             hasPrevious = result.hasPrevious()
         )
     }
+
 
     fun getExpensesWithOrder(
         page: Int,
@@ -197,11 +200,18 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
     fun deleteExpense(id: String): Boolean {
         return try {
-            if (!expenseRepository.existsById(id)) {
-                throw ExpenseNotFoundException("Expense with ID '$id' not found")
-            }
+            val existingExpense = expenseRepository.findById(id)
+                .orElseThrow { ExpenseNotFoundException("Expense with ID '$id' not found") }
 
-            expenseRepository.deleteById(id)
+            // Perform soft delete by updating the expense record
+            val deletedExpense = existingExpense.copy(
+                deleted = true,
+                deletedOn = System.currentTimeMillis(),
+                deletedBy = existingExpense.userId, // You can pass the current user ID here if needed
+                lastModifiedOn = System.currentTimeMillis()
+            )
+
+            expenseRepository.save(deletedExpense)
             true
 
         } catch (e: ExpenseNotFoundException) {
@@ -346,6 +356,37 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         ).toLong()
     }
 
+    fun getExpenseCountByUserIdAndMonth(userId: String, year: Int, month: Int): Long {
+        val yearMonth = YearMonth.of(year, month)
+        val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+
+        return expenseRepository.countExpensesByUserIdAndDateRange(
+            userId = userId,
+            startDate = startDate,
+            endDate = endDate,
+            familyId = null
+        )
+    }
+
+    fun getFamilyExpenseCountByUserIdAndMonth(familyId: String, year: Int, month: Int): Long {
+        // This method should count expenses for the user's family
+        // We need to get the user's familyId first, but since we don't have user service here,
+        // we'll assume this method is meant to count all family expenses for a given month
+        // The controller should pass the familyId instead of userId
+
+        val yearMonth = YearMonth.of(year, month)
+        val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+
+        // For now, we'll count all expenses for the user including family expenses
+        return expenseRepository.countExpensesByFamilyIdAndDateRange(
+            familyId = familyId, // This will count both personal and family expenses for the user
+            startDate = startDate,
+            endDate = endDate
+        )
+    }
+
     fun getExpensesByUserIdWithOffset(
         userId: String,
         offset: Int,
@@ -475,13 +516,13 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
             "expenseCreatedOn" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+                    expenseRepository.findByUserIdAndDeletedFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
                         userId,
                         lastExpense.expenseCreatedOn,
                         pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+                    expenseRepository.findByUserIdAndDeletedFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
                         userId,
                         lastExpense.expenseCreatedOn,
                         pageable
@@ -491,13 +532,13 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
             "lastModifiedOn" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+                    expenseRepository.findByUserIdAndDeletedFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
                         userId,
                         lastExpense.lastModifiedOn,
                         pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+                    expenseRepository.findByUserIdAndDeletedFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
                         userId,
                         lastExpense.lastModifiedOn,
                         pageable
@@ -811,8 +852,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = false,
             isLast = !hasMore,
             hasNext = hasMore,
-            hasPrevious = true,
-            lastExpenseId = result.content.lastOrNull()?.expenseId
+            hasPrevious = true
         )
     }
 
@@ -871,11 +911,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val pageable = PageRequest.of(0, validatedSize)
         val result = if (isAsc) {
             when (sortBy) {
-                "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+                "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndDeletedFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
                     familyId, cursorValue, pageable
                 )
 
-                "lastModifiedOn" -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+                "lastModifiedOn" -> expenseRepository.findByFamilyIdAndDeletedFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
                     familyId, cursorValue, pageable
                 )
 
@@ -889,11 +929,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             }
         } else {
             when (sortBy) {
-                "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+                "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndDeletedFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
                     familyId, cursorValue, pageable
                 )
 
-                "lastModifiedOn" -> expenseRepository.findByFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+                "lastModifiedOn" -> expenseRepository.findByFamilyIdAndDeletedFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
                     familyId, cursorValue, pageable
                 )
 
@@ -968,7 +1008,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
         val sort = Sort.by(direction, sortBy)
         val pageable = PageRequest.of(validatedPage, validatedSize, sort)
-        val result = expenseRepository.findByUserIdAndFamilyIdIsNull(userId, pageable)
+        val result = expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalse(userId, pageable)
 
         return PagedResponse(
             content = result.content.map { it.toDto() },
@@ -995,7 +1035,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
     ): PagedResponse<ExpenseDto> {
         val validatedSize = when {
             size <= 0 -> 10
-            size > 100 -> 100
+            size > 500 -> 500
             else -> size
         }
 
@@ -1008,11 +1048,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val result = when (sortBy) {
             "date" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDateGreaterThanOrderByDateAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
                         userId, cursorExpense.date, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDateLessThanOrderByDateDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateLessThanOrderByDateDesc(
                         userId, cursorExpense.date, pageable
                     )
                 }
@@ -1020,11 +1060,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
             "amount" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndAmountGreaterThanOrderByAmountAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndAmountGreaterThanOrderByAmountAsc(
                         userId, cursorExpense.amount, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndAmountLessThanOrderByAmountDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndAmountLessThanOrderByAmountDesc(
                         userId, cursorExpense.amount, pageable
                     )
                 }
@@ -1032,11 +1072,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
             "expenseCreatedOn" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
                         userId, cursorExpense.expenseCreatedOn, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
                         userId, cursorExpense.expenseCreatedOn, pageable
                     )
                 }
@@ -1044,11 +1084,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
             "lastModifiedOn" -> {
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
                         userId, cursorExpense.lastModifiedOn, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
                         userId, cursorExpense.lastModifiedOn, pageable
                     )
                 }
@@ -1057,11 +1097,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             else -> {
                 // Default to date sorting
                 if (isAsc) {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDateGreaterThanOrderByDateAsc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateGreaterThanOrderByDateAsc(
                         userId, cursorExpense.date, pageable
                     )
                 } else {
-                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDateLessThanOrderByDateDesc(
+                    expenseRepository.findByUserIdAndFamilyIdIsNullAndDeletedFalseAndDateLessThanOrderByDateDesc(
                         userId, cursorExpense.date, pageable
                     )
                 }
@@ -1109,37 +1149,37 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val pageable = PageRequest.of(0, validatedSize)
         val result = if (isAsc) {
             when (sortBy) {
-                "expenseCreatedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+                "expenseCreatedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
                     familyId, cursorValue, pageable
                 )
 
-                "lastModifiedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+                "lastModifiedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
                     familyId, cursorValue, pageable
                 )
 
-                "amount" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndAmountGreaterThanOrderByAmountAsc(
+                "amount" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountGreaterThanOrderByAmountAsc(
                     familyId, cursorValue.toInt(), pageable
                 )
 
-                else -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDateGreaterThanOrderByDateAsc(
+                else -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateGreaterThanOrderByDateAsc(
                     familyId, cursorValue, pageable
                 )
             }
         } else {
             when (sortBy) {
-                "expenseCreatedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+                "expenseCreatedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
                     familyId, cursorValue, pageable
                 )
 
-                "lastModifiedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+                "lastModifiedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
                     familyId, cursorValue, pageable
                 )
 
-                "amount" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndAmountLessThanOrderByAmountDesc(
+                "amount" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountLessThanOrderByAmountDesc(
                     familyId, cursorValue.toInt(), pageable
                 )
 
-                else -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDateLessThanOrderByDateDesc(
+                else -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateLessThanOrderByDateDesc(
                     familyId, cursorValue, pageable
                 )
             }
@@ -1160,5 +1200,169 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             hasNext = result.content.size == validatedSize,
             hasPrevious = true // Since we're using a cursor, there's likely previous data
         )
+    }
+
+    fun getFamilyExpensesSince(
+        familyId: String,
+        lastModified: Long,
+        size: Int,
+        sortBy: String = "lastModifiedOn",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        val result = when (sortBy) {
+            "lastModifiedOn" -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                familyId,
+                lastModified,
+                pageable
+            )
+
+            "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
+                familyId,
+                lastModified,
+                pageable
+            )
+
+            "date" -> expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
+                familyId,
+                lastModified,
+                pageable
+            )
+            else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                familyId,
+                lastModified,
+                pageable
+            )
+        }
+
+        val totalElements = result.totalElements
+        val totalPages = result.totalPages
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0,
+            size = validatedSize,
+            totalElements = totalElements,
+            totalPages = totalPages,
+            isFirst = true,
+            isLast = result.content.size < validatedSize,
+            hasNext = result.content.size == validatedSize,
+            hasPrevious = false
+        )
+    }
+
+    fun getFamilyExpensesSinceWithCursor(
+        familyId: String,
+        lastModified: Long,
+        lastExpenseId: String,
+        size: Int,
+        sortBy: String = "lastModifiedOn",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val validatedSize = when {
+            size <= 0 -> 10
+            size > 100 -> 100
+            else -> size
+        }
+
+        // Get the cursor value from the last expense
+        val lastExpense = expenseRepository.findById(lastExpenseId).orElse(null)
+            ?: throw ExpenseNotFoundException("Expense with ID $lastExpenseId not found for cursor pagination")
+
+        val cursorValue = when (sortBy) {
+            "expenseCreatedOn" -> lastExpense.expenseCreatedOn
+            "lastModifiedOn" -> lastExpense.lastModifiedOn
+            "amount" -> lastExpense.amount.toLong()
+            "date" -> lastExpense.date
+            else -> lastExpense.lastModifiedOn
+        }
+
+        val direction = if (isAsc) Sort.Direction.ASC else Sort.Direction.DESC
+        val sort = Sort.by(direction, sortBy)
+        val pageable = PageRequest.of(0, validatedSize, sort)
+
+        // Combine timestamp filter with cursor pagination
+        val result = if (isAsc) {
+            when (sortBy) {
+                "expenseCreatedOn" -> {
+                    // Find expenses where expenseCreatedOn >= lastModified AND expenseCreatedOn > cursor
+                    val timestampResult = expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
+                        familyId, maxOf(lastModified, cursorValue), pageable
+                    )
+                    timestampResult
+                }
+                "lastModifiedOn" -> {
+                    val timestampResult = expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                        familyId, maxOf(lastModified, cursorValue), pageable
+                    )
+                    timestampResult
+                }
+                "date" -> {
+                    val timestampResult = expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
+                        familyId, maxOf(lastModified, cursorValue), pageable
+                    )
+                    timestampResult
+                }
+                else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                    familyId, maxOf(lastModified, cursorValue), pageable
+                )
+            }
+        } else {
+            // For descending order, we need different logic
+            when (sortBy) {
+                "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
+                    familyId, lastModified, pageable
+                )
+                "lastModifiedOn" -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                    familyId, lastModified, pageable
+                )
+                "date" -> expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
+                    familyId, lastModified, pageable
+                )
+                else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                    familyId, lastModified, pageable
+                )
+            }
+        }
+
+        return PagedResponse(
+            content = result.content.map { it.toDto() },
+            page = 0,
+            size = validatedSize,
+            totalElements = result.totalElements,
+            totalPages = result.totalPages,
+            isFirst = false,
+            isLast = result.content.size < validatedSize,
+            hasNext = result.content.size == validatedSize,
+            hasPrevious = true
+        )
+    }
+
+    fun getFamilyExpensesSinceDate(
+        familyId: String,
+        date: String,
+        size: Int,
+        sortBy: String = "date",
+        isAsc: Boolean = true
+    ): PagedResponse<ExpenseDto> {
+        val sinceTimestamp = try {
+            LocalDate.parse(date).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        } catch (e: Exception) {
+            throw ExpenseValidationException(
+                "Invalid date format. Use YYYY-MM-DD format",
+                listOf("Date parsing error: ${e.message}")
+            )
+        }
+
+        return getFamilyExpensesSince(familyId, sinceTimestamp, size, sortBy, isAsc)
     }
 }

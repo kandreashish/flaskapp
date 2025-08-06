@@ -29,6 +29,12 @@
             <AppenderRef ref="FileAppender"/>
         </Logger>
 
+        <!-- Add logger for service package to see AuthService logs -->
+        <Logger name="com.lavish.expensetracker.service" level="DEBUG" additivity="false">
+            <AppenderRef ref="ConsoleAppender"/>
+            <AppenderRef ref="FileAppender"/>
+        </Logger>
+
         <Root level="INFO">
             <AppenderRef ref="ConsoleAppender"/>
             <!-- Remove FileAppender reference for console-only logging -->

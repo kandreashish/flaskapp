@@ -176,7 +176,7 @@ class UserController(
         val currentUser = getCurrentUserWithValidation()
 
         return try {
-            // Upload the file and get the URL
+            // Upload the file to Firebase Storage and get the URL
             val profilePicUrl = fileStorageService.uploadProfilePicture(file, currentUser.id)
 
             // Update the user's profile picture URL in the database
@@ -185,7 +185,7 @@ class UserController(
             if (updatedUser != null) {
                 ResponseEntity.ok(mapOf(
                     "message" to "Profile picture uploaded successfully",
-                    "profilePicUrl" to "http://103.80.162.46$profilePicUrl"
+                    "profilePicUrl" to profilePicUrl
                 ))
             } else {
                 ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

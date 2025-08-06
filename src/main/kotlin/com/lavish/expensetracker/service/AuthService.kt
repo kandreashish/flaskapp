@@ -55,8 +55,8 @@ class AuthService(
             val jwtToken = jwtService.generateToken(user.id)
             logger.debug("Generated JWT token for user: ${user.id}")
 
-            return createSuccessAuthResponse(user, firebaseUser, jwtToken)
-            
+            return createSuccessAuthResponse(user = user, firebaseUser = firebaseUser, token = jwtToken)
+
         } catch (e: FirebaseAuthException) {
             val errorMsg = "Firebase authentication failed: ${e.message}"
             logger.error(errorMsg, e)
@@ -132,7 +132,7 @@ class AuthService(
         token: String
     ): AuthResponseBase {
         logger.debug("Creating success auth response for user: ${user.id}")
-        
+
         // Generate refresh token
         val refreshToken = refreshTokenService.generateRefreshToken(user.id)
         logger.debug("Generated refresh token for user: ${user.id}")
@@ -145,14 +145,15 @@ class AuthService(
                 name = user.name?.ifEmpty { firebaseUser.name },
                 email = user.email,
                 familyId = user.familyId,
-                profilePic = firebaseUser.picture,
+                profilePic = user.profilePic?.ifEmpty { firebaseUser.picture },
                 createdAt = user.createdAt,
                 updatedAt = user.updatedAt,
                 aliasName = user.aliasName,
                 firebaseUid = user.firebaseUid
             ),
             token = token,
-            refreshToken = refreshToken
+            refreshToken = refreshToken,
+            expirationTime = jwtService.getTokenExpirationTime(token) ?: 0L
         )
     }
 

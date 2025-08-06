@@ -7,10 +7,6 @@ echo "Storage: $(df -h / | awk 'NR==2 {print $2}')"; \
 echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
 echo "Temperature: $(vcgencmd measure_temp)"
 
-# Start the application with docker-compose
-echo "🚀 Starting application instances for external nginx..."
-docker-compose down
-
 echo "🚀 Starting optimized build with enhanced caching..."
 
 set -e
@@ -25,9 +21,6 @@ echo "🔍 Checking for remote changes..."
 git fetch
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse @{u})
-
-# reset to head
-git reset --hard HEAD
 
 if [ "$LOCAL" != "$REMOTE" ]; then
     echo "📥 Pulling latest changes..."
@@ -102,30 +95,19 @@ ls -lah build/libs/
 
 echo "Temperature: $(vcgencmd measure_temp)"
 
-# Build and start all services (without nginx)
-echo "📦 Starting backend services..."
-docker-compose up
+# Start the application with docker-compose
+echo "🚀 Starting application with docker-compose..."
+docker-compose down
 
-# Wait a moment for services to start
-echo "⏳ Waiting for services to start..."
-sleep 10
+# Start the expense-tracker
+echo "🚀 Starting expense-tracker..."
+docker-compose up -d expense-tracker
 
-# Check the status of all services
-echo "📊 Service Status:"
-docker-compose ps
+# Follow logs for the service
+echo "📋 Following logs... (Press Ctrl+C to stop following logs)"
+docker-compose logs -f expense-tracker
 
-echo "🎯 Application instances are now running:"
-echo "  • Instance 1: http://localhost:3001"
-echo "  • Instance 2: http://localhost:3002"
-echo "  • Instance 3: http://localhost:3003"
-echo "  • H2 Console: http://localhost:8082"
-echo ""
-echo "📝 Configure your external nginx server with the provided configuration:"
-echo "  • Copy: external-nginx.conf to your nginx server"
-echo "  • Update server_name and file paths as needed"
-echo "  • Reload nginx: sudo nginx -s reload"
-
-echo "🎉 Backend services are ready for your external nginx load balancer!"
+echo "🎉 All done! Your application is now running."
 
 echo "Storage: $(df -h / | awk 'NR==2 {print $2}')"; \
 echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \

@@ -2,7 +2,6 @@ package com.lavish.expensetracker.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.time.Instant
 
 @Serializable
 data class ExpenseDto(
@@ -36,9 +35,6 @@ data class ExpenseDto(
     @SerialName("modifiedBy")
     val modifiedBy: String,
 
-    @SerialName("updatedUserAlias")
-    val updatedUserAlias: String,
-
     @SerialName("updatedUserName")
     val updatedUserName: String,
 
@@ -46,6 +42,14 @@ data class ExpenseDto(
     val lastModifiedOn: Long,
 
     @SerialName("synced")
-    val synced: Boolean = false
-)
+    val synced: Boolean = false,
 
+    @SerialName("deleted")
+    val deleted: Boolean = false,
+
+    @SerialName("deletedOn")
+    val deletedOn: Long? = null,
+
+    @SerialName("deletedBy")
+    val deletedBy: String? = null
+)
