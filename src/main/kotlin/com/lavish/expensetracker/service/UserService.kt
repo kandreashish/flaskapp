@@ -3,6 +3,7 @@ package com.lavish.expensetracker.service
 import com.lavish.expensetracker.controller.UserController
 import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.repository.ExpenseUserRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -12,6 +13,8 @@ class UserService(
     private val userDeviceService: UserDeviceService,
     private val fileStorageService: FileStorageService
 ) {
+
+    private val logger = LoggerFactory.getLogger(UserService::class.java)
 
     fun findByFirebaseUid(firebaseUid: String): ExpenseUser? {
         return userRepository.findByFirebaseUid(firebaseUid)
@@ -77,16 +80,23 @@ class UserService(
     fun updateProfilePicture(userId: String, profilePicUrl: String): ExpenseUser? {
         val existingUser = userRepository.findById(userId).orElse(null) ?: return null
 
-        // Delete old profile picture if it exists
+        // Delete old profile picture if it exists (now that we use unique filenames)
         existingUser.profilePic?.let { oldPicUrl ->
-            fileStorageService.deleteProfilePicture(oldPicUrl)
-        }
+            logger.info("Deleting old profile picture for user {}: {}", userId, oldPicUrl)
+            val deleted = fileStorageService.deleteProfilePicture(oldPicUrl)
+            if (deleted) {
+                logger.info("✓ Successfully deleted old profile picture for user {}", userId)
+            } else {
+                logger.warn("⚠️ Failed to delete old profile picture for user {}: {}", userId, oldPicUrl)
+            }
+        } ?: logger.info("No existing profile picture to delete for user {}", userId)
 
         val updatedUser = existingUser.copy(
             profilePic = profilePicUrl,
             updatedAt = System.currentTimeMillis()
         )
 
+        logger.info("Updating user {} profile picture in database: {}", userId, profilePicUrl)
         return userRepository.save(updatedUser)
     }
 }

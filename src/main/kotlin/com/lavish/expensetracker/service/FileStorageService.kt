@@ -115,11 +115,19 @@ class FileStorageService(
     }
 
     fun uploadProfilePicture(file: MultipartFile, userId: String): String {
-        logger.debug(
-            "Starting profile picture upload to Firebase Storage for user: {}, file: {}, size: {}",
+        logger.info(
+            "=== STARTING PROFILE PICTURE UPLOAD ===\n" +
+            "User ID: {}\n" +
+            "Original filename: {}\n" +
+            "File size: {} bytes ({} KB)\n" +
+            "Content type: {}\n" +
+            "Firebase bucket: {}",
             userId,
             file.originalFilename,
-            file.size
+            file.size,
+            file.size / 1024,
+            file.contentType,
+            firebaseStorageBucket
         )
 
         val maxAttempts = 3
@@ -127,51 +135,89 @@ class FileStorageService(
 
         for (attempt in 1..maxAttempts) {
             try {
-                logger.debug("Upload attempt {} of {} for user: {}", attempt, maxAttempts, userId)
+                logger.info("=== UPLOAD ATTEMPT {} of {} ===", attempt, maxAttempts)
 
                 // Validate the file first
+                logger.debug("Step 1: Validating file...")
                 validateFile(file)
-                logger.debug("File validation passed for user: {}", userId)
+                logger.info("✓ File validation passed - Size: {} bytes, Type: {}", file.size, file.contentType)
 
                 // Generate consistent file name
                 val fileName = generateConsistentFileName(userId)
                 val objectPath = "profile-pics/$fileName"
+                logger.info("Step 2: Generated file path: {}", objectPath)
 
                 // Create blob info with metadata
                 val blobId = BlobId.of(firebaseStorageBucket, objectPath)
+                val metadata = mapOf(
+                    "userId" to userId,
+                    "uploadedAt" to System.currentTimeMillis().toString(),
+                    "originalFilename" to (file.originalFilename ?: "unknown"),
+                    "uploadAttempt" to attempt.toString()
+                )
+
                 val blobInfo = BlobInfo.newBuilder(blobId)
                     .setContentType(file.contentType ?: "image/jpeg")
-                    .setMetadata(mapOf(
-                        "userId" to userId,
-                        "uploadedAt" to System.currentTimeMillis().toString(),
-                        "originalFilename" to (file.originalFilename ?: "unknown")
-                    ))
+                    .setMetadata(metadata)
                     .build()
 
+                logger.info("Step 3: Created blob info with metadata: {}", metadata)
+
                 // Upload file to Firebase Storage
+                logger.info("Step 4: Uploading to Firebase Storage...")
+                val startTime = System.currentTimeMillis()
                 val blob = storage.create(blobInfo, file.bytes)
+                val uploadTime = System.currentTimeMillis() - startTime
 
                 if (blob == null) {
-                    throw RuntimeException("Failed to create blob in Firebase Storage")
+                    throw RuntimeException("Failed to create blob in Firebase Storage - blob is null")
                 }
 
                 logger.info(
-                    "Successfully uploaded profile picture for user: {} on attempt {}, path: {}",
-                    userId,
-                    attempt,
-                    objectPath
+                    "✓ File uploaded successfully!\n" +
+                    "Upload time: {} ms\n" +
+                    "Blob ID: {}\n" +
+                    "Blob size: {} bytes\n" +
+                    "Blob exists: {}",
+                    uploadTime,
+                    blob.blobId,
+                    blob.size,
+                    blob.exists()
                 )
 
                 // Generate and return download URL
+                logger.info("Step 5: Generating download URL...")
                 val downloadUrl = generateDownloadUrl(objectPath)
+
+                logger.info(
+                    "=== UPLOAD COMPLETED SUCCESSFULLY ===\n" +
+                    "User ID: {}\n" +
+                    "Object path: {}\n" +
+                    "Download URL: {}\n" +
+                    "Total attempts: {}\n" +
+                    "Final blob size: {} bytes",
+                    userId,
+                    objectPath,
+                    downloadUrl,
+                    attempt,
+                    blob.size
+                )
+
                 return downloadUrl
 
             } catch (ex: Exception) {
                 logger.error(
-                    "Error during Firebase Storage upload for user: {}, attempt: {}",
-                    userId,
+                    "❌ UPLOAD FAILED - Attempt {} of {}\n" +
+                    "User ID: {}\n" +
+                    "Error type: {}\n" +
+                    "Error message: {}\n" +
+                    "Stack trace: {}",
                     attempt,
-                    ex
+                    maxAttempts,
+                    userId,
+                    ex.javaClass.simpleName,
+                    ex.message,
+                    ex.stackTrace.take(3).joinToString("\n") { "  at $it" }
                 )
 
                 lastException = when (ex) {
@@ -251,27 +297,85 @@ class FileStorageService(
     }
 
     private fun generateConsistentFileName(userId: String): String {
-        // Always use jpg extension for consistency, regardless of original format
-        return "profile_${userId}.jpg"
+        // Use timestamp to ensure unique filenames for each upload
+        val timestamp = System.currentTimeMillis()
+        return "profile_${userId}_${timestamp}.jpg"
     }
 
     private fun generateDownloadUrl(objectPath: String): String {
+        logger.info("=== GENERATING DOWNLOAD URL ===")
+        logger.info("Object path: {}", objectPath)
+        logger.info("Bucket: {}", firebaseStorageBucket)
+
         return try {
             val blobId = BlobId.of(firebaseStorageBucket, objectPath)
-            val blob = storage.get(blobId) ?: throw RuntimeException("Blob not found after upload")
+            logger.debug("Created BlobId: {}", blobId)
+
+            // Verify blob exists
+            val blob = storage.get(blobId)
+            if (blob == null) {
+                logger.error("❌ Blob not found after upload! BlobId: {}", blobId)
+                throw RuntimeException("Blob not found after upload")
+            }
+
+            logger.info("✓ Blob found - Size: {} bytes, Exists: {}, ContentType: {}",
+                blob.size, blob.exists(), blob.contentType)
+
+            // Check current ACLs before setting
+            try {
+                val currentAcls = blob.getAcl()
+                logger.info("Current ACLs before setting public access: {}",
+                    currentAcls?.map { "${it.entity} -> ${it.role}" } ?: "None")
+            } catch (ex: Exception) {
+                logger.debug("Could not retrieve current ACLs (this is normal): {}", ex.message)
+            }
 
             // Make the blob publicly readable
-            blob.createAcl(Acl.of(Acl.User.ofAllUsers(), Acl.Role.READER))
+            logger.info("Setting public read access...")
+            val startAclTime = System.currentTimeMillis()
+            try {
+                val acl = blob.createAcl(Acl.of(Acl.User.ofAllUsers(), Acl.Role.READER))
+                val aclTime = System.currentTimeMillis() - startAclTime
+                logger.info("✓ ACL set successfully in {} ms: {} -> {}",
+                    aclTime, acl.entity, acl.role)
+            } catch (ex: Exception) {
+                logger.warn("⚠️ Failed to set ACL (image may still be accessible): {}", ex.message)
+                // Continue anyway as some Firebase Storage configurations don't require explicit ACLs
+            }
 
-            // Return short public URL instead of signed URL
+            // Generate the public URL
             val publicUrl = "https://firebasestorage.googleapis.com/v0/b/$firebaseStorageBucket/o/${objectPath.replace("/", "%2F")}?alt=media"
-            logger.info("Generated short public URL for path: {}", objectPath)
+            logger.info("✓ Generated public URL: {}", publicUrl)
+
+            // Test URL accessibility (optional but helpful for debugging)
+            try {
+                val testConnection = java.net.URL(publicUrl).openConnection()
+                testConnection.connectTimeout = 5000
+                testConnection.readTimeout = 5000
+                val responseCode = (testConnection as java.net.HttpURLConnection).responseCode
+                logger.info("✓ URL accessibility test - Response code: {}", responseCode)
+                if (responseCode != 200) {
+                    logger.warn("⚠️ URL returned non-200 response: {}. Image may not be immediately accessible.", responseCode)
+                }
+            } catch (ex: Exception) {
+                logger.debug("URL accessibility test failed (this may be normal): {}", ex.message)
+            }
+
+            logger.info("=== DOWNLOAD URL GENERATION COMPLETED ===")
             publicUrl
 
         } catch (ex: Exception) {
-            logger.error("Failed to generate download URL for path: {}", objectPath, ex)
+            logger.error("❌ FAILED TO GENERATE DOWNLOAD URL\n" +
+                "Object path: {}\n" +
+                "Bucket: {}\n" +
+                "Error: {}\n" +
+                "Exception type: {}",
+                objectPath, firebaseStorageBucket, ex.message, ex.javaClass.simpleName, ex)
+
             // Return a fallback URL pattern that your frontend can handle
-            "https://firebasestorage.googleapis.com/v0/b/$firebaseStorageBucket/o/${objectPath.replace("/", "%2F")}?alt=media"
+            val fallbackUrl = "https://firebasestorage.googleapis.com/v0/b/$firebaseStorageBucket/o/${objectPath.replace("/", "%2F")}?alt=media"
+            logger.warn("Returning fallback URL: {}", fallbackUrl)
+            fallbackUrl
         }
     }
 
