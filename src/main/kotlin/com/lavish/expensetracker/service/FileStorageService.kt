@@ -26,7 +26,7 @@ class FileStorageService(
 
     private lateinit var storage: Storage
 
-    private val maxFileSize = 5 * 1024 * 1024L // 5MB in bytes
+    private val maxFileSize = 1 * 1024 * 1024L // 5MB in bytes
     private val allowedContentTypes = setOf(
         "image/jpeg",
         "image/jpg",
