@@ -48,6 +48,8 @@ services:
       # Add Gradle cache volume for faster rebuilds
       - gradle-cache:/root/.gradle
     restart: unless-stopped
+    networks:
+      - expense-network
     # Fix user permissions for mounted volumes
     user: "0:0"  # Start as root to fix permissions, entrypoint will switch to appuser
     # Ensure directories exist on host with correct permissions
@@ -65,6 +67,10 @@ services:
     init: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+networks:
+  expense-network:
+    driver: bridge
 
 volumes:
   h2-data:
