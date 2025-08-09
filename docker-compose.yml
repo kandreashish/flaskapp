@@ -32,8 +32,7 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      h2-database:
-        condition: service_healthy
+      - h2-server
     environment:
       # Database Configuration
       - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-database:9092/expensedb
