@@ -1,79 +1,80 @@
+version: '3.8'
+
 services:
+  # H2 Database Service
+  h2-database:
+    image: oscarfonts/h2:2.2.224
+    container_name: h2-database
+    ports:
+      - "9092:9092"  # TCP port for database connections
+      - "8082:8082"  # Web console port
+    volumes:
+      - h2-data:/opt/h2-data
+      - ./data:/opt/h2-data/backup  # Mount local data directory for backups
+    environment:
+      - H2_OPTIONS=-tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082 -baseDir /opt/h2-data
+    command: java -cp /opt/h2/bin/h2*.jar org.h2.tools.Server -tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082 -baseDir /opt/h2-data -ifNotExists
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "java", "-cp", "/opt/h2/bin/h2*.jar", "org.h2.tools.Shell", "-url", "jdbc:h2:tcp://localhost:9092/test", "-sql", "SELECT 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Your Application Service
   expense-tracker:
-    image: expense-tracker:latest
-    container_name: expense-tracker
-    platform: linux/arm64
     build:
       context: .
       dockerfile: Dockerfile
-      # Add build args for better caching
-      args:
-        BUILDKIT_INLINE_CACHE: 1
-      # Use BuildKit for faster builds
-      target: runtime
+    container_name: expense-tracker-app
     ports:
       - "3000:3000"
+    depends_on:
+      h2-database:
+        condition: service_healthy
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
-      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
-      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
-      - SPRING_H2_CONSOLE_ENABLED=${SPRING_H2_CONSOLE_ENABLED}
-      - SPRING_H2_CONSOLE_PATH=${SPRING_H2_CONSOLE_PATH}
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=${SPRING_JPA_HIBERNATE_DDL_AUTO}
-      - SPRING_SQL_INIT_MODE=${SPRING_SQL_INIT_MODE}
-      # Firebase configuration
+      # Database Configuration
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-database:9092/expensedb
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=
+      - SPRING_DATASOURCE_DRIVER=org.h2.Driver
+
+      # JPA Configuration
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=false
+
+      # H2 Console Configuration
+      - SPRING_H2_CONSOLE_ENABLED=true
+      - SPRING_H2_CONSOLE_PATH=/h2-console
+      - SPRING_H2_CONSOLE_WEB_ALLOW_OTHERS=true
+
+      # JWT Configuration (you'll need to set these)
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-here}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-604800000}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
+
+      # Firebase Configuration (you'll need to set these)
+      - FIREBASE_TYPE=${FIREBASE_TYPE:-service_account}
       - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
       - FIREBASE_PRIVATE_KEY_ID=${FIREBASE_PRIVATE_KEY_ID}
       - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
       - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
       - FIREBASE_CLIENT_ID=${FIREBASE_CLIENT_ID}
+      - FIREBASE_AUTH_URI=${FIREBASE_AUTH_URI:-https://accounts.google.com/o/oauth2/auth}
       - FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}
-      # JWT Configuration
-      - JWT_SECRET=${JWT_SECRET}
-      # File upload configuration
-      - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE}
-      - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE}
-      - SPRING_SERVLET_MULTIPART_LOCATION=${SPRING_SERVLET_MULTIPART_LOCATION}
-      # JVM settings
-      - JAVA_OPTS=${JAVA_OPTS}
-      # Logging configuration
-      - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=${LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER}
-      - LOGGING_LEVEL_ROOT=${LOGGING_LEVEL_ROOT}
-      - LOGGING_FILE_NAME=${LOGGING_FILE_NAME}
-      - TINI_SUBREAPER=${TINI_SUBREAPER}
     volumes:
-      - h2-data:/app/h2-data
-      - ./logs:/app/logs:rw
-      # Add Gradle cache volume for faster rebuilds
-      - gradle-cache:/root/.gradle
-    restart: unless-stopped
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
     networks:
-      - expense-network
-    # Fix user permissions for mounted volumes
-    user: "0:0"  # Start as root to fix permissions, entrypoint will switch to appuser
-    # Ensure directories exist on host with correct permissions
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'  # Increased for better build performance
-          memory: 768M  # Increased for build process
-    init: true
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - app-network
+    restart: unless-stopped
 
 networks:
-  expense-network:
+  app-network:
     driver: bridge
 
 volumes:
   h2-data:
-    driver: local
-  gradle-cache:
     driver: local
