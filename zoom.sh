@@ -29,6 +29,7 @@ fi
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
+
 # Check for changes before pulling
 echo "🔍 Checking for remote changes..."
 git fetch
@@ -105,6 +106,7 @@ echo "✅ Build completed successfully!"
 echo "📊 Build artifacts:"
 ls -lah build/libs/
 
+
 echo "Temperature: $(vcgencmd measure_temp)"
 
 # Start H2 database first
@@ -125,6 +127,7 @@ fi
 
 # Start the application with docker-compose
 echo "🚀 Starting application with docker-compose..."
+docker-compose down
 docker-compose down --remove-orphans
 docker-compose up -d
 
@@ -132,6 +135,9 @@ docker-compose up -d
 echo "⏳ Waiting for application to start..."
 sleep 10
 
+# Start the expense-tracker
+echo "🚀 Starting expense-tracker..."
+docker-compose up -d expense-tracker
 # Check application status
 echo "📊 Service Status:"
 if nc -z localhost 9092 2>/dev/null; then
@@ -140,18 +146,25 @@ else
     echo "❌ H2 Database: Not accessible"
 fi
 
+# Follow logs for the service
+echo "📋 Following logs... (Press Ctrl+C to stop following logs)"
+docker-compose logs -f expense-tracker
 if nc -z localhost 8082 2>/dev/null; then
     echo "✅ H2 Web Console: Running (localhost:8082)"
 else
     echo "❌ H2 Web Console: Not accessible"
 fi
 
+echo "🎉 All done! Your application is now running."
 if nc -z localhost 3000 2>/dev/null; then
     echo "✅ Application: Running (localhost:3000)"
 else
     echo "❌ Application: Not accessible"
 fi
 
+echo "Storage: $(df -h / | awk 'NR==2 {print $2}')"; \
+echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"; \
+echo "Temperature: $(vcgencmd measure_temp)"
 echo ""
 echo "🌐 Service URLs:"
 echo "📱 Application: http://localhost:3000"
@@ -162,3 +175,4 @@ echo "👤 DB Credentials: Username: sa, Password: (empty)"
 echo ""
 echo "Final Temperature: $(vcgencmd measure_temp)"
 echo "🎉 Deployment completed successfully!"
+
