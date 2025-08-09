@@ -1,7 +1,9 @@
 FROM openjdk:11-jre-slim
 
 # Install necessary packages
-RUN apt-get update && apt-get install -y wget netcat-openbsd && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget netcat-openbsd \
+ && rm -rf /var/lib/apt/lists/*
 
 # Download H2 database JAR
 RUN wget -O /opt/h2.jar https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar
@@ -9,8 +11,11 @@ RUN wget -O /opt/h2.jar https://repo1.maven.org/maven2/com/h2database/h2/2.2.224
 # Create directory for H2 data
 RUN mkdir -p /opt/h2-data
 
-# Expose ports for TCP server and web console
+# Expose ports for TCP server and Web console
 EXPOSE 9092 8082
+
+# Optional: mark data folder as a volume for persistence
+VOLUME ["/opt/h2-data"]
 
 # Set the working directory
 WORKDIR /opt
@@ -19,9 +24,9 @@ WORKDIR /opt
 HEALTHCHECK --interval=15s --timeout=10s --retries=5 --start-period=60s \
     CMD nc -z localhost 9092 && nc -z localhost 8082
 
-# Start H2 server
+# Start H2 server with remote access enabled
 CMD ["java", "-cp", "/opt/h2.jar", "org.h2.tools.Server", \
-     "-tcp", "-tcpAllowOthers", "-tcpPort", "9092", \
+     "-tcp", "-tcpAllowOthers", "-tcpDaemon", "-tcpPort", "9092", \
      "-web", "-webAllowOthers", "-webPort", "8082", \
      "-baseDir", "/opt/h2-data", \
      "-ifNotExists"]
