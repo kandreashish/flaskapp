@@ -2,9 +2,9 @@ version: '3.8'
 
 services:
   # H2 Database Service
-  h2-database:
+  h2-server:
     image: oscarfonts/h2:2.2.224
-    container_name: h2-database
+    container_name: h2-server
     ports:
       - "9092:9092"  # TCP port for database connections
       - "8082:8082"  # Web console port
@@ -35,7 +35,7 @@ services:
       - h2-server
     environment:
       # Database Configuration
-      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-database:9092/expensedb
+      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-server:9092/expensedb
       - SPRING_DATASOURCE_USERNAME=sa
       - SPRING_DATASOURCE_PASSWORD=
       - SPRING_DATASOURCE_DRIVER=org.h2.Driver
