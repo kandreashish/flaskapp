@@ -35,4 +35,5 @@ USER h2user
 CMD ["java", "-cp", "/opt/h2/h2-2.2.224.jar", "org.h2.tools.Server", \
      "-tcp", "-tcpAllowOthers", "-tcpPort", "9092", \
      "-web", "-webAllowOthers", "-webPort", "8082", \
-     "-baseDir", "/opt/h2-data"]
+     "-baseDir", "/opt/h2-data", \
+     "-ifNotExists"]
