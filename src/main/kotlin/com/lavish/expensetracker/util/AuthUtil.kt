@@ -5,11 +5,14 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
+import org.slf4j.LoggerFactory
 
 @Component
 class AuthUtil(
     private val userService: UserService
 ) {
+
+    private val logger = LoggerFactory.getLogger(AuthUtil::class.java)
 
     fun getCurrentUserId(): String {
         val authentication = SecurityContextHolder.getContext().authentication
@@ -19,14 +22,7 @@ class AuthUtil(
                 "Authentication required. Please provide a valid JWT token."
             )
 
-        // Verify that the user actually exists in the database
-        if (!userService.userExists(userId)) {
-            throw ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "User account not found or has been deactivated. Please re-authenticate."
-            )
-        }
-
+        logger.debug("Retrieved authenticated user ID: $userId")
         return userId
     }
 

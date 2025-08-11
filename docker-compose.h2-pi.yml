@@ -14,6 +14,7 @@ services:
       - ~/Desktop/h2-backup:/opt/h2-data/backup  # Local backup directory
     environment:
       - JAVA_OPTS=-Xms64m -Xmx256m  # Optimized for Raspberry Pi
+      - H2_DATABASE_URL=jdbc:h2:tcp://localhost:9092//opt/h2-data/expensedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;ACCESS_MODE_DATA=rw
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8082 || exit 1"]
