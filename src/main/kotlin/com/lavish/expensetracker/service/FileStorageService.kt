@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.service
 
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.Acl
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
@@ -8,6 +9,7 @@ import com.google.cloud.storage.StorageOptions
 import com.google.firebase.FirebaseApp
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.core.io.ClassPathResource
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
@@ -48,10 +50,11 @@ class FileStorageService(
                 logger.info("Using default Firebase Storage bucket: {}", firebaseStorageBucket)
             }
 
-            // Create GoogleCredentials from environment variables (same as FirebaseConfig)
-            val credentials = loadCredentialsFromEnvironment()
+            // Load credentials the same way as FirebaseConfig to ensure consistency
+            val resource = ClassPathResource("serviceAccountKey.json")
+            val credentials = GoogleCredentials.fromStream(resource.inputStream)
 
-            // Use the same credentials as Firebase App
+            // Use the same credentials approach as FirebaseConfig
             storage = StorageOptions.newBuilder()
                 .setProjectId(firebaseApp.options.projectId)
                 .setCredentials(credentials)
@@ -76,42 +79,6 @@ class FileStorageService(
             logger.error("Failed to initialize Firebase Storage", ex)
             throw RuntimeException("Failed to initialize Firebase Storage: ${ex.message}", ex)
         }
-    }
-
-    private fun loadCredentialsFromEnvironment(): com.google.auth.oauth2.GoogleCredentials {
-        val projectId = System.getenv("FIREBASE_PROJECT_ID")
-            ?: throw IllegalArgumentException("FIREBASE_PROJECT_ID environment variable is required")
-        val privateKeyId = System.getenv("FIREBASE_PRIVATE_KEY_ID")
-            ?: throw IllegalArgumentException("FIREBASE_PRIVATE_KEY_ID environment variable is required")
-        val privateKey = System.getenv("FIREBASE_PRIVATE_KEY")
-            ?: throw IllegalArgumentException("FIREBASE_PRIVATE_KEY environment variable is required")
-        val clientEmail = System.getenv("FIREBASE_CLIENT_EMAIL")
-            ?: throw IllegalArgumentException("FIREBASE_CLIENT_EMAIL environment variable is required")
-        val clientId = System.getenv("FIREBASE_CLIENT_ID")
-            ?: throw IllegalArgumentException("FIREBASE_CLIENT_ID environment variable is required")
-
-        logger.info("Loading Firebase credentials from environment variables for project: $projectId")
-
-        // The private key from environment already contains \n literals, so we need to convert them to actual newlines
-        val escapedPrivateKey = privateKey.replace("\\n", "\n")
-
-        val serviceAccountJson = """
-        {
-            "type": "service_account",
-            "project_id": "$projectId",
-            "private_key_id": "$privateKeyId",
-            "private_key": "$escapedPrivateKey",
-            "client_email": "$clientEmail",
-            "client_id": "$clientId",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/${clientEmail.replace("@", "%40")}",
-            "universe_domain": "googleapis.com"
-        }
-        """.trimIndent()
-
-        return com.google.auth.oauth2.GoogleCredentials.fromStream(serviceAccountJson.byteInputStream())
     }
 
     fun uploadProfilePicture(file: MultipartFile, userId: String): String {
