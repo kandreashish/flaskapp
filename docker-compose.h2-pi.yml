@@ -14,7 +14,7 @@ services:
       - ./h2-backup:/opt/h2-data/backup  # Local backup directory
     environment:
       - JAVA_OPTS=-Xms64m -Xmx256m  # Optimized for Raspberry Pi
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8082 || exit 1"]
       interval: 30s
