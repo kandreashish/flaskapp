@@ -11,7 +11,7 @@ services:
       - "8082:8082"  # Web console port
     volumes:
       - ./h2-data:/opt/h2-data  # Direct mapping to local directory
-      - ./h2-backup:/opt/h2-data/backup  # Local backup directory
+      - ~/Desktop/h2-backup:/opt/h2-data/backup  # Local backup directory
     environment:
       - JAVA_OPTS=-Xms64m -Xmx256m  # Optimized for Raspberry Pi
     restart: always
