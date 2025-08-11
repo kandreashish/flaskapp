@@ -1,25 +1,4 @@
 services:
-  # H2 Database Service
-  h2-database:
-    image: oscarfonts/h2:2.2.224
-    container_name: h2-database
-    ports:
-      - "9092:9092"  # TCP port for database connections
-      - "8082:8082"  # Web console port
-    volumes:
-      - h2-data:/opt/h2-data
-      - ./data:/opt/h2-data/backup  # Mount local data directory for backups
-    environment:
-      - H2_OPTIONS=-tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082 -baseDir /opt/h2-data
-    networks:
-      - app-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8082 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   # Your Application Service
   expense-tracker:
     build:
@@ -28,9 +7,6 @@ services:
     container_name: expense-tracker-app
     ports:
       - "3000:3000"
-    depends_on:
-      h2-database:
-        condition: service_healthy
     environment:
       # Database Configuration - from .env
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
@@ -84,14 +60,5 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
-    networks:
-      - app-network
+    network_mode: host
     restart: unless-stopped
-
-networks:
-  app-network:
-    driver: bridge
-
-volumes:
-  h2-data:
-    driver: local
