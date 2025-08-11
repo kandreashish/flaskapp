@@ -30,7 +30,7 @@ services:
 
       # Firebase Configuration - from .env
       - FIREBASE_AUTH_URI=${FIREBASE_AUTH_URI:-https://accounts.google.com/o/oauth2/auth}
-      - FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}
+      - FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET:-firebase-expense-tracker.appspot.com}
 
       # Spring Configuration - from .env
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
