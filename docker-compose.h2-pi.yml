@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  h2-database:
+    build:
+      context: .
+      dockerfile: Dockerfile.h2-pi
+    container_name: h2-database-pi
+    ports:
+      - "9092:9092"  # TCP port for database connections
+      - "8082:8082"  # Web console port
+    volumes:
+      - h2-data:/opt/h2-data
+      - ./h2-backup:/opt/h2-data/backup  # Local backup directory
+    environment:
+      - JAVA_OPTS=-Xms64m -Xmx256m  # Optimized for Raspberry Pi
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - h2-network
+
+networks:
+  h2-network:
+    driver: bridge
+
+volumes:
+  h2-data:
+    driver: local
