@@ -1,6 +1,7 @@
 package com.lavish.expensetracker.security
 
 import com.lavish.expensetracker.service.JwtService
+import com.lavish.expensetracker.service.UserService
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -18,6 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 @Component
 class JwtAuthFilter(
     private val jwtService: JwtService,
+    private val userService: UserService,
     private val objectMapper: ObjectMapper = ObjectMapper()
 ) : OncePerRequestFilter() {
 
@@ -41,6 +43,13 @@ class JwtAuthFilter(
 
             if (userId != null && SecurityContextHolder.getContext().authentication == null) {
                 if (jwtService.isTokenValid(jwt)) {
+                    // Check if user actually exists in the database
+                    if (!userService.userExists(userId)) {
+                        logger1.warn("Token is valid but user does not exist: $userId")
+                        sendUserNotFoundResponse(response)
+                        return
+                    }
+
                     val authorities = listOf(SimpleGrantedAuthority("ROLE_USER"))
                     val authToken = UsernamePasswordAuthenticationToken(
                         userId,
@@ -73,6 +82,19 @@ class JwtAuthFilter(
         val errorResponse = mapOf(
             "error" to "TOKEN_EXPIRED",
             "message" to "Your session has expired. Please log in again.",
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        response.writer.write(objectMapper.writeValueAsString(errorResponse))
+    }
+
+    private fun sendUserNotFoundResponse(response: HttpServletResponse) {
+        response.status = HttpStatus.UNAUTHORIZED.value()
+        response.contentType = MediaType.APPLICATION_JSON_VALUE
+
+        val errorResponse = mapOf(
+            "error" to "USER_NOT_FOUND",
+            "message" to "User account not found or has been deactivated. Please re-authenticate.",
             "timestamp" to System.currentTimeMillis()
         )
 
