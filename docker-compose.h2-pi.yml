@@ -5,12 +5,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.h2
-    container_name: h2-database-pi
+    container_name: h2
     ports:
       - "9092:9092"  # TCP port for database connections
       - "8082:8082"  # Web console port
     volumes:
-      - h2-data:/opt/h2-data
+      - ./h2-data:/opt/h2-data  # Direct mapping to local directory
       - ./h2-backup:/opt/h2-data/backup  # Local backup directory
     environment:
       - JAVA_OPTS=-Xms64m -Xmx256m  # Optimized for Raspberry Pi
@@ -27,7 +27,3 @@ services:
 networks:
   h2-network:
     driver: bridge
-
-volumes:
-  h2-data:
-    driver: local
