@@ -1,5 +1,5 @@
 # Optimized Dockerfile for Raspberry Pi ARM64 - Fast Build
-FROM --platform=linux/arm64 eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 
