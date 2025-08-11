@@ -17,7 +17,7 @@ RUN groupadd -g 1000 appgroup && \
     useradd -r -u 1000 -g appgroup -d /app -s /bin/bash appuser
 
 # Copy the pre-built JAR (build locally first with ./gradlew bootJar)
-COPY build/libs/*-SNAPSHOT.jar app.jar
+COPY build/libs/expense-tracker-0.0.11-SNAPSHOT.jar app.jar
 
 # Create necessary directories with proper permissions for Raspberry Pi
 RUN mkdir -p /app/logs /app/data /app/uploads/profile-pics /app/tmp && \
