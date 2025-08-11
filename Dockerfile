@@ -26,8 +26,8 @@ RUN mkdir -p /app/logs /app/data /app/uploads/profile-pics /app/tmp && \
     chmod 777 /app/logs /app/uploads /app/uploads/profile-pics
 
 # Copy Firebase service account key if it exists
-COPY src/main/resources/serviceAccountKey.json /app/serviceAccountKey.json 2>/dev/null || true
-RUN chown appuser:appgroup /app/serviceAccountKey.json 2>/dev/null || true
+COPY src/main/resources/serviceAccountKey.json /app/serviceAccountKey.json
+RUN chown appuser:appgroup /app/serviceAccountKey.json
 
 # Switch to non-root user
 USER appuser
