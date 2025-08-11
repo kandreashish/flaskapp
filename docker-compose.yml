@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # H2 Database Service
   h2-database:
@@ -13,12 +11,11 @@ services:
       - ./data:/opt/h2-data/backup  # Mount local data directory for backups
     environment:
       - H2_OPTIONS=-tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082 -baseDir /opt/h2-data
-    command: java -cp /opt/h2/bin/h2*.jar org.h2.tools.Server -tcp -tcpAllowOthers -tcpPort 9092 -web -webAllowOthers -webPort 8082 -baseDir /opt/h2-data -ifNotExists
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "java", "-cp", "/opt/h2/bin/h2*.jar", "org.h2.tools.Shell", "-url", "jdbc:h2:tcp://localhost:9092/test", "-sql", "SELECT 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8082 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -32,29 +29,30 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - h2-database
+      h2-database:
+        condition: service_healthy
     environment:
-      # Database Configuration
-      - SPRING_DATASOURCE_URL=jdbc:h2:tcp://h2-database:9092/expensedb
-      - SPRING_DATASOURCE_USERNAME=sa
-      - SPRING_DATASOURCE_PASSWORD=
+      # Database Configuration - from .env
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
       - SPRING_DATASOURCE_DRIVER=org.h2.Driver
 
-      # JPA Configuration
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      # JPA Configuration - from .env
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=${SPRING_JPA_HIBERNATE_DDL_AUTO}
       - SPRING_JPA_SHOW_SQL=false
 
-      # H2 Console Configuration
-      - SPRING_H2_CONSOLE_ENABLED=true
-      - SPRING_H2_CONSOLE_PATH=/h2-console
+      # H2 Console Configuration - from .env
+      - SPRING_H2_CONSOLE_ENABLED=${SPRING_H2_CONSOLE_ENABLED}
+      - SPRING_H2_CONSOLE_PATH=${SPRING_H2_CONSOLE_PATH}
       - SPRING_H2_CONSOLE_WEB_ALLOW_OTHERS=true
 
-      # JWT Configuration (you'll need to set these)
-      - JWT_SECRET=${JWT_SECRET:-your-secret-key-here}
+      # JWT Configuration - from .env
+      - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION=${JWT_EXPIRATION:-604800000}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
 
-      # Firebase Configuration (you'll need to set these)
+      # Firebase Configuration - from .env
       - FIREBASE_TYPE=${FIREBASE_TYPE:-service_account}
       - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
       - FIREBASE_PRIVATE_KEY_ID=${FIREBASE_PRIVATE_KEY_ID}
@@ -63,6 +61,26 @@ services:
       - FIREBASE_CLIENT_ID=${FIREBASE_CLIENT_ID}
       - FIREBASE_AUTH_URI=${FIREBASE_AUTH_URI:-https://accounts.google.com/o/oauth2/auth}
       - FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}
+
+      # Spring Configuration - from .env
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
+      - SPRING_SQL_INIT_MODE=${SPRING_SQL_INIT_MODE}
+
+      # File Upload Configuration - from .env
+      - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE}
+      - SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE}
+      - SPRING_SERVLET_MULTIPART_LOCATION=${SPRING_SERVLET_MULTIPART_LOCATION}
+
+      # JVM Configuration - from .env
+      - JAVA_OPTS=${JAVA_OPTS}
+
+      # Logging Configuration - from .env
+      - LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER=${LOGGING_LEVEL_COM_LAVISH_EXPENSETRACKER_CONTROLLER}
+      - LOGGING_LEVEL_ROOT=${LOGGING_LEVEL_ROOT}
+      - LOGGING_FILE_NAME=${LOGGING_FILE_NAME}
+
+      # Other Configuration - from .env
+      - TINI_SUBREAPER=${TINI_SUBREAPER}
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
