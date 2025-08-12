@@ -460,15 +460,18 @@ class HomeController {
     
     <div class="section">
         <h2>🔔 Notification Endpoints</h2>
-        
         <div class="endpoint">
             <span class="method get">GET</span> 
             /api/notifications
             <div>Get user notifications</div>
+            <div><b>Authentication:</b> Required</div>
+            <div><b>Status Codes:</b> 200 OK, 401 Unauthorized</div>
             <div class="code-label">Query Parameters:</div>
-            <code>page</code> - Page number (default: 0)<br>
-            <code>size</code> - Page size (default: 20)<br>
-            <div class="code-label">Response:</div>
+            <ul>
+                <li><code>page</code> (integer, optional) - Page number (default: 0)</li>
+                <li><code>size</code> (integer, optional) - Page size (default: 20)</li>
+            </ul>
+            <div class="code-label">Success Response (200):</div>
             <div class="sample-response">
 {
   "content": [
@@ -510,25 +513,51 @@ class HomeController {
   "empty": false
 }
             </div>
+            <div class="code-label">Error Response (401):</div>
+            <div class="sample-response">
+{
+  "timestamp": "2025-08-12T10:23:45.123Z",
+  "status": 401,
+  "error": "Unauthorized",
+  "message": "Full authentication is required to access this resource",
+  "path": "/api/notifications"
+}
+            </div>
         </div>
-        
         <div class="endpoint">
             <span class="method put">PUT</span> 
             /api/notifications/{notificationId}/read
             <div>Mark notification as read</div>
-            <div class="code-label">Response:</div>
+            <div><b>Authentication:</b> Required</div>
+            <div><b>Status Codes:</b> 200 OK, 404 Not Found, 401 Unauthorized</div>
+            <div class="code-label">Path Parameters:</div>
+            <ul>
+                <li><code>notificationId</code> (long, required) - Notification ID</li>
+            </ul>
+            <div class="code-label">Success Response (200):</div>
             <div class="sample-response">
 {
   "message": "Notification marked as read"
 }
             </div>
+            <div class="code-label">Error Response (404):</div>
+            <div class="sample-response">
+{
+  "timestamp": "2025-08-12T10:23:45.123Z",
+  "status": 404,
+  "error": "Not Found",
+  "message": "Notification not found",
+  "path": "/api/notifications/999/read"
+}
+            </div>
         </div>
-        
         <div class="endpoint">
             <span class="method put">PUT</span> 
             /api/notifications/read-all
             <div>Mark all notifications as read</div>
-            <div class="code-label">Response:</div>
+            <div><b>Authentication:</b> Required</div>
+            <div><b>Status Codes:</b> 200 OK, 401 Unauthorized</div>
+            <div class="code-label">Success Response (200):</div>
             <div class="sample-response">
 {
   "message": "All notifications marked as read",
@@ -539,72 +568,213 @@ class HomeController {
     </div>
     
     <div class="section">
-        <h2>📂 File Management Endpoints</h2>
-        
-        <div class="endpoint">
-            <span class="method get">GET</span> 
-            /api/files/profile-pics/{userId}/refresh
-            <div>Refresh profile picture download URL</div>
-            <div class="code-label">Response:</div>
-            <div class="sample-response">
-{
-  "url": "https://storage.googleapis.com/profile-pics/user123.jpg?token=expired-token"
-}
-            </div>
+        <h2>🔔 Notification Endpoints (Detailed)</h2>
+        <div style="background:#e9ecef;padding:10px;border-radius:6px;margin-bottom:10px;">
+            <b>Legend:</b> <br>
+            <span class="method get">GET</span>, <span class="method post">POST</span>, <span class="method put">PUT</span>, <span class="method delete">DELETE</span> = HTTP methods<br>
+            <b>Authentication:</b> Required for all endpoints.<br>
+            <b>Status Codes:</b> <span style="color:#28a745">200 OK</span>, <span style="color:#dc3545">4xx/5xx Error</span><br>
+            <b>Path Params:</b> <code>{param}</code> = required, <code>[param]</code> = optional
         </div>
-    </div>
-    
-    <div class="section">
-        <h2>🔧 Build Info Endpoints (No Authentication Required)</h2>
-        
         <div class="endpoint">
-            <span class="method get">GET</span> 
-            /api/build/info
-            <div>Get detailed information about build JAR files</div>
-            <div class="code-label">Response:</div>
-            <div class="sample-response">
-{
-  "buildDirectory": "/app/build/libs",
-  "jarFiles": [
-    {
-      "fileName": "expense-tracker-0.0.11-SNAPSHOT.jar",
-      "fileSize": 112206173,
-      "fileSizeFormatted": "107.0 MB",
-      "lastModified": "2025-08-12T09:52:35",
-      "manifestInfo": {
-        "Implementation-Title": "expense-tracker",
-        "Implementation-Version": "0.0.11-SNAPSHOT"
-      }
-    }
-  ],
-  "totalJars": 1,
-  "buildTimestamp": 1691658789123
-}
-            </div>
+            <span class="method get">GET</span> <b>/api/notifications</b>
+            <div>Get paginated notifications for the current user. Supports cursor-based pagination with <code>lastNotificationId</code>.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 401 Unauthorized, 500 Error</li>
+            </ul>
+            <div class="code-label">Query Parameters:</div>
+            <ul>
+                <li><code>size</code> (integer, optional) - Page size (default: 10, max: 100)</li>
+                <li><code>lastNotificationId</code> (long, optional) - For cursor-based pagination</li>
+            </ul>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "content": [ { /* Notification object */ } ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 42,
+  "totalPages": 5,
+  "isFirst": true,
+  "isLast": false,
+  "hasNext": true,
+  "hasPrevious": false,
+  "lastExpenseId": "123"
+}</div>
         </div>
-        
         <div class="endpoint">
-            <span class="method get">GET</span> 
-            /api/build/manifest
-            <div>Get detailed manifest attributes for all JAR files</div>
-            <div class="code-label">Response:</div>
-            <div class="sample-response">
-{
-  "manifests": [
-    {
-      "fileName": "expense-tracker-0.0.11-SNAPSHOT.jar",
-      "manifestEntries": {
-        "Manifest-Version": "1.0",
-        "Implementation-Title": "expense-tracker",
-        "Implementation-Version": "0.0.11-SNAPSHOT",
-        "Built-By": "Gradle",
-        "Build-Jdk": "17.0.3",
-        "Created-By": "Gradle"
-      }
-    }
-  ]
-}
-            </div>
+            <span class="method get">GET</span> <b>/api/notifications/{id}</b>
+            <div>Get a notification by its ID.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 404 Not Found, 401 Unauthorized</li>
+            </ul>
+            <div class="code-label">Path Parameters:</div>
+            <ul><li><code>id</code> (long, required) - Notification ID</li></ul>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "message": "Notification retrieved successfully",
+  "status": "success"
+}</div>
+        </div>
+        <div class="endpoint">
+            <span class="method post">POST</span> <b>/api/notifications</b>
+            <div>Create a new notification.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 400 Bad Request, 500 Error</li>
+            </ul>
+            <div class="code-label">Request:</div>
+            <div class="sample-request">{
+  "title": "Family Invitation",
+  "message": "You have been invited to join...",
+  "type": "JOIN_FAMILY_INVITATION",
+  "familyId": "family123",
+  "senderId": "user123",
+  "receiverId": "user456"
+}</div>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "message": "Notification created successfully",
+  "status": "success"
+}</div>
+        </div>
+        <div class="endpoint">
+            <span class="method put">PUT</span> <b>/api/notifications/{id}</b>
+            <div>Update a notification by its ID.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 404 Not Found, 400 Bad Request, 500 Error</li>
+            </ul>
+            <div class="code-label">Path Parameters:</div>
+            <ul><li><code>id</code> (long, required) - Notification ID</li></ul>
+            <div class="code-label">Request:</div>
+            <div class="sample-request">{
+  "title": "Updated Title",
+  "message": "Updated message...",
+  "type": "GENERAL",
+  ...
+}</div>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "message": "Notification updated successfully",
+  "status": "success",
+  "data": { /* Updated Notification object */ }
+}</div>
+        </div>
+        <div class="endpoint">
+            <span class="method delete">DELETE</span> <b>/api/notifications/{id}</b>
+            <div>Delete a notification by its ID.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 404 Not Found, 500 Error</li>
+            </ul>
+            <div class="code-label">Path Parameters:</div>
+            <ul><li><code>id</code> (long, required) - Notification ID</li></ul>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "message": "Notification deleted successfully",
+  "status": "success"
+}</div>
+        </div>
+        <div class="endpoint">
+            <span class="method put">PUT</span> <b>/api/notifications/{id}/mark-read</b>
+            <div>Mark a notification as read by its ID.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 404 Not Found, 500 Error</li>
+            </ul>
+            <div class="code-label">Path Parameters:</div>
+            <ul><li><code>id</code> (long, required) - Notification ID</li></ul>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "message": "Notification marked as read successfully",
+  "status": "success",
+  "data": { /* Notification object */ }
+}</div>
+        </div>
+        <div class="endpoint">
+            <span class="method put">PUT</span> <b>/api/notifications/mark-all-read</b>
+            <div>Mark all notifications as read for the current user.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 500 Error</li>
+            </ul>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "message": "10 notifications marked as read",
+  "status": "success"
+}</div>
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span> <b>/api/notifications/unread</b>
+            <div>Get all unread notifications for the current user.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 500 Error</li>
+            </ul>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "message": "Found 3 unread notifications",
+  "status": "success"
+}</div>
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span> <b>/api/notifications/{id}/details</b>
+            <div>Get detailed information for a notification by its ID.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 403 Forbidden, 404 Not Found, 500 Error</li>
+            </ul>
+            <div class="code-label">Path Parameters:</div>
+            <ul><li><code>id</code> (long, required) - Notification ID</li></ul>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "message": "Notification details retrieved successfully",
+  "status": "success",
+  "data": {
+    "id": 123,
+    "title": "Family Invitation",
+    "message": "You have been invited...",
+    "customMessage": "📨 Family invitation: You've been invited...",
+    "timestamp": 1691658789123,
+    "isRead": false,
+    "familyId": "family123",
+    "familyAlias": "DOE456",
+    "senderName": "John Doe",
+    "senderId": "user123",
+    "receiverId": "user456",
+    "actionable": true,
+    "type": "JOIN_FAMILY_INVITATION",
+    "typeDescription": "Family Invitation"
+  }
+}</div>
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span> <b>/api/notifications/since</b>
+            <div>Get notifications for the current user since a given timestamp.</div>
+            <ul>
+                <li><b>Authentication:</b> Required</li>
+                <li><b>Status Codes:</b> 200 OK, 400 Bad Request, 500 Error</li>
+            </ul>
+            <div class="code-label">Query Parameters:</div>
+            <ul>
+                <li><code>timestamp</code> (long, required) - Only notifications after this timestamp</li>
+                <li><code>size</code> (integer, optional) - Page size (default: 50, max: 100)</li>
+            </ul>
+            <div class="code-label">Success Response (200):</div>
+            <div class="sample-response">{
+  "content": [ { /* Notification object */ } ],
+  "page": 0,
+  "size": 50,
+  "totalElements": 10,
+  "totalPages": 1,
+  "isFirst": true,
+  "isLast": true,
+  "hasNext": false,
+  "hasPrevious": false,
+  "lastExpenseId": null
+}</div>
         </div>
     </div>
 
