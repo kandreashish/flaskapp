@@ -2,11 +2,12 @@ package com.lavish.expensetracker.repository
 
 import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.model.PagedResponse
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Repository
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.ceil
-import org.springframework.data.domain.Page
 
 @Repository
 class ExpenseRepositoryImpl : ExpenseRepository {
@@ -110,7 +111,7 @@ class ExpenseRepositoryImpl : ExpenseRepository {
         }
 
         // Return a simple Page implementation using Spring's PageImpl
-        return org.springframework.data.domain.PageImpl(content, pageable, totalElements)
+        return PageImpl(content, pageable, totalElements)
     }
 
     // New methods for soft delete and "since" functionality
@@ -208,7 +209,7 @@ class ExpenseRepositoryImpl : ExpenseRepository {
             emptyList()
         }
 
-        return org.springframework.data.domain.PageImpl(content, pageable, totalElements)
+        return PageImpl(content, pageable, totalElements)
     }
 
     // Helper method to check if repository has data (for DataInitializer)
@@ -219,56 +220,56 @@ class ExpenseRepositoryImpl : ExpenseRepository {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.familyId == familyId && !expense.deleted && expense.date > cursorValue
         }.sortedBy { it.date }
-        return org.springframework.data.domain.PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
+        return PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
     }
 
     override fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateLessThanOrderByDateDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.familyId == familyId && !expense.deleted && expense.date < cursorValue
         }.sortedByDescending { it.date }
-        return org.springframework.data.domain.PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
+        return PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
     }
 
     override fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.familyId == familyId && !expense.deleted && expense.expenseCreatedOn > cursorValue
         }.sortedBy { it.expenseCreatedOn }
-        return org.springframework.data.domain.PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
+        return PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
     }
 
     override fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.familyId == familyId && !expense.deleted && expense.expenseCreatedOn < cursorValue
         }.sortedByDescending { it.expenseCreatedOn }
-        return org.springframework.data.domain.PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
+        return PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
     }
 
     override fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.familyId == familyId && !expense.deleted && expense.lastModifiedOn > cursorValue
         }.sortedBy { it.lastModifiedOn }
-        return org.springframework.data.domain.PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
+        return PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
     }
 
     override fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(familyId: String, cursorValue: Long, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.familyId == familyId && !expense.deleted && expense.lastModifiedOn < cursorValue
         }.sortedByDescending { it.lastModifiedOn }
-        return org.springframework.data.domain.PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
+        return PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
     }
 
     override fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountGreaterThanOrderByAmountAsc(familyId: String, cursorValue: Int, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.familyId == familyId && !expense.deleted && expense.amount > cursorValue
         }.sortedBy { it.amount }
-        return org.springframework.data.domain.PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
+        return PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
     }
 
     override fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountLessThanOrderByAmountDesc(familyId: String, cursorValue: Int, pageable: Pageable): Page<ExpenseDto> {
         val filteredExpenses = expenses.values.filter { expense ->
             expense.familyId == familyId && !expense.deleted && expense.amount < cursorValue
         }.sortedByDescending { it.amount }
-        return org.springframework.data.domain.PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
+        return PageImpl(filteredExpenses.take(pageable.pageSize), pageable, filteredExpenses.size.toLong())
     }
 
     private fun createPagedResponse(allItems: List<ExpenseDto>, page: Int, size: Int): PagedResponse<ExpenseDto> {
@@ -292,7 +293,8 @@ class ExpenseRepositoryImpl : ExpenseRepository {
             isFirst = page == 0,
             isLast = page >= totalPages - 1,
             hasNext = page < totalPages - 1,
-            hasPrevious = page > 0
+            hasPrevious = page > 0,
+            totalSumForMonth = 0.0, // Placeholder for total sum of expenses for the month
         )
     }
 }

@@ -124,7 +124,8 @@ class NotificationController @Autowired constructor(
                 isLast = result.isLast,
                 hasNext = result.hasNext(),
                 hasPrevious = result.hasPrevious(),
-                lastExpenseId = if (result.content.isNotEmpty()) result.content.last().id.toString() else null
+                lastExpenseId = if (result.content.isNotEmpty()) result.content.last().id.toString() else null,
+                totalSumForMonth = 0.0
             )
 
             val executionTime = System.currentTimeMillis() - startTime
@@ -623,7 +624,8 @@ class NotificationController @Autowired constructor(
                         isLast = true,
                         hasNext = false,
                         hasPrevious = false,
-                        lastExpenseId = null
+                        lastExpenseId = null,
+                        totalSumForMonth = 0.0
                     )
                 )
             }
@@ -656,6 +658,7 @@ class NotificationController @Autowired constructor(
                 isLast = notifications.isLast,
                 hasNext = notifications.hasNext(),
                 hasPrevious = notifications.hasPrevious(),
+                totalSumForMonth = 0.0,
                 lastExpenseId = if (notifications.content.isNotEmpty()) notifications.content.last().id.toString() else null
             )
 
@@ -682,7 +685,8 @@ class NotificationController @Autowired constructor(
                     isLast = true,
                     hasNext = false,
                     hasPrevious = false,
-                    lastExpenseId = null
+                    lastExpenseId = null,
+                    totalSumForMonth = 0.0
                 )
             )
         }

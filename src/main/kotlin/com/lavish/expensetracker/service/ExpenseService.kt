@@ -12,6 +12,7 @@ import com.lavish.expensetracker.model.toDto
 import com.lavish.expensetracker.model.toEntity
 import com.lavish.expensetracker.repository.ExpenseJpaRepository
 import org.springframework.dao.DataAccessException
+import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
@@ -169,7 +170,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findByUserIdAndCategory(userId, category, pageable)
 
-        return createPagedResponse(result, validatedPage, validatedSize)
+        return createPagedResponse(result, validatedPage, validatedSize, userId)
     }
 
     fun getExpensesByUserIdAndDateRange(
@@ -184,13 +185,14 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val pageable = PageRequest.of(validatedPage, validatedSize)
         val result = expenseRepository.findByUserIdAndDateBetween(userId, startDate, endDate, pageable)
 
-        return createPagedResponse(result, validatedPage, validatedSize)
+        return createPagedResponse(result, validatedPage, validatedSize,userId)
     }
 
     private fun createPagedResponse(
-        result: org.springframework.data.domain.Page<Expense>,
+        result: Page<Expense>,
         page: Int,
-        size: Int
+        size: Int,
+        userId: String
     ): PagedResponse<ExpenseDto> {
         return PagedResponse(
             content = result.content.map { it.toDto() },
@@ -201,7 +203,13 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = result.isFirst,
             isLast = result.isLast,
             hasNext = result.hasNext(),
-            hasPrevious = result.hasPrevious()
+            hasPrevious = result.hasPrevious(),
+            totalSumForMonth = getMonthlyExpenseSum(
+                userId,
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                null
+            ).toDouble(),
         )
     }
 
@@ -320,7 +328,13 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isLast = !hasMore,
             hasNext = hasMore,
             hasPrevious = false,
-            lastExpenseId = result.content.lastOrNull()?.expenseId
+            lastExpenseId = result.content.lastOrNull()?.expenseId,
+            totalSumForMonth = getMonthlyExpenseSum(
+                userId,
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                null
+            ).toDouble(),
         )
     }
 
@@ -413,7 +427,13 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = true,
             isLast = !hasMore,
             hasNext = hasMore,
-            hasPrevious = false
+            hasPrevious = false,
+            totalSumForMonth = getMonthlyExpenseSum(
+                userId,
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                null
+            ).toDouble(),
         )
     }
 
@@ -470,7 +490,13 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isLast = !hasMore,
             hasNext = hasMore,
             hasPrevious = false,
-            lastExpenseId = result.content.lastOrNull()?.expenseId
+            lastExpenseId = result.content.lastOrNull()?.expenseId,
+            totalSumForMonth = getMonthlyExpenseSum(
+                userId,
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                null
+            ).toDouble(),
         )
     }
 
@@ -550,7 +576,13 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = false,
             isLast = !hasMore,
             hasNext = hasMore,
-            hasPrevious = true
+            hasPrevious = true,
+            totalSumForMonth = getMonthlyExpenseSum(
+                userId,
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                null
+            ).toDouble(),
         )
     }
 
@@ -805,6 +837,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = false, // We don't know the position in cursor-based pagination
             isLast = result.content.size < validatedSize,
             hasNext = result.content.size == validatedSize,
+            totalSumForMonth = getFamilyMonthlyExpenseSum(
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                familyId
+            ).toDouble(),
             hasPrevious = true // Since we're using a cursor, there's likely previous data
         )
     }
@@ -864,7 +901,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = true,
             isLast = result.content.size < validatedSize,
             hasNext = result.content.size == validatedSize,
-            hasPrevious = false
+            hasPrevious = false,
+            totalSumForMonth = getFamilyMonthlyExpenseSum(
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                familyId
+            ).toDouble(),
         )
     }
 
@@ -957,7 +999,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = false,
             isLast = result.content.size < validatedSize,
             hasNext = result.content.size == validatedSize,
-            hasPrevious = true
+            hasPrevious = true,
+            totalSumForMonth = getFamilyMonthlyExpenseSum(
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                familyId
+            ).toDouble(),
         )
     }
 
