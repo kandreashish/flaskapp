@@ -15,6 +15,12 @@ set -e
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
+# Detect docker-compose v1 and disable BuildKit (avoids 'ContainerConfig' KeyError bug)
+if docker-compose version 2>/dev/null | grep -q 'version 1.'; then
+  echo "⚠️ docker-compose v1 detected; disabling BuildKit for compatibility"
+  export DOCKER_BUILDKIT=0
+fi
+
 
 # Check for changes before pulling
 echo "🔍 Checking for remote changes..."
@@ -54,26 +60,37 @@ echo "🔨 Building fresh JAR..."
 if [ $? -ne 0 ]; then
   echo "❌ Gradle build failed. Aborting."; exit 1; fi
 
-# Optional: show artifact checksum to confirm change
-ARTIFACT="build/libs/expense-tracker-0.0.11-SNAPSHOT.jar"
-if [ -f "$ARTIFACT" ]; then
-  echo "📦 Artifact: $ARTIFACT"
-  (command -v sha256sum >/dev/null && sha256sum "$ARTIFACT") || (shasum -a 256 "$ARTIFACT")
+# After successful gradle bootJar build, replace artifact handling block
+ARTIFACT_PATTERN="build/libs/*-SNAPSHOT.jar"
+JAR_FILE=$(ls $ARTIFACT_PATTERN 2>/dev/null | head -n1 || true)
+if [ -z "$JAR_FILE" ]; then
+  echo "❌ No JAR found matching $ARTIFACT_PATTERN"; exit 1
+fi
+ln -sf "$(basename "$JAR_FILE")" build/libs/app.jar
+echo "📦 Using JAR: $JAR_FILE"
+(command -v sha256sum >/dev/null && sha256sum "$JAR_FILE") || (shasum -a 256 "$JAR_FILE")
+
+# Prefer docker compose (v2) if available
+if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
+  DC='docker compose'
 else
-  echo "❌ Expected artifact missing: $ARTIFACT"; exit 1
+  DC='docker-compose'
 fi
 
-# Force Docker image rebuild with no cache to ensure new JAR is baked in
+# Rebuild image without cache to ensure new JAR is copied
 echo "🐳 Rebuilding Docker image (no cache)..."
-docker-compose build --no-cache expense-tracker
+$DC build --no-cache expense-tracker
 
-# Recreate container to pick up new image
+# Remove old container explicitly to avoid stale metadata issues
+$DC rm -f expense-tracker 2>/dev/null || true
+
+# Recreate container
 echo "🚀 Restarting container..."
-docker-compose up -d --force-recreate expense-tracker
+$DC up -d --force-recreate expense-tracker
 
-# Tail logs briefly
+# Logs
 echo "📋 Recent logs:"
-docker-compose logs --tail=100 expense-tracker
+$DC logs --tail=100 expense-tracker
 
 echo "🎉 All done! Your application is now running."
 

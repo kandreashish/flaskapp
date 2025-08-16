@@ -16,8 +16,8 @@ RUN apt-get update && \
 RUN groupadd -g 1000 appgroup && \
     useradd -r -u 1000 -g appgroup -d /app -s /bin/bash appuser
 
-# Copy the pre-built JAR (build locally first with ./gradlew bootJar)
-COPY build/libs/expense-tracker-0.0.11-SNAPSHOT.jar app.jar
+# Copy the pre-built JAR via stable name (zoom.sh creates build/libs/app.jar symlink)
+COPY build/libs/app.jar app.jar
 
 # Create necessary directories with proper permissions for Raspberry Pi
 RUN mkdir -p /app/logs /app/data /app/uploads/profile-pics /app/tmp && \
@@ -27,7 +27,7 @@ RUN mkdir -p /app/logs /app/data /app/uploads/profile-pics /app/tmp && \
 
 # Copy Firebase service account key if it exists
 COPY src/main/resources/serviceAccountKey.json /app/serviceAccountKey.json
-RUN chown appuser:appgroup /app/serviceAccountKey.json
+RUN chown appuser:appgroup /app/serviceAccountKey.json || true
 
 # Switch to non-root user
 USER appuser
