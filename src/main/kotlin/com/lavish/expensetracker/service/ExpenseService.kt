@@ -332,7 +332,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         )
     }
 
-    fun getMonthlyExpenseSum(userId: String, year: Int, month: Int, familyId: String?=null): Long {
+    fun getMonthlyExpenseSum(userId: String, year: Int, month: Int, familyId: String? = null): Long {
         val yearMonth = YearMonth.of(year, month)
         val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
         val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
@@ -344,7 +344,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             endDate = endDate
         ).toLong()
     }
-    fun getFamilyMonthlyExpenseSum( year: Int, month: Int, familyId: String): Long {
+    fun getFamilyMonthlyExpenseSum(year: Int, month: Int, familyId: String): Long {
         val yearMonth = YearMonth.of(year, month)
         val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
         val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
@@ -988,6 +988,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             totalPages = result.totalPages,
             isFirst = result.isFirst,
             isLast = result.isLast,
+            totalSumForMonth = getFamilyMonthlyExpenseSum(
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                familyId
+            ).toDouble(),
             hasNext = result.hasNext(),
             hasPrevious = result.hasPrevious()
         )
@@ -1018,6 +1023,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             totalPages = result.totalPages,
             isFirst = result.isFirst,
             isLast = result.isLast,
+            totalSumForMonth = getMonthlyExpenseSum(
+                userId,
+                LocalDate.now().year,
+                LocalDate.now().monthValue,
+                null
+            ).toDouble(),
             hasNext = result.hasNext(),
             hasPrevious = result.hasPrevious()
         )
@@ -1237,6 +1248,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
                 lastModified,
                 pageable
             )
+
             else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
                 familyId,
                 lastModified,
@@ -1300,18 +1312,21 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
                     )
                     timestampResult
                 }
+
                 "lastModifiedOn" -> {
                     val timestampResult = expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
                         familyId, maxOf(lastModified, cursorValue), pageable
                     )
                     timestampResult
                 }
+
                 "date" -> {
                     val timestampResult = expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
                         familyId, maxOf(lastModified, cursorValue), pageable
                     )
                     timestampResult
                 }
+
                 else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
                     familyId, maxOf(lastModified, cursorValue), pageable
                 )
@@ -1322,12 +1337,15 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
                 "expenseCreatedOn" -> expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
                     familyId, lastModified, pageable
                 )
+
                 "lastModifiedOn" -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
                     familyId, lastModified, pageable
                 )
+
                 "date" -> expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
                     familyId, lastModified, pageable
                 )
+
                 else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
                     familyId, lastModified, pageable
                 )
