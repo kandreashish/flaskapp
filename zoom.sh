@@ -70,6 +70,11 @@ ln -sf "$(basename "$JAR_FILE")" build/libs/app.jar
 echo "📦 Using JAR: $JAR_FILE"
 (command -v sha256sum >/dev/null && sha256sum "$JAR_FILE") || (shasum -a 256 "$JAR_FILE")
 
+# Ensure build/libs/app.jar exists and is a valid file before Docker build
+if [ ! -f build/libs/app.jar ]; then
+  echo "❌ build/libs/app.jar does not exist or is not a valid file. Aborting Docker build."; exit 1
+fi
+
 # Prefer docker compose (v2) if available
 if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
   DC='docker compose'
