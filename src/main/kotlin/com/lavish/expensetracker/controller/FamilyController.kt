@@ -396,14 +396,14 @@ class FamilyController @Autowired constructor(
 
         return try {
             // Validate alias name
+            val userId = authUtil.getCurrentUserId()
+            val user = userRepository.findById(userId).orElse(null)
+                ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "family join"))
+
             validateAliasName(request.aliasName)?.let { error ->
                 logger.warn("Invalid alias name: $error")
                 return ApiResponseUtil.badRequest(error)
             }
-
-            val userId = authUtil.getCurrentUserId()
-            val user = userRepository.findById(userId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "family join"))
 
             if (user.familyId != null) {
                 return ApiResponseUtil.conflict(logUserAlreadyInFamily(userId, user.familyId, "family join"))

@@ -232,7 +232,8 @@ class ExpenseController(
                 body = body,
                 fcmTokens = fcmTokens,
                 amount = amount,
-                description = description
+                description = description,
+                expense.expenseId
             )
 
             // Save notification to database
@@ -356,15 +357,22 @@ class ExpenseController(
         fcmTokens: List<String>,
         amount: Int,
         description: String,
-        expenseUser: ExpenseUser = getCurrentUserWithValidation()
+        expenseId: String,
+        expenseUser: ExpenseUser = getCurrentUserWithValidation(),
     ) {
         try {
             logger.debug("Sending notification to ${fcmTokens.size} FCM tokens")
 
             val formattedAmount = formatAmount(amount, expenseUser)
             val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
-                title, body, type,
-                fcmTokens, formattedAmount, description, expenseUser.id
+                title = title,
+                body = body,
+                type = type,
+                tokens = fcmTokens,
+                amount = formattedAmount,
+                description = description,
+                userId = expenseUser.id,
+                expenseId = expenseId
             )
 
             val successfulNotifications = fcmTokens.size - invalidTokens.size
@@ -885,7 +893,7 @@ class ExpenseController(
             )
         }
 
-        if (month < 1 || month > 12) {
+        if (month !in 1..12) {
             return ResponseEntity.badRequest().body(
                 mapOf(
                     "error" to "Invalid month. Month must be between 1 and 12",
