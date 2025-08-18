@@ -478,11 +478,11 @@ class ExpenseController(
                 )
             }
 
-            logger.debug("Family membership validated for user ${currentUser.id} in family ${familyId}")
+            logger.debug("Family membership  validated for user ${currentUser.id} in family ${familyId}")
         }
 
         if (familyId.isNullOrBlank()) {
-            logger.warn("ExpenseUser ${currentUser.id} is not part of any family, returning empty family expenses")
+            logger.warn("ExpenseUser ${currentUser.id} is 2 not part of any family, returning empty family expenses")
             throw ResponseStatusException(
                 HttpStatus.PRECONDITION_FAILED,
                 "you are not a member of any family, cannot fetch family expenses"
