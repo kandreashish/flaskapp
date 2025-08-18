@@ -11,85 +11,9 @@ import java.math.BigDecimal
 
 @Repository
 interface ExpenseJpaRepository : JpaRepository<Expense, String> {
-    fun findByUserId(userId: String, pageable: Pageable): Page<Expense>
-    fun findByCategory(category: String, pageable: Pageable): Page<Expense>
-    fun findByDateBetween(startDate: Long, endDate: Long, pageable: Pageable): Page<Expense>
-    fun findByFamilyId(familyId: String, pageable: Pageable): Page<Expense>
     fun findByUserIdAndCategory(userId: String, category: String, pageable: Pageable): Page<Expense>
     fun findByUserIdAndDateBetween(userId: String, startDate: Long, endDate: Long, pageable: Pageable): Page<Expense>
     fun countByUserId(userId: String): Long
-    fun countByFamilyId(familyId: String): Long
-
-    // Cursor-based pagination methods for date sorting
-    fun findByUserIdAndDateGreaterThanOrderByDateAsc(userId: String, date: Long, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndDateLessThanOrderByDateDesc(userId: String, date: Long, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndDateGreaterThanOrderByDateAsc(familyId: String, date: Long, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndDateLessThanOrderByDateDesc(familyId: String, date: Long, pageable: Pageable): Page<Expense>
-
-    // Cursor-based pagination methods for amount sorting
-    fun findByUserIdAndAmountGreaterThanOrderByAmountAsc(userId: String, amount: Int, pageable: Pageable): Page<Expense>
-    fun findByUserIdAndAmountLessThanOrderByAmountDesc(userId: String, amount: Int, pageable: Pageable): Page<Expense>
-    fun findByFamilyIdAndAmountGreaterThanOrderByAmountAsc(
-        familyId: String,
-        amount: Int,
-        pageable: Pageable
-    ): Page<Expense>
-
-    fun findByFamilyIdAndAmountLessThanOrderByAmountDesc(
-        familyId: String,
-        amount: Int,
-        pageable: Pageable
-    ): Page<Expense>
-
-    // Cursor-based pagination methods for creation date sorting
-    fun findByUserIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
-        userId: String,
-        createdOn: Long,
-        pageable: Pageable
-    ): Page<Expense>
-
-    fun findByUserIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
-        userId: String,
-        createdOn: Long,
-        pageable: Pageable
-    ): Page<Expense>
-
-    fun findByFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
-        familyId: String,
-        createdOn: Long,
-        pageable: Pageable
-    ): Page<Expense>
-
-    fun findByFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
-        familyId: String,
-        createdOn: Long,
-        pageable: Pageable
-    ): Page<Expense>
-
-    // Cursor-based pagination methods for last modified date sorting
-    fun findByUserIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
-        userId: String,
-        lastModified: Long,
-        pageable: Pageable
-    ): Page<Expense>
-
-    fun findByUserIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
-        userId: String,
-        lastModified: Long,
-        pageable: Pageable
-    ): Page<Expense>
-
-    fun findByFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
-        familyId: String,
-        lastModified: Long,
-        pageable: Pageable
-    ): Page<Expense>
-
-    fun findByFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
-        familyId: String,
-        lastModified: Long,
-        pageable: Pageable
-    ): Page<Expense>
 
     // Methods for getting expenses since a timestamp (for sync operations)
     fun findByUserIdAndLastModifiedOnGreaterThan(userId: String, lastModified: Long, pageable: Pageable): Page<Expense>

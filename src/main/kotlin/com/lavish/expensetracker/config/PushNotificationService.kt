@@ -30,24 +30,21 @@ class PushNotificationService {
         }
     }
 
+    // Data-only single expense notification
     fun sendExpenseNotification(token: String?, amount: String?, description: String, name: String?) {
         val message = Message.builder()
             .setToken(token)
-            .setNotification(
-                Notification.builder()
-                    .setTitle("New Expense Added")
-                    .setBody("$name added a new expense")
-                    .build()
-            )
-            .putData("type", "expense")
+            .setAndroidConfig(AndroidConfig.builder().setPriority(AndroidConfig.Priority.HIGH).build())
+            .putData("type", "EXPENSE_ADDED")
             .putData("title", "New Expense Added")
             .putData("body", description)
             .putData("amount", amount ?: "₹0.00")
+            .putData("senderName", name ?: "Unknown")
             .build()
 
         try {
             val response = FirebaseMessaging.getInstance().send(message)
-            println("Successfully sent expense notification: $response")
+            println("Successfully sent expense notification (data-only): $response")
         } catch (e: FirebaseMessagingException) {
             e.printStackTrace()
         }
@@ -97,17 +94,12 @@ class PushNotificationService {
         }
     }
 
-    @Deprecated("Use sendExpenseNotificationToMultiple instead")
+    // Data-only multicast (legacy) expense notification
     fun sendExpenseNotificationToMultiple(tokens: MutableList<String?>?, amount: String?) {
         val message = MulticastMessage.builder()
             .addAllTokens(tokens)
-            .setNotification(
-                Notification.builder()
-                    .setTitle("New Expense Added")
-                    .setBody("Someone added a new expense")
-                    .build()
-            )
-            .putData("type", "expense")
+            .setAndroidConfig(AndroidConfig.builder().setPriority(AndroidConfig.Priority.HIGH).build())
+            .putData("type", "EXPENSE_ADDED")
             .putData("title", "New Expense Added")
             .putData("body", "Someone added a new expense")
             .putData("amount", amount ?: "₹0.00")
@@ -115,12 +107,13 @@ class PushNotificationService {
 
         try {
             val response = FirebaseMessaging.getInstance().sendEachForMulticast(message)
-            println("Successfully sent expense notifications: " + response.getSuccessCount())
+            println("Successfully sent expense notifications (data-only): " + response.getSuccessCount())
         } catch (e: FirebaseMessagingException) {
             e.printStackTrace()
         }
     }
 
+    // Data-only multicast expense notification with full metadata
     fun sendExpenseNotificationToMultiple(
         title: String,
         body: String,
@@ -135,15 +128,11 @@ class PushNotificationService {
 
         val message = MulticastMessage.builder()
             .addAllTokens(tokens)
-            .setNotification(
-                Notification.builder()
-                    .setTitle(title)
-                    .setBody(body)
-                    .build()
-            )
+            .setAndroidConfig(AndroidConfig.builder().setPriority(AndroidConfig.Priority.HIGH).build())
             .putData("type", type.name)
             .putData("title", title)
-            .putData("body", description)
+            .putData("body", body) // use provided body string
+            .putData("description", description) // optional raw description
             .putData("amount", amount ?: "₹0.00")
             .putData("senderId", userId ?: "unknown")
             .putData("expenseId", expenseId)
@@ -151,9 +140,8 @@ class PushNotificationService {
 
         return try {
             val response = FirebaseMessaging.getInstance().sendEachForMulticast(message)
-            println("Successfully sent expense notifications: ${response.successCount}/${tokens.size}")
+            println("Successfully sent expense notifications (data-only): ${response.successCount}/${tokens.size}")
 
-            // Return list of invalid tokens for cleanup
             val invalidTokens = mutableListOf<String>()
             response.responses.forEachIndexed { index, sendResponse ->
                 if (!sendResponse.isSuccessful) {
@@ -164,11 +152,7 @@ class PushNotificationService {
                             MessagingErrorCode.INVALID_ARGUMENT -> {
                                 invalidTokens.add(tokens[index])
                             }
-
-                            else -> {
-                                // Log other errors but don't remove tokens
-                                println("FCM Error for token ${tokens[index]}: ${exception.messagingErrorCode}")
-                            }
+                            else -> println("FCM Error for token ${tokens[index]}: ${exception.messagingErrorCode}")
                         }
                     }
                 }
@@ -197,7 +181,6 @@ class PushNotificationService {
             val response = FirebaseMessaging.getInstance().sendEachForMulticast(message)
             println("Successfully sent notifications: ${response.successCount}/${tokens.size}")
 
-            // Return list of invalid tokens for cleanup
             val invalidTokens = mutableListOf<String>()
             response.responses.forEachIndexed { index, sendResponse ->
                 if (!sendResponse.isSuccessful) {
@@ -205,14 +188,8 @@ class PushNotificationService {
                     if (exception is FirebaseMessagingException) {
                         when (exception.messagingErrorCode) {
                             MessagingErrorCode.UNREGISTERED,
-                            MessagingErrorCode.INVALID_ARGUMENT -> {
-                                invalidTokens.add(tokens[index])
-                            }
-
-                            else -> {
-                                // Log other errors but don't remove tokens
-                                println("FCM Error for token ${tokens[index]}: ${exception.messagingErrorCode}")
-                            }
+                            MessagingErrorCode.INVALID_ARGUMENT -> invalidTokens.add(tokens[index])
+                            else -> println("FCM Error for token ${tokens[index]}: ${exception.messagingErrorCode}")
                         }
                     }
                 }
