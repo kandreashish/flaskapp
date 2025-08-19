@@ -172,7 +172,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.date ASC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateGreaterThanOrderByDateAsc(
+    fun findByFamilyIdOrUserFamilyIdAndDateGreaterThanOrderByDateAsc(
         @Param("familyId") familyId: String,
         @Param("cursorDate") cursorDate: Long,
         pageable: Pageable
@@ -187,7 +187,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.date DESC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateLessThanOrderByDateDesc(
+    fun findByFamilyIdOrUserFamilyIdAndDateLessThanOrderByDateDesc(
         @Param("familyId") familyId: String,
         @Param("cursorDate") cursorDate: Long,
         pageable: Pageable
@@ -202,7 +202,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.amount ASC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountGreaterThanOrderByAmountAsc(
+    fun findByFamilyIdOrUserFamilyIdAndAmountGreaterThanOrderByAmountAsc(
         @Param("familyId") familyId: String,
         @Param("cursorAmount") cursorAmount: Int,
         pageable: Pageable
@@ -217,7 +217,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.amount DESC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountLessThanOrderByAmountDesc(
+    fun findByFamilyIdOrUserFamilyIdAndAmountLessThanOrderByAmountDesc(
         @Param("familyId") familyId: String,
         @Param("cursorAmount") cursorAmount: Int,
         pageable: Pageable
@@ -232,7 +232,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.expenseCreatedOn ASC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+    fun findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
         @Param("familyId") familyId: String,
         @Param("cursorCreated") cursorCreated: Long,
         pageable: Pageable
@@ -247,7 +247,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.expenseCreatedOn DESC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+    fun findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
         @Param("familyId") familyId: String,
         @Param("cursorCreated") cursorCreated: Long,
         pageable: Pageable
@@ -262,7 +262,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.lastModifiedOn ASC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+    fun findByFamilyIdOrUserFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
         @Param("familyId") familyId: String,
         @Param("cursorModified") cursorModified: Long,
         pageable: Pageable
@@ -277,7 +277,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         ORDER BY e.lastModifiedOn DESC
     """
     )
-    fun findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+    fun findByFamilyIdOrUserFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
         @Param("familyId") familyId: String,
         @Param("cursorModified") cursorModified: Long,
         pageable: Pageable
@@ -285,9 +285,6 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
 
     // Personal expenses methods (where familyId is null or empty)
     fun findByUserIdAndFamilyIdIsNull(userId: String, pageable: Pageable): Page<Expense>
-
-    // Add method to filter out deleted personal expenses
-    fun findByUserIdAndFamilyIdIsNullAndDeletedFalse(userId: String, pageable: Pageable): Page<Expense>
 
     // Cursor-based pagination methods for personal expenses (familyId is null/empty)
     fun findByUserIdAndFamilyIdIsNullAndDateGreaterThanOrderByDateAsc(

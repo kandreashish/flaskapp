@@ -788,37 +788,37 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         val pageable = PageRequest.of(0, validatedSize)
         val result = if (isAsc) {
             when (sortBy) {
-                "expenseCreatedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
+                "expenseCreatedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnGreaterThanOrderByExpenseCreatedOnAsc(
                     familyId, cursorValue, pageable
                 )
 
-                "lastModifiedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
+                "lastModifiedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndLastModifiedOnGreaterThanOrderByLastModifiedOnAsc(
                     familyId, cursorValue, pageable
                 )
 
-                "amount" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountGreaterThanOrderByAmountAsc(
+                "amount" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndAmountGreaterThanOrderByAmountAsc(
                     familyId, cursorValue.toInt(), pageable
                 )
 
-                else -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateGreaterThanOrderByDateAsc(
+                else -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDateGreaterThanOrderByDateAsc(
                     familyId, cursorValue, pageable
                 )
             }
         } else {
             when (sortBy) {
-                "expenseCreatedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
+                "expenseCreatedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndExpenseCreatedOnLessThanOrderByExpenseCreatedOnDesc(
                     familyId, cursorValue, pageable
                 )
 
-                "lastModifiedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
+                "lastModifiedOn" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndLastModifiedOnLessThanOrderByLastModifiedOnDesc(
                     familyId, cursorValue, pageable
                 )
 
-                "amount" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndAmountLessThanOrderByAmountDesc(
+                "amount" -> expenseRepository.findByFamilyIdOrUserFamilyIdAndAmountLessThanOrderByAmountDesc(
                     familyId, cursorValue.toInt(), pageable
                 )
 
-                else -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDeleteFalseAndDateLessThanOrderByDateDesc(
+                else -> expenseRepository.findByFamilyIdOrUserFamilyIdAndDateLessThanOrderByDateDesc(
                     familyId, cursorValue, pageable
                 )
             }

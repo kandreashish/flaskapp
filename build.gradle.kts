@@ -7,6 +7,7 @@ plugins {
     kotlin("plugin.spring") version "2.2.0"
     kotlin("plugin.jpa") version "2.2.0"
     kotlin("plugin.serialization") version "2.2.0"
+    id("jacoco")
 }
 
 group = "com.lavish"
@@ -57,6 +58,7 @@ dependencies {
     runtimeOnly("com.h2database:h2")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
 }
 
 tasks.withType<KotlinCompile> {
@@ -92,4 +94,18 @@ tasks.withType<Test> {
     useJUnitPlatform()
     maxParallelForks = 1 // Limit for Raspberry Pi
     systemProperty("file.encoding", "UTF-8")
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        csv.required.set(false)
+        html.outputLocation.set(layout.buildDirectory.dir("reports/jacocoHtml"))
+    }
 }
