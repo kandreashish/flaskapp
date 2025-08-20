@@ -48,7 +48,7 @@ class ExpenseController(
         )
         private const val DEFAULT_PAGE_SIZE = 10
         private const val MAX_PAGE_SIZE = 500
-        private const val MAX_AMOUNT = 1000000.0
+        const val MAX_AMOUNT = 1000000.0
         private const val MAX_DESCRIPTION_LENGTH = 500
         private const val MAX_AMOUNT_STRING_LENGTH = 10
         private const val ONE_DAY_MILLIS = 24 * 60 * 60 * 1000L
@@ -843,7 +843,7 @@ class ExpenseController(
     ): ResponseEntity<Map<String, Any>> {
         val currentUser = getCurrentUserWithValidation()
 
-        if (month < 1 || month > 12) {
+        if (month !in 1..12 || year < 2000 || year > LocalDate.now().year) {
             return ResponseEntity.badRequest().body(
                 mapOf(
                     "error" to "Invalid month. Month must be between 1 and 12",
