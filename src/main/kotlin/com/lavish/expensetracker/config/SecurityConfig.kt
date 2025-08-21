@@ -37,7 +37,14 @@ class SecurityConfig(
                     .requestMatchers("/api/files/**").permitAll() // File serving endpoints (profile pictures)
                     .requestMatchers("/h2-console/**").permitAll() // H2 console
                     .requestMatchers("/error").permitAll() // Error page
-                    .requestMatchers("/actuator/health").permitAll() // Health check
+                    .requestMatchers(
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/actuator/info",
+                        "/actuator/prometheus",
+                        "/actuator/metrics",
+                        "/actuator/metrics/**"
+                    ).permitAll() // Health & metrics for monitoring / Prometheus scrape
                     .requestMatchers("/.well-known/**").permitAll() // SSL certificate verification
 
                     // Swagger 2.0 endpoints (replacing OpenAPI 3.0)

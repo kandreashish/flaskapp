@@ -55,6 +55,8 @@ dependencies {
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-api:2.3.0")
 
+    implementation("io.micrometer:micrometer-registry-prometheus")
+
     runtimeOnly("com.h2database:h2")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

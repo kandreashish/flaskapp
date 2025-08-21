@@ -34,6 +34,7 @@ show_help() {
     echo "  cleanup   - Remove all monitoring containers and volumes"
     echo "  urls      - Show access URLs for all services"
     echo "  update    - Pull latest images and restart services"
+    echo "  health    - Perform health checks on services"
     echo "  help      - Show this help message"
 }
 
@@ -142,6 +143,25 @@ update_services() {
     print_status "✅ Update complete!"
 }
 
+show_health() {
+    print_status "Performing health checks..."
+    local app_url="http://localhost:3000/actuator/health"
+    local metrics_url="http://localhost:3000/actuator/metrics"
+    local prom_url="http://localhost:3000/actuator/prometheus"
+
+    if command -v curl >/dev/null 2>&1; then
+        echo -e "${BLUE}App Health:${NC}"; curl -fsS $app_url || echo "Unavailable"; echo
+        echo -e "${BLUE}Disk & System (custom):${NC}"; curl -fsS $app_url | grep -E 'diskFreeMb|minRequiredMb' || true; echo
+        echo -e "${BLUE}Metrics Endpoint (summary head):${NC}"; curl -fsS $prom_url | head -n 10 || echo "Unavailable"; echo
+        echo -e "${BLUE}Key JVM Metrics:${NC}"; curl -fsS "$metrics_url/jvm.memory.used" 2>/dev/null | head -n 40 || echo "Unavailable"; echo
+    else
+        print_warning "curl not installed; skipping HTTP health checks"
+    fi
+
+    echo -e "${BLUE}Docker container states:${NC}"
+    docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E '(expense-tracker|prometheus|grafana|cadvisor|node-exporter|portainer)' || true
+}
+
 # Main script logic
 case "${1:-help}" in
     start)
@@ -167,6 +187,9 @@ case "${1:-help}" in
         ;;
     update)
         update_services
+        ;;
+    health)
+        show_health
         ;;
     help|*)
         show_help

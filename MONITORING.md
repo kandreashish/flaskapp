@@ -66,6 +66,72 @@ cd ~/expense-tracker
 ./monitor.sh restart
 ```
 
+## 🩺 Application & Server Health Checks
+
+### Quick CLI Health Check
+```bash
+./monitor.sh health
+```
+Outputs:
+- Actuator JSON health (includes custom disk space indicator)
+- Prometheus scrape head (first lines)
+- Key JVM memory metric sample
+- Container state table
+
+### HTTP Endpoints (Public)
+- Liveness: `curl -s http://your-pi-ip:3000/actuator/health/liveness` (if enabled by probes)
+- Readiness: `curl -s http://your-pi-ip:3000/actuator/health/readiness`
+- Full Health: `curl -s http://your-pi-ip:3000/actuator/health`
+- Metrics List: `curl -s http://your-pi-ip:3000/actuator/metrics`
+- Single Metric (JVM used memory): `curl -s http://your-pi-ip:3000/actuator/metrics/jvm.memory.used`
+- Prometheus Format Metrics: `curl -s http://your-pi-ip:3000/actuator/prometheus | head`
+
+### Custom Disk Space Threshold
+Configured via property:
+```
+custom.health.min-disk-free-mb (default 100)
+```
+Override on Pi:
+```bash
+export HEALTH_MIN_DISK_FREE_MB=200
+./zoom.sh
+```
+
+### Docker Image HealthCheck
+Defined in Dockerfile (30s interval) hitting `/actuator/health`.
+View status:
+```bash
+docker ps --format 'table {{.Names}}\t{{.Status}}' | grep expense-tracker
+```
+
+### Prometheus Scrape Target
+Ensure `prometheus.yml` target resolves the container name. Example:
+```yaml
+- job_name: 'expense-tracker'
+  metrics_path: /actuator/prometheus
+  static_configs:
+    - targets: ['expense-tracker-app:3000']
+```
+(Adjust to actual container name: current compose uses `expense-tracker-app`.)
+
+### Common Health Failure Causes
+| Symptom | Likely Cause | Fix |
+|---------|--------------|-----|
+| DOWN (disk) | Low free space | Delete logs, prune Docker images |
+| 500 on /actuator/health | App startup error | `docker logs expense-tracker-app` |
+| Missing /actuator/prometheus | Registry dependency missing | Already added: micrometer-registry-prometheus |
+| Prometheus target down | Wrong hostname | Match container name in prometheus.yml |
+
+### Alert Suggestions (PromQL)
+```promql
+# JVM memory > 80%
+(sum(jvm_memory_used_bytes{area="heap"}) / sum(jvm_memory_max_bytes{area="heap"})) > 0.8
+# Low disk (root) < 15% free
+(node_filesystem_free_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+# App down (no scrape 5m)
+absent_over_time(up{job="expense-tracker"}[5m])
+```
+
 ## 📊 Dashboard Setup
 
 ### Grafana Dashboard Configuration
