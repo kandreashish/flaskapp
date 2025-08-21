@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9443:9443"  # HTTPS port
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    environment:
+      - PUID=1000
+      - PGID=1000
+    networks:
+      - monitoring
+    command: --admin-password='$$2y$$10$$N5zV1fz7ZhZjZCOG5fOp4uLVYyY5nYhcGx8.QzN3.5.5.5.5.5.5'  # Change this password
+
+  # Watchtower for automatic container updates
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=3600  # Check every hour
+      - WATCHTOWER_INCLUDE_STOPPED=true
+    networks:
+      - monitoring
+
+  # Docker socket proxy for security (optional but recommended)
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: docker-socket-proxy
+    restart: unless-stopped
+    ports:
+      - "2375:2375"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1
+      - SERVICES=1
+      - SWARM=0
+      - TASKS=1
+      - NETWORKS=1
+      - VOLUMES=1
+      - IMAGES=1
+      - INFO=1
+      - DISTRIBUTION=1
+      - POST=0
+    networks:
+      - monitoring
+
+volumes:
+  portainer_data:
+    driver: local
+
+networks:
+  monitoring:
+    driver: bridge

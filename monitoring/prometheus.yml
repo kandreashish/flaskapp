@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # cAdvisor for container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Your expense tracker application
+  - job_name: 'expense-tracker'
+    static_configs:
+      - targets: ['expense-tracker-pi:3000']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+
+  # H2 Database monitoring (if enabled)
+  - job_name: 'h2-database'
+    static_configs:
+      - targets: ['h2:8082']
+    scrape_interval: 30s
