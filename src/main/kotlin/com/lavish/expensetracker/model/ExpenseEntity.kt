@@ -48,7 +48,10 @@ data class Expense(
     val deletedOn: Long? = null,
 
     @Column(name = "deleted_by")
-    val deletedBy: String? = null
+    val deletedBy: String? = null,
+
+    @Column(name = "currency_prefix")
+    val currencyPrefix: String = "" // Default to empty string if not provided
 )
 
 // Mapper functions to convert between Entity and DTO
@@ -68,7 +71,8 @@ fun Expense.toDto() = ExpenseDto(
     updatedUserName = this.updatedUserName,
     deleted = this.deleted,
     deletedOn = this.deletedOn,
-    deletedBy = this.deletedBy
+    deletedBy = this.deletedBy,
+    currencyPrefix = this.currencyPrefix
 )
 
 fun ExpenseDto.toEntity() = Expense(
@@ -87,5 +91,6 @@ fun ExpenseDto.toEntity() = Expense(
     updatedUserName = this.updatedUserName,
     deleted = this.deleted,
     deletedOn = this.deletedOn,
-    deletedBy = this.deletedBy
+    deletedBy = this.deletedBy,
+    currencyPrefix = this.currencyPrefix
 )

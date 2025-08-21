@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.model
 
+import jakarta.persistence.Column
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -51,5 +52,8 @@ data class ExpenseDto(
     val deletedOn: Long? = null,
 
     @SerialName("deletedBy")
-    val deletedBy: String? = null
+    val deletedBy: String? = null,
+
+    @Column(name = "currency_prefix")
+    val currencyPrefix: String = "" // Default to empty string if not provided
 )

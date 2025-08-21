@@ -561,6 +561,7 @@ class ExpenseController(
                 modifiedBy = currentUser.id,
                 expenseCreatedOn = currentTime,
                 lastModifiedOn = currentTime,
+                currencyPrefix = currentUser.currencyPreference,
                 updatedUserName = currentUser.name ?: currentUser.email
             )
 

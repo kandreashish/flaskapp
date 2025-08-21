@@ -200,4 +200,54 @@ class PushNotificationService {
             emptyList()
         }
     }
+
+    // High priority profile update notification
+    fun sendProfileUpdateNotification(tokens: List<String>, userName: String?): List<String> {
+        if (tokens.isEmpty()) return emptyList()
+
+        val displayName = userName ?: "User"
+        val message = MulticastMessage.builder()
+            .addAllTokens(tokens)
+            .setAndroidConfig(
+                AndroidConfig.builder()
+                    .setPriority(AndroidConfig.Priority.HIGH)
+                    .setNotification(
+                        AndroidNotification.builder()
+                            .setTitle("Profile Updated")
+                            .setBody("$displayName updated their profile")
+                            .setPriority(AndroidNotification.Priority.HIGH)
+                            .setChannelId("profile_updates")
+                            .build()
+                    )
+                    .build()
+            )
+            .putData("type", NotificationType.PROFILE_UPDATED.name)
+            .putData("title", "Profile Updated")
+            .putData("body", "$displayName updated their profile")
+            .putData("userName", displayName)
+            .build()
+
+        return try {
+            val response = FirebaseMessaging.getInstance().sendEachForMulticast(message)
+            println("Successfully sent profile update notifications: ${response.successCount}/${tokens.size}")
+
+            val invalidTokens = mutableListOf<String>()
+            response.responses.forEachIndexed { index, sendResponse ->
+                if (!sendResponse.isSuccessful) {
+                    val exception = sendResponse.exception
+                    if (exception is FirebaseMessagingException) {
+                        when (exception.messagingErrorCode) {
+                            MessagingErrorCode.UNREGISTERED,
+                            MessagingErrorCode.INVALID_ARGUMENT -> invalidTokens.add(tokens[index])
+                            else -> println("FCM Error for token ${tokens[index]}: ${exception.messagingErrorCode}")
+                        }
+                    }
+                }
+            }
+            invalidTokens
+        } catch (e: FirebaseMessagingException) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
 }

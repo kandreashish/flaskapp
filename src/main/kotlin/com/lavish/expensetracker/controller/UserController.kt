@@ -1,5 +1,6 @@
 package com.lavish.expensetracker.controller
 
+import com.lavish.expensetracker.config.PushNotificationService
 import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.model.UserDevice
 import com.lavish.expensetracker.service.UserDeviceService
@@ -19,6 +20,7 @@ class UserController(
     private val userService: UserService,
     private val userDeviceService: UserDeviceService,
     private val fileStorageService: FileStorageService,
+    private val pushNotificationService: PushNotificationService,
     private val authUtil: AuthUtil
 ) {
 
@@ -141,9 +143,35 @@ class UserController(
                 createdAt = updatedUser.createdAt,
                 updatedAt = updatedUser.updatedAt
             )
+            logger.info("User profile updated successfully for user ID: ${updatedUser.id}")
+            sendProfileUpdateNotification(updatedUser.id, updatedUser.name)
             ResponseEntity.ok(response)
         } else {
             ResponseEntity.badRequest().build()
+        }
+    }
+
+    private fun sendProfileUpdateNotification(id: String, name: String?) {
+        try {
+            // Get all active FCM tokens for the user
+            val fcmTokens = userDeviceService.getActiveDeviceTokens(id)
+
+            if (fcmTokens.isNotEmpty()) {
+                // Send high priority profile update notification
+                val invalidTokens = pushNotificationService.sendProfileUpdateNotification(fcmTokens, name)
+
+                // Remove any invalid tokens from the database
+                if (invalidTokens.isNotEmpty()) {
+                    userDeviceService.removeInvalidTokens(invalidTokens)
+                    logger.info("Removed ${invalidTokens.size} invalid FCM tokens for user: $id")
+                }
+
+                logger.info("Profile update notification sent to ${fcmTokens.size - invalidTokens.size} devices for user: $id")
+            } else {
+                logger.info("No active devices found for user: $id, skipping profile update notification")
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to send profile update notification for user: $id", e)
         }
     }
 
@@ -183,6 +211,9 @@ class UserController(
             val updatedUser = userService.updateProfilePicture(currentUser.id, profilePicUrl)
 
             if (updatedUser != null) {
+                // Send profile update notification
+                sendProfileUpdateNotification(updatedUser.id, updatedUser.name)
+
                 ResponseEntity.ok(mapOf(
                     "message" to "Profile picture uploaded successfully",
                     "profilePicUrl" to profilePicUrl

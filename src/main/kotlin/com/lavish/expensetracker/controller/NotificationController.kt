@@ -550,6 +550,10 @@ class NotificationController @Autowired constructor(
 
             NotificationType.OTHER ->
                 "📝 ${notification.senderName}: ${notification.message}"
+
+            NotificationType.PROFILE_UPDATED ->
+                "👤 Profile updated: ${notification.senderName} has updated their profile"
+
         }
     }
 
@@ -576,6 +580,7 @@ class NotificationController @Autowired constructor(
             NotificationType.FAMILY_EXPENSE_ADDED -> "Family Expense Management"
             NotificationType.FAMILY_EXPENSE_UPDATED -> "Family Expense Management"
             NotificationType.FAMILY_EXPENSE_DELETED -> "Family Expense Management"
+            NotificationType.PROFILE_UPDATED -> "Profile Updated"
         }
     }
 
