@@ -54,7 +54,7 @@ class ExpenseControllerTest {
         id: String = UUID.randomUUID().toString(),
         userId: String = baseUser.id,
         familyId: String? = null,
-        amount: Int = 100,
+        amount: Double = 100.0,
         category: String = "FOOD",
         description: String = "Lunch",
         ts: Long = System.currentTimeMillis()
@@ -87,7 +87,7 @@ class ExpenseControllerTest {
         isLast = true,
         hasNext = false,
         hasPrevious = false,
-        totalSumForMonth = list.sumOf { it.amount }.toDouble(),
+        totalSumForMonth = list.sumOf { it.amount },
         offset = null,
         lastExpenseId = list.lastOrNull()?.expenseId
     )
@@ -326,7 +326,7 @@ class ExpenseControllerTest {
         val bad = expense(
             id = "",
             userId = "",
-            amount = -10,
+            amount = -10.0,
             category = "",
             description = "<script>alert(1)</script>".padEnd(600, 'x')
         )
@@ -404,18 +404,18 @@ class ExpenseControllerTest {
     @Test
     fun updateExpense_success() {
         val existing = expense()
-        val updated = existing.copy(amount = 200)
+        val updated = existing.copy(amount = 200.0)
         `when`(expenseService.getExpenseById(existing.expenseId)).thenReturn(existing)
         `when`(expenseService.updateExpense(eq(existing.expenseId), any())).thenReturn(updated)
         val res = controller.updateExpense(existing.expenseId, updated)
-        assertEquals(200, (res.body as ExpenseDto).amount)
+        assertEquals(200.0, (res.body as ExpenseDto).amount)
     }
 
     @Test
     fun updateExpense_validationError() {
         val existing = expense()
         `when`(expenseService.getExpenseById(existing.expenseId)).thenReturn(existing)
-        val badUpdate = existing.copy(amount = -5)
+        val badUpdate = existing.copy(amount = -5.0)
         assertThrows(ExpenseValidationException::class.java) { controller.updateExpense(existing.expenseId, badUpdate) }
     }
 
@@ -844,7 +844,7 @@ class ExpenseControllerTest {
         ).thenReturn(emptyList())
 
         // Create family expense
-        val dto = expense(id = "", userId = "", familyId = fam.familyId, amount = 150, description = "Family Dinner")
+        val dto = expense(id = "", userId = "", familyId = fam.familyId, amount = 150.0, description = "Family Dinner")
         `when`(expenseService.createExpense(any())).thenAnswer {
             (it.arguments[0] as ExpenseDto).copy(expenseId = "family_expense_123")
         }
@@ -890,7 +890,7 @@ class ExpenseControllerTest {
         ).thenReturn(emptyList())
 
         // Create personal expense (no family)
-        val dto = expense(id = "", userId = "", familyId = null, amount = 50, description = "Personal Coffee")
+        val dto = expense(id = "", userId = "", familyId = null, amount = 50.0, description = "Personal Coffee")
         `when`(expenseService.createExpense(any())).thenAnswer {
             (it.arguments[0] as ExpenseDto).copy(expenseId = "personal_expense_456")
         }
@@ -982,7 +982,7 @@ class ExpenseControllerTest {
 
     @Test
     fun createExpense_emptyExpenseId() {
-        val dto = expense(id = "", userId = "", familyId = null, amount = 0, category = "", description = "")
+        val dto = expense(id = "", userId = "", familyId = null, amount = 0.0, category = "", description = "")
         val ex = assertThrows(ExpenseValidationException::class.java) {
             controller.createExpense(dto)
         }
@@ -993,7 +993,7 @@ class ExpenseControllerTest {
     @Test
     fun createExpense_extremelyLargeAmount() {
         val dto =
-            expense(id = "", userId = "", amount = ExpenseController.MAX_AMOUNT.toInt(), description = "Huge expense")
+            expense(id = "", userId = "", amount = ExpenseController.MAX_AMOUNT, description = "Huge expense")
         `when`(expenseService.createExpense(any())).thenAnswer {
             (it.arguments[0] as ExpenseDto).copy(expenseId = "large_id")
         }
@@ -1004,7 +1004,7 @@ class ExpenseControllerTest {
 
     @Test
     fun createExpense_negativeAmount() {
-        val dto = expense(id = "", userId = "", amount = -100, description = "Negative")
+        val dto = expense(id = "", userId = "", amount = -100.0, description = "Negative")
         assertThrows(ExpenseValidationException::class.java) {
             controller.createExpense(dto)
         }
@@ -1012,7 +1012,7 @@ class ExpenseControllerTest {
 
     @Test
     fun createExpense_zeroAmount() {
-        val dto = expense(id = "", userId = "", amount = 0, description = "Zero amount")
+        val dto = expense(id = "", userId = "", amount = 0.0, description = "Zero amount")
         assertThrows(ExpenseValidationException::class.java) {
             controller.createExpense(dto)
         }

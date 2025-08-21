@@ -1,7 +1,6 @@
 package com.lavish.expensetracker.model
 
 import jakarta.persistence.*
-import java.time.Instant
 
 @Entity
 @Table(name = "expenses")
@@ -13,7 +12,7 @@ data class Expense(
     @Column(name = "user_id")
     val userId: String,
 
-    val amount: Int,
+    val amount: Double,
 
     val category: String,
 

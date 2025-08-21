@@ -301,13 +301,13 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
 
     fun findByUserIdAndFamilyIdIsNullAndAmountGreaterThanOrderByAmountAsc(
         userId: String,
-        amount: Int,
+        amount: Double,
         pageable: Pageable
     ): Page<Expense>
 
     fun findByUserIdAndFamilyIdIsNullAndAmountLessThanOrderByAmountDesc(
         userId: String,
-        amount: Int,
+        amount: Double,
         pageable: Pageable
     ): Page<Expense>
 

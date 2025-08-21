@@ -12,7 +12,7 @@ data class ExpenseDto(
     val userId: String,
 
     @SerialName("amount")
-    val amount: Int = 0,
+    val amount: Double = 0.0,
 
     @SerialName("category")
     val category: String = "OTHERS", // Use string to decouple from domain enum

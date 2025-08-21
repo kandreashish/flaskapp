@@ -215,7 +215,7 @@ class ExpenseController(
         body: String,
         expense: ExpenseDto,
         user: ExpenseUser,
-        amount: Int,
+        amount: Double,
         description: String
     ) {
         try {
@@ -355,7 +355,7 @@ class ExpenseController(
         title: String,
         body: String,
         fcmTokens: List<String>,
-        amount: Int,
+        amount: Double,
         description: String,
         expenseId: String,
         expenseUser: ExpenseUser = getCurrentUserWithValidation(),
@@ -388,7 +388,7 @@ class ExpenseController(
         }
     }
 
-    private fun formatAmount(amount: Int, currentUser: ExpenseUser): String {
+    private fun formatAmount(amount: Double, currentUser: ExpenseUser): String {
         return try {
             "${currentUser.currencyPreference}$amount"
         } catch (e: Exception) {
