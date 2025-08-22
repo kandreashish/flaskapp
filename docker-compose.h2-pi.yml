@@ -24,7 +24,10 @@ services:
       start_period: 30s
     networks:
       - h2-network
+      - monitoring
 
 networks:
   h2-network:
     driver: bridge
+  monitoring:
+    external: true

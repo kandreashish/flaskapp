@@ -22,10 +22,10 @@ scrape_configs:
     static_configs:
       - targets: ['cadvisor:8080']
 
-  # Your expense tracker application
+  # Your expense tracker application (container name updated)
   - job_name: 'expense-tracker'
     static_configs:
-      - targets: ['expense-tracker-pi:3000']
+      - targets: ['expense-tracker-app:3000']
     metrics_path: '/actuator/prometheus'
     scrape_interval: 30s
 

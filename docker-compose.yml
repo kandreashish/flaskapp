@@ -55,3 +55,9 @@ services:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
     restart: unless-stopped
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    external: true

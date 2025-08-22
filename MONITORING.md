@@ -155,8 +155,9 @@ absent_over_time(up{job="expense-tracker"}[5m])
 ```yaml
 scrape_configs:
   - job_name: 'expense-tracker'
+    metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ['expense-tracker-pi:3000']
+      - targets: ['expense-tracker-app:3000']
   - job_name: 'cadvisor'
     static_configs:
       - targets: ['cadvisor:8080']

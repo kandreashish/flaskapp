@@ -1,80 +1,30 @@
-# Build artifacts
-build/
-!build/libs/expense-tracker-0.0.11-SNAPSHOT.jar
-!build/libs/app.jar
-
-target/
-*.jar
-*.war
+# Gradle & build outputs
 .gradle/
+build/
+!build/libs/*.jar
 
-# IDE files
+# Node / frontend (if any)
+node_modules/
+
+# IDE
 .idea/
-.vscode/
 *.iml
-*.ipr
-*.iws
-.project
-.classpath
-.settings/
+.vscode/
 
-# OS files
-.DS_Store
-Thumbs.db
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
+# Logs & temp
+logs/
+*.log
+.tmp/
+/tmp/
 
 # Git
-.git/
+.git
 .gitignore
 
-# Docker files
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+# Docker
+Dockerfile.h2
 
-# Documentation
-README.md
-*.md
-FIREBASE_SETUP.md
-
-# Scripts
-*.sh
-cleanup.sh
-health-check.sh
-start.sh
-test_notifications.sh
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-*.tmp
+# Misc
 *.swp
-*.swo
-*~
+.DS_Store
 
-# Database files (if not needed in container)
-data/
-*.db
-*.mv.db
-*.trace.db
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Maven (if switching from Gradle)
-pom.xml
-
-# Test outputs
-test-results/
-*.test
-
-# Cache files
-.cache/
