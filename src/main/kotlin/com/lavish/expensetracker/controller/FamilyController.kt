@@ -1421,11 +1421,12 @@ class FamilyController @Autowired constructor(
             familyRepository.save(updatedFamily)
 
             logger.info("Family name updated successfully to: ${request.familyName}")
+            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
 
             ResponseEntity.ok(
                 BasicFamilySuccessResponse(
                     "Family name updated successfully",
-                    mapOf("family" to updatedFamily)
+                    mapOf("family" to updatedFamily, "members" to members)
                 )
             )
         } catch (ex: Exception) {
@@ -1793,6 +1794,7 @@ class FamilyController @Autowired constructor(
             ApiResponseUtil.internalServerError("An error occurred while accepting join request")
         }
     }
+
     @PostMapping("/request-to-join")
     @Operation(
         summary = "Send a join request",
@@ -1920,12 +1922,14 @@ class FamilyController @Autowired constructor(
 
             logger.info("User $userId successfully requested to join family ${family.familyId}")
 
-            ResponseEntity.ok(mapOf(
-                "message" to "Join request sent successfully",
-                "familyName" to family.name,
-                "familyAlias" to family.aliasName,
-                "status" to "pending"
-            ))
+            ResponseEntity.ok(
+                mapOf(
+                    "message" to "Join request sent successfully",
+                    "familyName" to family.name,
+                    "familyAlias" to family.aliasName,
+                    "status" to "pending"
+                )
+            )
 
         } catch (ex: Exception) {
             logger.error("Exception in requestToJoinFamily", ex)
