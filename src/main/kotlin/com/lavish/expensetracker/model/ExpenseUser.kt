@@ -42,5 +42,8 @@ data class ExpenseUser(
 
     @ElementCollection
     @Column(name = "sent_join_requests")
-    val sentJoinRequests: MutableList<String> = mutableListOf()
+    val sentJoinRequests: MutableList<String> = mutableListOf(),
+
+    @Column(name = "onboarding_completed", nullable = false)
+    val onboardingCompleted: Boolean = false
 )

@@ -99,4 +99,20 @@ class UserService(
         logger.info("Updating user {} profile picture in database: {}", userId, profilePicUrl)
         return userRepository.save(updatedUser)
     }
+
+    // New onboarding flag methods
+    fun getOnboardingCompleted(userId: String): Boolean? {
+        return userRepository.findById(userId).orElse(null)?.onboardingCompleted
+    }
+
+    @Transactional
+    fun updateOnboardingCompleted(userId: String, completed: Boolean): ExpenseUser? {
+        val existingUser = userRepository.findById(userId).orElse(null) ?: return null
+        if (existingUser.onboardingCompleted == completed) return existingUser
+        val updatedUser = existingUser.copy(
+            onboardingCompleted = completed,
+            updatedAt = System.currentTimeMillis()
+        )
+        return userRepository.save(updatedUser)
+    }
 }

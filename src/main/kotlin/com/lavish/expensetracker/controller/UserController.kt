@@ -26,7 +26,6 @@ class UserController(
 
     private val logger = LoggerFactory.getLogger(UserController::class.java)
 
-
     private fun getCurrentUserWithValidation(): ExpenseUser {
         val currentUserId = try {
             authUtil.getCurrentUserId()
@@ -36,18 +35,15 @@ class UserController(
                 HttpStatus.UNAUTHORIZED -> ResponseStatusException(
                     HttpStatus.UNAUTHORIZED, "Authentication required. Please provide a valid JWT token."
                 )
-
                 HttpStatus.FORBIDDEN -> ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Please re-authenticate."
                 )
-
                 else -> ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Authentication failed: ${e.reason}"
                 )
             }
         }
-
         return userService.findById(currentUserId)
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "ExpenseUser not found")
     }
@@ -75,8 +71,12 @@ class UserController(
         val currencyPreference: String,
         val familyId: String?,
         val createdAt: Long,
-        val updatedAt: Long
+        val updatedAt: Long,
+        val onboardingCompleted: Boolean
     )
+
+    data class OnboardingStatusResponse(val onboardingCompleted: Boolean)
+    data class UpdateOnboardingRequest(val onboardingCompleted: Boolean)
 
     @PostMapping("/fcm-token")
     fun updateFcmToken(@RequestBody request: FcmTokenRequest): ResponseEntity<String> {
@@ -87,7 +87,6 @@ class UserController(
             request.deviceName,
             request.deviceType
         )
-
         return if (success) {
             ResponseEntity.ok("FCM token updated successfully for device")
         } else {
@@ -106,7 +105,6 @@ class UserController(
     fun removeDevice(@RequestBody request: RemoveDeviceRequest): ResponseEntity<String> {
         val currentUserId = getCurrentUserWithValidation().id
         val success = userService.removeDevice(currentUserId, request.fcmToken)
-
         return if (success) {
             ResponseEntity.ok("Device removed successfully")
         } else {
@@ -118,7 +116,6 @@ class UserController(
     fun logoutAllDevices(): ResponseEntity<String> {
         val currentUserId = getCurrentUserWithValidation().id
         val success = userService.logoutAllDevices(currentUserId)
-
         return if (success) {
             ResponseEntity.ok("All devices logged out successfully")
         } else {
@@ -130,7 +127,6 @@ class UserController(
     fun updateProfile(@RequestBody request: UpdateProfileRequest): ResponseEntity<ProfileResponse> {
         val currentUserId = getCurrentUserWithValidation().id
         val updatedUser = userService.updateProfile(currentUserId, request)
-
         return if (updatedUser != null) {
             val response = ProfileResponse(
                 id = updatedUser.id,
@@ -141,7 +137,8 @@ class UserController(
                 currencyPreference = updatedUser.currencyPreference,
                 familyId = updatedUser.familyId,
                 createdAt = updatedUser.createdAt,
-                updatedAt = updatedUser.updatedAt
+                updatedAt = updatedUser.updatedAt,
+                onboardingCompleted = updatedUser.onboardingCompleted
             )
             logger.info("User profile updated successfully for user ID: ${updatedUser.id}")
             sendProfileUpdateNotification(updatedUser.id, updatedUser.name)
@@ -153,19 +150,13 @@ class UserController(
 
     private fun sendProfileUpdateNotification(id: String, name: String?) {
         try {
-            // Get all active FCM tokens for the user
             val fcmTokens = userDeviceService.getActiveDeviceTokens(id)
-
             if (fcmTokens.isNotEmpty()) {
-                // Send high priority profile update notification
                 val invalidTokens = pushNotificationService.sendProfileUpdateNotification(fcmTokens, name)
-
-                // Remove any invalid tokens from the database
                 if (invalidTokens.isNotEmpty()) {
                     userDeviceService.removeInvalidTokens(invalidTokens)
                     logger.info("Removed ${invalidTokens.size} invalid FCM tokens for user: $id")
                 }
-
                 logger.info("Profile update notification sent to ${fcmTokens.size - invalidTokens.size} devices for user: $id")
             } else {
                 logger.info("No active devices found for user: $id, skipping profile update notification")
@@ -179,7 +170,6 @@ class UserController(
     fun getProfile(): ResponseEntity<ProfileResponse> {
         val currentUserId = authUtil.getCurrentUserId()
         val user = userService.findById(currentUserId)
-
         return if (user != null) {
             val response = ProfileResponse(
                 id = user.id,
@@ -190,7 +180,8 @@ class UserController(
                 currencyPreference = user.currencyPreference,
                 familyId = user.familyId,
                 createdAt = user.createdAt,
-                updatedAt = user.updatedAt
+                updatedAt = user.updatedAt,
+                onboardingCompleted = user.onboardingCompleted
             )
             ResponseEntity.ok(response)
         } else {
@@ -198,22 +189,30 @@ class UserController(
         }
     }
 
+    @GetMapping("/onboarding")
+    fun getOnboardingStatus(): ResponseEntity<OnboardingStatusResponse> {
+        val currentUser = getCurrentUserWithValidation()
+        val status = userService.getOnboardingCompleted(currentUser.id) ?: return ResponseEntity.notFound().build()
+        return ResponseEntity.ok(OnboardingStatusResponse(status))
+    }
+
+    @PutMapping("/onboarding")
+    fun updateOnboardingStatus(@RequestBody request: UpdateOnboardingRequest): ResponseEntity<OnboardingStatusResponse> {
+        val currentUser = getCurrentUserWithValidation()
+        val updated = userService.updateOnboardingCompleted(currentUser.id, request.onboardingCompleted)
+            ?: return ResponseEntity.badRequest().build()
+        return ResponseEntity.ok(OnboardingStatusResponse(updated.onboardingCompleted))
+    }
+
     @PostMapping("/profile-picture", consumes = ["multipart/form-data"])
     fun uploadProfilePicture(@RequestParam("file") file: MultipartFile): ResponseEntity<Map<String, String>> {
         logger.debug("Received profile picture upload request. File empty: ${file.isEmpty}, Size: ${file.size}, Content-Type: ${file.contentType}")
         val currentUser = getCurrentUserWithValidation()
-
         return try {
-            // Upload the file to Firebase Storage and get the URL
             val profilePicUrl = fileStorageService.uploadProfilePicture(file, currentUser.id)
-
-            // Update the user's profile picture URL in the database
             val updatedUser = userService.updateProfilePicture(currentUser.id, profilePicUrl)
-
             if (updatedUser != null) {
-                // Send profile update notification
                 sendProfileUpdateNotification(updatedUser.id, updatedUser.name)
-
                 ResponseEntity.ok(mapOf(
                     "message" to "Profile picture uploaded successfully",
                     "profilePicUrl" to profilePicUrl
