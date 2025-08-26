@@ -164,26 +164,40 @@ class FamilyController @Autowired constructor(
         return fullMessage
     }
 
-    private fun logUserNotFound(userId: String, operation: String = "") =
-        logError("User not found with ID: $userId", operation, userId)
+    private fun logUserNotFound(userId: String, operation: String = ""): String {
+        logger.warn("User not found with ID: $userId" + if (operation.isNotEmpty()) " during $operation" else "")
+        return "User not found"
+    }
 
-    private fun logUserAlreadyInFamily(userId: String, familyId: String, operation: String = "") =
-        logError("User already belongs to family: $familyId", operation, userId)
+    private fun logUserAlreadyInFamily(userId: String, familyId: String, operation: String = ""): String {
+        logger.warn("User already belongs to family: $familyId (userId=$userId)" + if (operation.isNotEmpty()) " during $operation" else "")
+        return "Already in a family"
+    }
 
-    private fun logUserNotInFamily(userId: String, operation: String = "") =
-        logError("User does not belong to any family", operation, userId)
+    private fun logUserNotInFamily(userId: String, operation: String = ""): String {
+        logger.warn("User does not belong to any family (userId=$userId)" + if (operation.isNotEmpty()) " during $operation" else "")
+        return "Not in a family"
+    }
 
-    private fun logFamilyNotFound(familyId: String, operation: String = "") =
-        logError("Family not found with ID: $familyId", operation)
+    private fun logFamilyNotFound(familyId: String, operation: String = ""): String {
+        logger.warn("Family not found with ID: $familyId" + if (operation.isNotEmpty()) " during $operation" else "")
+        return "Family not found"
+    }
 
-    private fun logFamilyNotFoundByAlias(aliasName: String, operation: String = "") =
-        logError("Family not found with alias: $aliasName", operation)
+    private fun logFamilyNotFoundByAlias(aliasName: String, operation: String = ""): String {
+        logger.warn("Family not found with alias: $aliasName" + if (operation.isNotEmpty()) " during $operation" else "")
+        return "Family not found"
+    }
 
-    private fun logFamilyFull(familyId: String, currentSize: Int, maxSize: Int, operation: String = "") =
-        logError("Family $familyId is full ($currentSize/$maxSize)", operation)
+    private fun logFamilyFull(familyId: String, currentSize: Int, maxSize: Int, operation: String = ""): String {
+        logger.warn("Family $familyId is full ($currentSize/$maxSize)" + if (operation.isNotEmpty()) " during $operation" else "")
+        return "Family is full"
+    }
 
-    private fun logNotFamilyHead(userId: String, headId: String, operation: String = "") =
-        logError("User is not the family head. Head ID: $headId", operation, userId)
+    private fun logNotFamilyHead(userId: String, headId: String, operation: String = ""): String {
+        logger.warn("User is not the family head. headId=$headId userId=$userId" + if (operation.isNotEmpty()) " during $operation" else "")
+        return "Only family head can perform this action"
+    }
 
     // Optimized database operations
     private fun findUserByEmail(email: String) = userRepository.findAll().find { it.email == email }
@@ -1660,7 +1674,7 @@ class FamilyController @Autowired constructor(
 
             ResponseEntity.ok(
                 BasicFamilySuccessResponse(
-                    "Join request from ${request.requesterId} has been rejected",
+                    "Join request rejected",
                     response
                 )
             )
@@ -1784,7 +1798,7 @@ class FamilyController @Autowired constructor(
             logger.info("Join request accepted successfully for user: ${request.requesterId}")
             ResponseEntity.ok(
                 BasicFamilySuccessResponse(
-                    "Join request from ${requesterUser.email} has been accepted. Welcome to ${family.name}!",
+                    "Join request accepted",
                     response
                 )
             )
