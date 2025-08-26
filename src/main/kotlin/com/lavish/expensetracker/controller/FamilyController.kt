@@ -279,7 +279,7 @@ class FamilyController @Autowired constructor(
     }
 
     private fun markNotActionable(notification: Notification, reason: String): Notification {
-        val updated = notification.copy(actionable = false, message = notification.message.take(990) + " (Expired)")
+        val updated = notification.copy(actionable = false, isRead = true, message = notification.message.take(980) + " (Expired)")
         return try {
             notificationRepository.save(updated)
             logger.info("Notification ${notification.id} marked not actionable: $reason")
@@ -294,12 +294,22 @@ class FamilyController @Autowired constructor(
         notificationId: Long?,
         expectedType: NotificationType
     ): Pair<Notification?, String?> {
-        if (notificationId == null) return Pair(null, null) // No notification context provided; proceed silently
+        if (notificationId == null) return Pair(null, null)
         val opt = notificationRepository.findById(notificationId)
         if (opt.isEmpty) return Pair(null, "Notification not found")
         val notification = opt.get()
-        if (notification.type != expectedType) return Pair(null, "Invalid notification")
-        if (!notification.actionable) return Pair(null, "Already handled")
+        if (notification.type != expectedType) {
+            // Mark as read & non-actionable because user attempted an invalid action via this notification
+            try { notificationRepository.save(notification.copy(isRead = true, actionable = false, message = notification.message.take(980) + " (Invalid Action)")) } catch (_: Exception) {}
+            return Pair(null, "Invalid notification")
+        }
+        if (!notification.actionable) {
+            // Already handled; ensure it's read
+            if (!notification.isRead) {
+                try { notificationRepository.save(notification.copy(isRead = true, actionable = false)) } catch (_: Exception) {}
+            }
+            return Pair(null, "Already handled")
+        }
         if (isExpired(notification)) {
             markNotActionable(notification, "expired")
             return Pair(null, "Expired")
@@ -1151,6 +1161,7 @@ class FamilyController @Autowired constructor(
                 return ApiResponseUtil.forbidden(logNotFamilyHead(currentUserId, family.headId, "cancel invitation"))
             }
 
+            var validatedNotif: Notification? = null
             if (request.notificationId != null) {
                 val (notif, notifError) = validateActionableNotification(request.notificationId, NotificationType.JOIN_FAMILY_INVITATION)
                 if (notifError != null) return when (notifError) {
@@ -1159,10 +1170,12 @@ class FamilyController @Autowired constructor(
                     "Already handled" -> ApiResponseUtil.badRequest("Invitation already handled")
                     "Expired" -> ApiResponseUtil.badRequest("Invitation expired")
                     else -> ApiResponseUtil.badRequest("Invalid notification")
-                }
+                } else validatedNotif = notif
             }
 
             if (!family.pendingMemberEmails.contains(request.invitedMemberEmail)) {
+                // Mark notification handled if we had one
+                validatedNotif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 return ApiResponseUtil.notFound("No pending invitation")
             }
 
@@ -1183,6 +1196,9 @@ class FamilyController @Autowired constructor(
                 "family" to updatedFamily,
                 "members" to members
             )
+
+            // Mark originating notification as handled
+            validatedNotif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
 
             logger.info("Invitation cancelled successfully")
             ResponseEntity.ok(BasicFamilySuccessResponse("Invitation cancelled successfully", response))
@@ -1336,7 +1352,6 @@ class FamilyController @Autowired constructor(
             val user = userRepository.findById(userId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "reject family invitation"))
 
-            // Find the family by alias
             val family = familyRepository.findByAliasName(request.aliasName.trim())
                 ?: return ApiResponseUtil.notFound(
                     logFamilyNotFoundByAlias(
@@ -1345,8 +1360,8 @@ class FamilyController @Autowired constructor(
                     )
                 )
 
-            // Check if the user has a pending invitation for this family
             if (!family.pendingMemberEmails.contains(user.email)) {
+                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 if (request.notificationId != null) {
                     val notification = notificationRepository.findById(
                         request.notificationId
@@ -1364,19 +1379,17 @@ class FamilyController @Autowired constructor(
                 return ApiResponseUtil.badRequest("No pending invitation")
             }
 
-            // Remove the user's email from pending invitations
             val updatedFamily = family.copy(
                 pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
                 updatedAt = System.currentTimeMillis()
             )
             familyRepository.save(updatedFamily)
 
-            // Get family head user for notification
             val headUser = userRepository.findById(family.headId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(family.headId, "reject family invitation"))
-            //mark previously accepted invitation as read
-            // Notify the family head about the rejection
+
             sendInvitationRejectedNotification(user, updatedFamily, headUser)
+            notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
 
             val response = mapOf(
                 "message" to "Family invitation rejected successfully",
@@ -1567,16 +1580,15 @@ class FamilyController @Autowired constructor(
                 ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "accept family invitation"))
 
             if (user.familyId != null) {
+                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 return ApiResponseUtil.conflict(logUserAlreadyInFamily(userId, user.familyId, "accept family invitation"))
             }
 
-            // Find the family by alias
             val family = familyRepository.findByAliasName(request.aliasName.trim())
                 ?: return ApiResponseUtil.notFound(logFamilyNotFoundByAlias(request.aliasName, "accept family invitation"))
 
-            // Check if the user has a pending invitation for this family
             if (!family.pendingMemberEmails.contains(user.email)) {
-
+                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 if (request.notificationId != null) {
                     val notification = notificationRepository.findById(request.notificationId)
 
@@ -1592,8 +1604,8 @@ class FamilyController @Autowired constructor(
                 return ApiResponseUtil.badRequest("No pending invitation")
             }
 
-            // Check if family is full
             if (family.membersIds.size >= family.maxSize) {
+                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 return ApiResponseUtil.conflict(
                     logFamilyFull(
                         family.familyId,
@@ -1604,7 +1616,6 @@ class FamilyController @Autowired constructor(
                 )
             }
 
-            // Add user to family and remove from pending invitations
             val updatedFamily = family.copy(
                 membersIds = (family.membersIds + userId).toMutableList(),
                 pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
@@ -1612,16 +1623,13 @@ class FamilyController @Autowired constructor(
             )
             familyRepository.save(updatedFamily)
 
-            // Update user's family ID
             userRepository.save(user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
 
             if (notif != null) { try { notificationRepository.save(notif.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
 
-            // Get family head user for notification
             val headUser = userRepository.findById(family.headId).orElse(null)
                 ?: return ApiResponseUtil.notFound(logUserNotFound(family.headId, "accept family invitation"))
 
-            // Notify the family head about the acceptance
             notifyInvitationAccepted(user, updatedFamily, headUser)
 
             val members = updatedFamily.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
@@ -1699,19 +1707,17 @@ class FamilyController @Autowired constructor(
             val requesterUser = findUserByUserId(request.requesterId)
                 ?: return ApiResponseUtil.notFound("User not found")
 
-            // Check if there's a pending join request from this user
             if (!family.pendingJoinRequests.contains(requesterUser.id)) {
+                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 return ApiResponseUtil.notFound("No pending join request")
             }
 
-            // Remove the user's email from pending join requests
             val updatedFamily = family.copy(
                 pendingJoinRequests = (family.pendingJoinRequests - requesterUser.id).toMutableList(),
                 updatedAt = System.currentTimeMillis()
             )
             familyRepository.save(updatedFamily)
 
-            // Notify the requester about the rejection
             notifyJoinRequestRejected(requesterUser, updatedFamily, headUser)
             if (notif != null) { try { notificationRepository.save(notif.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
 
@@ -1796,22 +1802,21 @@ class FamilyController @Autowired constructor(
             val requesterUser = findUserByUserId(request.requesterId)
                 ?: return ApiResponseUtil.notFound("User not found")
 
-            // Check if there's a pending join request from this user
             if (!family.pendingJoinRequests.contains(requesterUser.id)) {
+                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 return ApiResponseUtil.notFound("No pending join request")
             }
 
-            // Check if requester already belongs to a family
             if (requesterUser.familyId != null) {
+                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 return ApiResponseUtil.conflict("User already in a family")
             }
 
-            // Check if family is full
             if (family.membersIds.size >= family.maxSize) {
+                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
                 return ApiResponseUtil.conflict(logFamilyFull(family.familyId, family.membersIds.size, family.maxSize, "accept join request"))
             }
 
-            // Add user to family and remove from pending join requests
             val updatedFamily = family.copy(
                 membersIds = (family.membersIds + requesterUser.id).toMutableList(),
                 pendingJoinRequests = (family.pendingJoinRequests - requesterUser.id).toMutableList(),
@@ -1976,4 +1981,3 @@ class FamilyController @Autowired constructor(
         }
     }
 }
-
