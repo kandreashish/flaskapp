@@ -1591,7 +1591,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "403",
+                responseCode = "402",
                 description = "Forbidden, user is not the family head",
                 content = [Content(mediaType = "application/json")]
             ),
@@ -1690,7 +1690,7 @@ class FamilyController @Autowired constructor(
                 content = [Content(mediaType = "application/json")]
             ),
             ApiResponse(
-                responseCode = "403",
+                responseCode = "402",
                 description = "Forbidden, user is not the family head",
                 content = [Content(mediaType = "application/json")]
             ),
