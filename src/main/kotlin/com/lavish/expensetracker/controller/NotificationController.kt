@@ -20,7 +20,33 @@ class NotificationController @Autowired constructor(
     companion object {
         private const val DEFAULT_SIZE = 10
         private const val MAX_SIZE = 100
+        private const val INVITATION_TTL_MS = 3L * 24 * 60 * 60 * 1000 // 3 days
+        private const val JOIN_REQUEST_TTL_MS = 3L * 24 * 60 * 60 * 1000 // 3 days
+        private val actionableTypes = setOf(
+            NotificationType.JOIN_FAMILY_INVITATION,
+            NotificationType.JOIN_FAMILY_REQUEST
+        )
         private val logger = LoggerFactory.getLogger(NotificationController::class.java)
+    }
+
+    private fun isExpired(notification: Notification): Boolean {
+        val ttl = when (notification.type) {
+            NotificationType.JOIN_FAMILY_INVITATION -> INVITATION_TTL_MS
+            NotificationType.JOIN_FAMILY_REQUEST -> JOIN_REQUEST_TTL_MS
+            else -> return false
+        }
+        return System.currentTimeMillis() - notification.timestamp > ttl
+    }
+
+    private fun autoExpire(notifications: List<Notification>) {
+        notifications.filter { it.actionable && actionableTypes.contains(it.type) && isExpired(it) }.forEach { notif ->
+            try {
+                notificationRepository.save(notif.copy(actionable = false, message = notif.message.take(980) + " (Expired)"))
+                logger.debug("Notification ${notif.id} auto-expired")
+            } catch (ex: Exception) {
+                logger.warn("Failed to mark notification ${notif.id} expired: ${ex.message}")
+            }
+        }
     }
 
     data class BasicResponse(
@@ -74,8 +100,6 @@ class NotificationController @Autowired constructor(
                         }
                     logger.debug("Cursor notification found: {}", cursorNotification)
 
-                    // Get notifications for the current user as receiver, ordered by timestamp descending
-                    // For cursor pagination with DESC order, we need LESS THAN to get older notifications
                     val notifications =
                         notificationRepository.findByReceiverIdAndTimestampLessThanOrderByTimestampDesc(
                             userId,
@@ -100,7 +124,6 @@ class NotificationController @Autowired constructor(
             } else {
                 logger.info("Performing first page pagination for userId: {}", userId)
                 try {
-                    // First page: get latest notifications for the current user as receiver
                     val notifications = notificationRepository.findByReceiverIdOrderByTimestampDesc(userId, pageable)
                     logger.info(
                         "Retrieved {} notifications for userId: {} (first page)",
@@ -113,6 +136,9 @@ class NotificationController @Autowired constructor(
                     throw e
                 }
             }
+
+            // auto-expire before building response
+            autoExpire(result.content)
 
             val response = PagedResponse(
                 content = result.content,
@@ -153,6 +179,11 @@ class NotificationController @Autowired constructor(
             val notification = notificationRepository.findById(id)
 
             return if (notification.isPresent) {
+                val notif = notification.get()
+                if (notif.actionable && actionableTypes.contains(notif.type) && isExpired(notif)) {
+                    autoExpire(listOf(notif))
+                }
+
                 logger.info("Notification found with id: {}", id)
                 val executionTime = System.currentTimeMillis() - startTime
                 logger.info("=== GET /api/notifications/{} - Completed successfully in {}ms ===", id, executionTime)
@@ -324,6 +355,10 @@ class NotificationController @Autowired constructor(
                 }
 
                 val updated = notificationRepository.save(notif.copy(isRead = true))
+                if (updated.actionable && actionableTypes.contains(updated.type) && isExpired(updated)) {
+                    autoExpire(listOf(updated))
+                }
+
                 logger.info("Notification with id: {} successfully marked as read", updated.id)
 
                 val executionTime = System.currentTimeMillis() - startTime
@@ -362,6 +397,7 @@ class NotificationController @Autowired constructor(
             logger.debug("Searching for unread notifications for userId: {}", userId)
 
             val unreadNotifications = notificationRepository.findByReceiverIdAndIsReadFalseOrderByTimestampDesc(userId)
+            autoExpire(unreadNotifications)
             val count = unreadNotifications.size
 
             logger.info("Found {} unread notifications for userId: {}", count, userId)
@@ -409,6 +445,10 @@ class NotificationController @Autowired constructor(
 
             return if (notification.isPresent) {
                 val notif = notification.get()
+                if (notif.actionable && actionableTypes.contains(notif.type) && isExpired(notif)) {
+                    autoExpire(listOf(notif))
+                }
+
                 logger.info("Notification found with id: {}, type: {}, familyId: {}", id, notif.type, notif.familyId)
 
                 // Security check: only allow users to see their own notifications
@@ -645,6 +685,7 @@ class NotificationController @Autowired constructor(
                 timestamp,
                 pageable
             )
+            autoExpire(notifications.content)
 
             logger.info(
                 "Retrieved {} notifications for userId: {} after timestamp: {}",
