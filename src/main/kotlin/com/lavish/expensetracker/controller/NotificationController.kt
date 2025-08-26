@@ -423,7 +423,7 @@ class NotificationController @Autowired constructor(
                         id,
                         executionTime
                     )
-                    return ResponseEntity.status(403).body(
+                    return ResponseEntity.status(401).body(
                         BasicResponse("Access denied: You can only view your own notifications", "error")
                     )
                 }
