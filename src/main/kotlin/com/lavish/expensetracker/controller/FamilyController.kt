@@ -112,7 +112,7 @@ class FamilyController @Autowired constructor(
 
     data class BasicFamilySuccessResponse(
         val message: String,
-        val family: Map<String, Any>
+        val family: Map<String, Any>?
     )
 
     data class UpdateFamilyNameRequest(
@@ -1391,14 +1391,8 @@ class FamilyController @Autowired constructor(
             sendInvitationRejectedNotification(user, updatedFamily, headUser)
             notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
 
-            val response = mapOf(
-                "message" to "Family invitation rejected successfully",
-                "familyName" to family.name,
-                "aliasName" to family.aliasName
-            )
-
             logger.info("Family invitation rejected successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation rejected successfully", response))
+            ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation rejected successfully", family=null))
 
         } catch (ex: Exception) {
             logger.error("Exception in rejectInvitation", ex)
