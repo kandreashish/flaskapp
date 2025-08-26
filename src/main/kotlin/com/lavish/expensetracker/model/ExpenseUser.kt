@@ -37,6 +37,10 @@ data class ExpenseUser(
     @Column(name = "profile_pic", nullable = true, length = 1000)
     val profilePic: String? = null,
 
+    // Low resolution / thumbnail version of profile picture
+    @Column(name = "profile_pic_low", nullable = true, length = 1000)
+    val profilePicLow: String? = null,
+
     @Column(name = "currencyPreference", nullable = false)
     val currencyPreference: String = "₹",
 

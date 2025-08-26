@@ -14,8 +14,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import java.util.concurrent.TimeUnit
+import java.awt.Graphics2D
+import java.awt.Image
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
 import javax.annotation.PostConstruct
+import javax.imageio.ImageIO
 
 @Service
 class FileStorageService(
@@ -37,6 +41,8 @@ class FileStorageService(
         "image/gif",
         "image/webp"
     )
+
+    data class UploadResult(val highResUrl: String, val lowResUrl: String)
 
     @PostConstruct
     fun initializeFirebaseStorage() {
@@ -81,9 +87,9 @@ class FileStorageService(
         }
     }
 
-    fun uploadProfilePicture(file: MultipartFile, userId: String): String {
+    fun uploadProfilePicture(file: MultipartFile, userId: String): UploadResult {
         logger.info(
-            "=== STARTING PROFILE PICTURE UPLOAD ===\n" +
+            "=== STARTING PROFILE PICTURE UPLOAD (DUAL RES) ===\n" +
             "User ID: {}\n" +
             "Original filename: {}\n" +
             "File size: {} bytes ({} KB)\n" +
@@ -109,72 +115,43 @@ class FileStorageService(
                 validateFile(file)
                 logger.info("✓ File validation passed - Size: {} bytes, Type: {}", file.size, file.contentType)
 
-                // Generate consistent file name
-                val fileName = generateConsistentFileName(userId)
-                val objectPath = "profile-pics/$fileName"
-                logger.info("Step 2: Generated file path: {}", objectPath)
+                // Read original image
+                val originalImage = ImageIO.read(file.inputStream)
+                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported or corrupted image file")
 
-                // Create blob info with metadata
-                val blobId = BlobId.of(firebaseStorageBucket, objectPath)
-                val metadata = mapOf(
-                    "userId" to userId,
-                    "uploadedAt" to System.currentTimeMillis().toString(),
-                    "originalFilename" to (file.originalFilename ?: "unknown"),
-                    "uploadAttempt" to attempt.toString()
-                )
+                // Generate file base name (no extension)
+                val fileBase = generateConsistentFileNameBase(userId)
+                val highObjectPath = "profile-pics/${fileBase}_full.jpg"
+                val lowObjectPath = "profile-pics/${fileBase}_low.jpg"
+                logger.info("Step 2: Generated file paths: high={}, low={}", highObjectPath, lowObjectPath)
 
-                val blobInfo = BlobInfo.newBuilder(blobId)
-                    .setContentType(file.contentType ?: "image/jpeg")
-                    .setMetadata(metadata)
-                    .build()
+                // Prepare images
+                val highResImage = if (needsDownscale(originalImage)) resizeImageMaintainingAspect(originalImage, 1024) else originalImage
+                val lowResImage = resizeImageMaintainingAspect(originalImage, 256)
 
-                logger.info("Step 3: Created blob info with metadata: {}", metadata)
+                // Encode images to JPEG byte arrays
+                val highBytes = bufferedImageToJpegBytes(highResImage)
+                val lowBytes = bufferedImageToJpegBytes(lowResImage, quality = 0.75f)
 
-                // Upload file to Firebase Storage
-                logger.info("Step 4: Uploading to Firebase Storage...")
-                val startTime = System.currentTimeMillis()
-                val blob = storage.create(blobInfo, file.bytes)
-                val uploadTime = System.currentTimeMillis() - startTime
-
-                if (blob == null) {
-                    throw RuntimeException("Failed to create blob in Firebase Storage - blob is null")
-                }
+                // Upload both variants
+                val highUrl = uploadBytesAndGetUrl(userId, highObjectPath, highBytes, attempt, variant = "full")
+                val lowUrl = uploadBytesAndGetUrl(userId, lowObjectPath, lowBytes, attempt, variant = "low")
 
                 logger.info(
-                    "✓ File uploaded successfully!\n" +
-                    "Upload time: {} ms\n" +
-                    "Blob ID: {}\n" +
-                    "Blob size: {} bytes\n" +
-                    "Blob exists: {}",
-                    uploadTime,
-                    blob.blobId,
-                    blob.size,
-                    blob.exists()
-                )
-
-                // Generate and return download URL
-                logger.info("Step 5: Generating download URL...")
-                val downloadUrl = generateDownloadUrl(objectPath)
-
-                logger.info(
-                    "=== UPLOAD COMPLETED SUCCESSFULLY ===\n" +
+                    "=== DUAL RES UPLOAD COMPLETED SUCCESSFULLY ===\n" +
                     "User ID: {}\n" +
-                    "Object path: {}\n" +
-                    "Download URL: {}\n" +
-                    "Total attempts: {}\n" +
-                    "Final blob size: {} bytes",
+                    "High URL: {}\nLow URL: {}\n" +
+                    "Attempts: {}",
                     userId,
-                    objectPath,
-                    downloadUrl,
-                    attempt,
-                    blob.size
+                    highUrl,
+                    lowUrl,
+                    attempt
                 )
-
-                return downloadUrl
+                return UploadResult(highUrl, lowUrl)
 
             } catch (ex: Exception) {
                 logger.error(
-                    "❌ UPLOAD FAILED - Attempt {} of {}\n" +
+                    "❌ DUAL RES UPLOAD FAILED - Attempt {} of {}\n" +
                     "User ID: {}\n" +
                     "Error type: {}\n" +
                     "Error message: {}\n" +
@@ -186,50 +163,83 @@ class FileStorageService(
                     ex.message,
                     ex.stackTrace.take(3).joinToString("\n") { "  at $it" }
                 )
-
                 lastException = when (ex) {
-                    is IllegalArgumentException -> {
-                        ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "Invalid file or parameters: ${ex.message}"
-                        )
-                    }
-                    is RuntimeException -> {
-                        if (ex.message?.contains("storage") == true) {
-                            ResponseStatusException(
-                                HttpStatus.INTERNAL_SERVER_ERROR,
-                                "Firebase Storage error: ${ex.message}"
-                            )
-                        } else {
-                            ResponseStatusException(
-                                HttpStatus.INTERNAL_SERVER_ERROR,
-                                "Upload failed: ${ex.message}"
-                            )
-                        }
-                    }
-                    else -> {
-                        ResponseStatusException(
-                            HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Unexpected error during file upload: ${ex.message}"
-                        )
-                    }
+                    is IllegalArgumentException -> ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid file or parameters: ${ex.message}")
+                    is ResponseStatusException -> ex
+                    else -> ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error during file upload: ${ex.message}")
                 }
-
-                // Retry for certain types of errors
                 if (attempt < maxAttempts && isRetryableError(ex)) {
-                    logger.warn("Retrying upload for user: {} after error: {}", userId, ex.message)
-                    Thread.sleep(100L * attempt) // Brief backoff
+                    Thread.sleep(100L * attempt)
                     continue
                 } else {
                     throw lastException
                 }
             }
         }
+        throw lastException ?: ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "File upload failed after $maxAttempts attempts")
+    }
 
-        throw lastException ?: ResponseStatusException(
-            HttpStatus.INTERNAL_SERVER_ERROR,
-            "File upload failed after $maxAttempts attempts"
+    private fun uploadBytesAndGetUrl(userId: String, objectPath: String, bytes: ByteArray, attempt: Int, variant: String): String {
+        // Create blob info with metadata
+        val blobId = BlobId.of(firebaseStorageBucket, objectPath)
+        val metadata = mapOf(
+            "userId" to userId,
+            "uploadedAt" to System.currentTimeMillis().toString(),
+            "variant" to variant,
+            "uploadAttempt" to attempt.toString()
         )
+        val blobInfo = BlobInfo.newBuilder(blobId)
+            .setContentType("image/jpeg")
+            .setMetadata(metadata)
+            .build()
+        val startTime = System.currentTimeMillis()
+        val blob = storage.create(blobInfo, bytes)
+        val uploadTime = System.currentTimeMillis() - startTime
+        logger.info("✓ Uploaded variant '{}' path='{}' size={} bytes in {} ms", variant, objectPath, blob.size, uploadTime)
+        return generateDownloadUrl(objectPath)
+    }
+
+    private fun needsDownscale(img: BufferedImage): Boolean = img.width > 1024 || img.height > 1024
+
+    private fun resizeImageMaintainingAspect(original: BufferedImage, maxDimension: Int): BufferedImage {
+        val (newW, newH) = calculateNewDimensions(original.width, original.height, maxDimension)
+        if (newW == original.width && newH == original.height) return original
+        val scaledImage = BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB)
+        val g: Graphics2D = scaledImage.createGraphics()
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g.drawImage(original.getScaledInstance(newW, newH, Image.SCALE_SMOOTH), 0, 0, null)
+        g.dispose()
+        return scaledImage
+    }
+
+    private fun calculateNewDimensions(width: Int, height: Int, maxDim: Int): Pair<Int, Int> {
+        if (width <= maxDim && height <= maxDim) return width to height
+        val ratio = width.toDouble() / height.toDouble()
+        return if (ratio > 1) { // landscape
+            maxDim to (maxDim / ratio).toInt()
+        } else { // portrait
+            (maxDim * ratio).toInt() to maxDim
+        }
+    }
+
+    private fun bufferedImageToJpegBytes(image: BufferedImage, quality: Float = 0.85f): ByteArray {
+        // Java ImageIO for JPEG doesn't expose quality easily without ImageWriter; implement custom
+        val baos = java.io.ByteArrayOutputStream()
+        val writers = ImageIO.getImageWritersByFormatName("jpg")
+        val writer = writers.next()
+        val ios = ImageIO.createImageOutputStream(baos)
+        writer.output = ios
+        val param = writer.defaultWriteParam
+        if (param.canWriteCompressed()) {
+            param.compressionMode = javax.imageio.ImageWriteParam.MODE_EXPLICIT
+            param.compressionQuality = quality.coerceIn(0.05f, 1.0f)
+        }
+        writer.write(null, javax.imageio.IIOImage(image, null, null), param)
+        ios.close()
+        writer.dispose()
+        return baos.toByteArray()
     }
 
     private fun isRetryableError(ex: Exception): Boolean {
@@ -263,85 +273,27 @@ class FileStorageService(
         }
     }
 
-    private fun generateConsistentFileName(userId: String): String {
-        // Use timestamp to ensure unique filenames for each upload
+    private fun generateConsistentFileNameBase(userId: String): String {
         val timestamp = System.currentTimeMillis()
-        return "profile_${userId}_${timestamp}.jpg"
+        return "profile_${userId}_${timestamp}"
     }
 
     private fun generateDownloadUrl(objectPath: String): String {
         logger.info("=== GENERATING DOWNLOAD URL ===")
         logger.info("Object path: {}", objectPath)
         logger.info("Bucket: {}", firebaseStorageBucket)
-
         return try {
             val blobId = BlobId.of(firebaseStorageBucket, objectPath)
-            logger.debug("Created BlobId: {}", blobId)
-
-            // Verify blob exists
-            val blob = storage.get(blobId)
-            if (blob == null) {
-                logger.error("❌ Blob not found after upload! BlobId: {}", blobId)
-                throw RuntimeException("Blob not found after upload")
-            }
-
-            logger.info("✓ Blob found - Size: {} bytes, Exists: {}, ContentType: {}",
-                blob.size, blob.exists(), blob.contentType)
-
-            // Check current ACLs before setting
+            val blob = storage.get(blobId) ?: throw RuntimeException("Blob not found after upload")
             try {
-                val currentAcls = blob.getAcl()
-                logger.info("Current ACLs before setting public access: {}",
-                    currentAcls?.map { "${it.entity} -> ${it.role}" } ?: "None")
-            } catch (ex: Exception) {
-                logger.debug("Could not retrieve current ACLs (this is normal): {}", ex.message)
-            }
-
-            // Make the blob publicly readable
-            logger.info("Setting public read access...")
-            val startAclTime = System.currentTimeMillis()
+                blob.getAcl()
+            } catch (_: Exception) { }
             try {
-                val acl = blob.createAcl(Acl.of(Acl.User.ofAllUsers(), Acl.Role.READER))
-                val aclTime = System.currentTimeMillis() - startAclTime
-                logger.info("✓ ACL set successfully in {} ms: {} -> {}",
-                    aclTime, acl.entity, acl.role)
-            } catch (ex: Exception) {
-                logger.warn("⚠️ Failed to set ACL (image may still be accessible): {}", ex.message)
-                // Continue anyway as some Firebase Storage configurations don't require explicit ACLs
-            }
-
-            // Generate the public URL
-            val publicUrl = "https://firebasestorage.googleapis.com/v0/b/$firebaseStorageBucket/o/${objectPath.replace("/", "%2F")}?alt=media"
-            logger.info("✓ Generated public URL: {}", publicUrl)
-
-            // Test URL accessibility (optional but helpful for debugging)
-            try {
-                val testConnection = java.net.URL(publicUrl).openConnection()
-                testConnection.connectTimeout = 5000
-                testConnection.readTimeout = 5000
-                val responseCode = (testConnection as java.net.HttpURLConnection).responseCode
-                logger.info("✓ URL accessibility test - Response code: {}", responseCode)
-                if (responseCode != 200) {
-                    logger.warn("⚠️ URL returned non-200 response: {}. Image may not be immediately accessible.", responseCode)
-                }
-            } catch (ex: Exception) {
-                logger.debug("URL accessibility test failed (this may be normal): {}", ex.message)
-            }
-
-            logger.info("=== DOWNLOAD URL GENERATION COMPLETED ===")
-            publicUrl
-
+                blob.createAcl(Acl.of(Acl.User.ofAllUsers(), Acl.Role.READER))
+            } catch (_: Exception) { }
+            "https://firebasestorage.googleapis.com/v0/b/$firebaseStorageBucket/o/${objectPath.replace("/", "%2F")}?alt=media"
         } catch (ex: Exception) {
-            logger.error("❌ FAILED TO GENERATE DOWNLOAD URL\n" +
-                "Object path: {}\n" +
-                "Bucket: {}\n" +
-                "Error: {}\n" +
-                "Exception type: {}",
-                objectPath, firebaseStorageBucket, ex.message, ex.javaClass.simpleName, ex)
-
-            // Return a fallback URL pattern that your frontend can handle
             val fallbackUrl = "https://firebasestorage.googleapis.com/v0/b/$firebaseStorageBucket/o/${objectPath.replace("/", "%2F")}?alt=media"
-            logger.warn("Returning fallback URL: {}", fallbackUrl)
             fallbackUrl
         }
     }
@@ -350,23 +302,10 @@ class FileStorageService(
         logger.debug("Attempting to delete profile picture from Firebase Storage: {}", profilePicUrl)
 
         return try {
-            val objectPath = extractObjectPathFromUrl(profilePicUrl)
-            if (objectPath == null) {
-                logger.warn("Could not extract object path from URL: {}", profilePicUrl)
-                return false
-            }
-
+            val objectPath = extractObjectPathFromUrl(profilePicUrl) ?: return false
             val blobId = BlobId.of(firebaseStorageBucket, objectPath)
             val deleted = storage.delete(blobId)
-
-            if (deleted) {
-                logger.info("Successfully deleted profile picture from Firebase Storage: {}", objectPath)
-            } else {
-                logger.warn("Profile picture was not found in Firebase Storage: {}", objectPath)
-            }
-
-            return deleted
-
+            deleted
         } catch (ex: Exception) {
             logger.error("Error while deleting profile picture from Firebase Storage: {}", profilePicUrl, ex)
             false
@@ -402,20 +341,24 @@ class FileStorageService(
      */
     fun refreshDownloadUrl(userId: String): String? {
         return try {
-            val fileName = generateConsistentFileName(userId)
-            val objectPath = "profile-pics/$fileName"
-            val blobId = BlobId.of(firebaseStorageBucket, objectPath)
-
-            // Check if file exists
-            val blob = storage.get(blobId)
-            if (blob != null && blob.exists()) {
-                generateDownloadUrl(objectPath)
-            } else {
-                logger.warn("Profile picture not found for user: {}", userId)
+            val prefix = "profile-pics/profile_${userId}_"
+            logger.info("Refreshing profile picture URL. Listing blobs with prefix: {}", prefix)
+            val blobs = storage.list(
+                firebaseStorageBucket,
+                com.google.cloud.storage.Storage.BlobListOption.prefix(prefix)
+            )
+            val latestHigh = blobs.values
+                .filter { it.name.endsWith("_full.jpg") }
+                .maxByOrNull { it.createTime ?: 0L }
+            if (latestHigh == null) {
+                logger.warn("No high-res profile picture found for user {}", userId)
                 null
+            } else {
+                logger.info("Found latest high-res profile pic blob: {} (size={} bytes)", latestHigh.name, latestHigh.size)
+                generateDownloadUrl(latestHigh.name)
             }
         } catch (ex: Exception) {
-            logger.error("Failed to refresh download URL for user: {}", userId, ex)
+            logger.error("Failed to refresh download URL for user {}: {}", userId, ex.message)
             null
         }
     }

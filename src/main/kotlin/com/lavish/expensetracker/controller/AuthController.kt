@@ -121,24 +121,16 @@ class AuthController(
     @PostMapping("/refresh")
     fun refreshToken(@RequestBody request: RefreshTokenRequest): ResponseEntity<AuthResponseBase> {
         return try {
-            // Validate the refresh token and get user ID
             val userId = refreshTokenService.validateRefreshToken(request.refreshToken)
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(FailureAuthResponse(success = false, message = "Invalid or expired refresh token"))
             }
-
-            // Get user from a database
             val user = authService.getUserById(userId)
                 ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(FailureAuthResponse(success = false, message = "User not found"))
-
-            // Generate new JWT token
             val newJwtToken = jwtService.generateToken(user.id)
-
-            // Generate new refresh token (rotate refresh tokens for security)
             val newRefreshToken = refreshTokenService.generateRefreshToken(user.id)
-
             val response = SuccessAuthResponse(
                 success = true,
                 message = "Token refreshed successfully",
@@ -147,20 +139,23 @@ class AuthController(
                 expirationTime = jwtService.getTokenExpirationTime(newJwtToken) ?: 0,
                 user = ExpenseUser(
                     id = user.id,
-                    name = user.name ?: "",
+                    name = user.name,
                     email = user.email,
+                    aliasName = user.aliasName,
+                    firebaseUid = user.firebaseUid,
                     familyId = user.familyId,
-                    profilePic = user.profilePic ?: "",
+                    profilePic = user.profilePic,
+                    profilePicLow = user.profilePicLow ?: user.profilePic,
                     createdAt = user.createdAt,
                     updatedAt = user.updatedAt,
-                    aliasName = user.aliasName,
-                    firebaseUid = user.firebaseUid
+                    fcmToken = user.fcmToken,
+                    currencyPreference = user.currencyPreference,
+                    sentJoinRequests = user.sentJoinRequests,
+                    onboardingCompleted = user.onboardingCompleted
                 )
             )
-
             logger.info("Token refreshed for user: ${user.email}")
             ResponseEntity.ok(response)
-
         } catch (e: Exception) {
             logger.error("Token refresh failed", e)
             ResponseEntity.status(HttpStatus.UNAUTHORIZED)

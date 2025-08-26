@@ -69,6 +69,7 @@ class UserService(
         val updatedUser = existingUser.copy(
             name = updateRequest.name ?: existingUser.name,
             profilePic = updateRequest.profilePic ?: existingUser.profilePic,
+            profilePicLow = updateRequest.profilePicLow ?: existingUser.profilePicLow,
             currencyPreference = updateRequest.currencyPreference ?: existingUser.currencyPreference,
             updatedAt = System.currentTimeMillis()
         )
@@ -77,26 +78,36 @@ class UserService(
     }
 
     @Transactional
-    fun updateProfilePicture(userId: String, profilePicUrl: String): ExpenseUser? {
+    fun updateProfilePicture(userId: String, highResUrl: String, lowResUrl: String): ExpenseUser? {
         val existingUser = userRepository.findById(userId).orElse(null) ?: return null
 
-        // Delete old profile picture if it exists (now that we use unique filenames)
-        existingUser.profilePic?.let { oldPicUrl ->
-            logger.info("Deleting old profile picture for user {}: {}", userId, oldPicUrl)
-            val deleted = fileStorageService.deleteProfilePicture(oldPicUrl)
-            if (deleted) {
-                logger.info("✓ Successfully deleted old profile picture for user {}", userId)
-            } else {
-                logger.warn("⚠️ Failed to delete old profile picture for user {}: {}", userId, oldPicUrl)
+        // Delete old profile pictures if they exist
+        existingUser.profilePic?.let { oldHigh ->
+            try {
+                if (fileStorageService.deleteProfilePicture(oldHigh)) {
+                    logger.info("Deleted old high-res profile picture for user {}", userId)
+                }
+            } catch (ex: Exception) {
+                logger.warn("Failed deleting old high-res profile image for user {}: {}", userId, ex.message)
             }
-        } ?: logger.info("No existing profile picture to delete for user {}", userId)
+        }
+        existingUser.profilePicLow?.let { oldLow ->
+            try {
+                if (fileStorageService.deleteProfilePicture(oldLow)) {
+                    logger.info("Deleted old low-res profile picture for user {}", userId)
+                }
+            } catch (ex: Exception) {
+                logger.warn("Failed deleting old low-res profile image for user {}: {}", userId, ex.message)
+            }
+        }
 
         val updatedUser = existingUser.copy(
-            profilePic = profilePicUrl,
+            profilePic = highResUrl,
+            profilePicLow = lowResUrl,
             updatedAt = System.currentTimeMillis()
         )
 
-        logger.info("Updating user {} profile picture in database: {}", userId, profilePicUrl)
+        logger.info("Updating user {} profile picture in database (high & low)", userId)
         return userRepository.save(updatedUser)
     }
 

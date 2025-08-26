@@ -42,3 +42,5 @@ WHERE fcm_token IS NOT NULL AND fcm_token != '';
 -- Add onboarding_completed column to expense_users table if it does not exist
 -- (Adjust table name if your actual user table differs)
 ALTER TABLE expense_users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
+-- Add low resolution profile picture column
+ALTER TABLE expense_users ADD COLUMN IF NOT EXISTS profile_pic_low VARCHAR(1000);

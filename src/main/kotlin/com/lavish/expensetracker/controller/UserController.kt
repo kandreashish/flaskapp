@@ -59,6 +59,7 @@ class UserController(
     data class UpdateProfileRequest(
         val name: String?,
         val profilePic: String?,
+        val profilePicLow: String?,
         val currencyPreference: String?
     )
 
@@ -68,6 +69,7 @@ class UserController(
         val email: String,
         val aliasName: String,
         val profilePic: String?,
+        val profilePicLow: String?,
         val currencyPreference: String,
         val familyId: String?,
         val createdAt: Long,
@@ -134,6 +136,7 @@ class UserController(
                 email = updatedUser.email,
                 aliasName = updatedUser.aliasName,
                 profilePic = updatedUser.profilePic,
+                profilePicLow = updatedUser.profilePicLow,
                 currencyPreference = updatedUser.currencyPreference,
                 familyId = updatedUser.familyId,
                 createdAt = updatedUser.createdAt,
@@ -177,6 +180,7 @@ class UserController(
                 email = user.email,
                 aliasName = user.aliasName,
                 profilePic = user.profilePic,
+                profilePicLow = user.profilePicLow,
                 currencyPreference = user.currencyPreference,
                 familyId = user.familyId,
                 createdAt = user.createdAt,
@@ -209,13 +213,14 @@ class UserController(
         logger.debug("Received profile picture upload request. File empty: ${file.isEmpty}, Size: ${file.size}, Content-Type: ${file.contentType}")
         val currentUser = getCurrentUserWithValidation()
         return try {
-            val profilePicUrl = fileStorageService.uploadProfilePicture(file, currentUser.id)
-            val updatedUser = userService.updateProfilePicture(currentUser.id, profilePicUrl)
+            val result = fileStorageService.uploadProfilePicture(file, currentUser.id)
+            val updatedUser = userService.updateProfilePicture(currentUser.id, result.highResUrl, result.lowResUrl)
             if (updatedUser != null) {
                 sendProfileUpdateNotification(updatedUser.id, updatedUser.name)
                 ResponseEntity.ok(mapOf(
                     "message" to "Profile picture uploaded successfully",
-                    "profilePicUrl" to profilePicUrl
+                    "profilePicHigh" to result.highResUrl,
+                    "profilePicLow" to result.lowResUrl
                 ))
             } else {
                 ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

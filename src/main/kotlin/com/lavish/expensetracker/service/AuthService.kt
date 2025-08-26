@@ -95,6 +95,7 @@ class AuthService(
                 firebaseUid = firebaseUser.uid,
                 familyId = null,
                 profilePic = firebaseUser.picture,
+                profilePicLow = firebaseUser.picture, // default low-res same as high until uploaded
                 aliasName = generateUniqueAliasName()
             )
             userRepository.save(newUser)
@@ -146,10 +147,15 @@ class AuthService(
                 email = user.email,
                 familyId = user.familyId,
                 profilePic = user.profilePic?.ifEmpty { firebaseUser.picture },
+                profilePicLow = user.profilePicLow ?: user.profilePic ?: firebaseUser.picture,
                 createdAt = user.createdAt,
                 updatedAt = user.updatedAt,
                 aliasName = user.aliasName,
-                firebaseUid = user.firebaseUid
+                firebaseUid = user.firebaseUid,
+                onboardingCompleted = user.onboardingCompleted,
+                fcmToken = user.fcmToken,
+                currencyPreference = user.currencyPreference,
+                sentJoinRequests = user.sentJoinRequests
             ),
             token = token,
             refreshToken = refreshToken,
