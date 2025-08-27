@@ -43,6 +43,49 @@ class PushNotificationService {
             )
             .build()
 
+    // New: android config without notification for data-only messages
+    private fun highPriorityDataOnlyAndroidConfig(
+        ttlMs: Long?,
+        collapseKey: String? = null
+    ): AndroidConfig = AndroidConfig.builder()
+        .setPriority(AndroidConfig.Priority.HIGH)
+        .apply { ttlMs?.let { setTtl(it) } }
+        .apply { collapseKey?.let { setCollapseKey(it) } }
+        .build()
+
+    /**
+     * Send data-only (no system notification) typed notification to multiple tokens.
+     * Adds channelId, type, title/body (if provided) into data for client handling.
+     */
+    fun sendDataOnlyTypedNotificationToMultiple(
+        type: NotificationType,
+        tokens: List<String>,
+        title: String? = null,
+        body: String? = null,
+        data: Map<String, String?> = emptyMap(),
+        tag: String? = null,
+        includeSoundFlag: Boolean = true,
+        sound: String = "default"
+    ): List<String> {
+        val safeTokens = tokens.filter { it.isNotBlank() }
+        if (safeTokens.isEmpty()) return emptyList()
+        val channelId = channelIdForType(type)
+        val ttl = ttlForChannel(channelId)
+        val collapseKey = computeCollapseKey(type, tag, data, channelId)
+        val builder = MulticastMessage.builder()
+            .addAllTokens(safeTokens)
+            .setAndroidConfig(highPriorityDataOnlyAndroidConfig(ttl, collapseKey))
+            .putData("type", type.name)
+            .putData("channelId", channelId)
+            .putData("data_only", "true")
+        if (includeSoundFlag) builder.putData("sound", sound)
+        if (title != null) builder.putData("title", title)
+        if (body != null) builder.putData("body", body)
+        data.filterValues { it != null }.forEach { (k, v) -> builder.putData(k, v!!) }
+        val message = builder.build()
+        return dispatchMulticast(message, safeTokens, "data-only ${type.name}")
+    }
+
     fun sendTypedNotificationToMultiple(
         type: NotificationType,
         tokens: List<String>,
@@ -81,51 +124,6 @@ class PushNotificationService {
         return sendTypedNotificationToMultiple(NotificationType.PROFILE_UPDATED, safeTokens, title, body, data)
     }
 
-    @Deprecated("Use sendTypedNotificationToMultiple with specific NotificationType instead")
-    fun sendNotificationWithData(
-        token: String?,
-        title: String?,
-        body: String?,
-        data: Map<String, String>?,
-        topic: String? = null
-    ) {
-        if (token.isNullOrBlank()) return
-        sendTypedNotificationToMultiple(
-            type = NotificationType.GENERAL,
-            tokens = listOf(token),
-            title = title,
-            body = body,
-            data = data ?: emptyMap(),
-            tag = data?.get("expenseId") ?: data?.get("familyId")
-        )
-    }
-
-    @Deprecated("Use ExpenseNotificationService.sendExpenseNotificationToMultiple")
-    fun sendExpenseNotificationToMultiple(
-        title: String,
-        body: String,
-        type: NotificationType,
-        tokens: List<String>,
-        amount: String?,
-        description: String,
-        userId: String? = null,
-        expenseId: String
-    ): List<String> {
-        val data = mapOf(
-            "description" to description,
-            "amount" to (amount ?: "₹0.00"),
-            "senderId" to (userId ?: "unknown"),
-            "expenseId" to expenseId
-        )
-        return sendTypedNotificationToMultiple(
-            type = type,
-            tokens = tokens,
-            title = title,
-            body = body,
-            data = data,
-            tag = expenseId
-        )
-    }
 
     private fun dispatchMulticast(message: MulticastMessage, tokens: List<String>, label: String): List<String> = try {
         val response = FirebaseMessaging.getInstance().sendEachForMulticast(message)
@@ -195,9 +193,9 @@ class PushNotificationService {
         val familyId = (data?.get("familyId") ?: data?.get("family_id"))?.toString()?.takeIf { it.isNotBlank() }
         val base = when {
             !tag.isNullOrBlank() -> tag
-            expenseId != null -> "exp_" + expenseId
+            expenseId != null -> "exp_$expenseId"
             type != null && type.name.startsWith("FAMILY") && familyId != null -> "fam_" + familyId + '_' + type.name.lowercase()
-            familyId != null -> "fam_" + familyId
+            familyId != null -> "fam_$familyId"
             type != null -> type.name.lowercase()
             !topic.isNullOrBlank() -> topic
             else -> channelId

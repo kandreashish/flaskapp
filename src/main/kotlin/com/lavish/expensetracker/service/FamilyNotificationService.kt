@@ -8,8 +8,11 @@ import org.springframework.stereotype.Service
 class FamilyNotificationService(
     private val pushNotificationService: PushNotificationService
 ) {
+    companion object {
+        private const val DEFAULT_SOUND = "default"
+    }
     /**
-     * Send a family related notification to a single device token.
+     * Send a family related data-only notification to a single device token.
      */
     fun sendToSingle(
         token: String?,
@@ -17,21 +20,24 @@ class FamilyNotificationService(
         title: String?,
         body: String?,
         data: Map<String, String?> = emptyMap(),
-        tag: String? = null
+        tag: String? = null,
+        sound: String = DEFAULT_SOUND
     ) {
         if (token.isNullOrBlank()) return
-        pushNotificationService.sendTypedNotificationToMultiple(
+        pushNotificationService.sendDataOnlyTypedNotificationToMultiple(
             type = type,
             tokens = listOf(token),
             title = title,
             body = body,
             data = data,
-            tag = tag
+            tag = tag,
+            includeSoundFlag = true,
+            sound = sound
         )
     }
 
     /**
-     * Send a family related notification to multiple device tokens.
+     * Send a family related data-only notification to multiple device tokens.
      * Returns list of invalid tokens for cleanup.
      */
     fun sendToMultiple(
@@ -40,16 +46,18 @@ class FamilyNotificationService(
         title: String?,
         body: String?,
         data: Map<String, String?> = emptyMap(),
-        tag: String? = null
+        tag: String? = null,
+        sound: String = DEFAULT_SOUND
     ): List<String> {
-        return pushNotificationService.sendTypedNotificationToMultiple(
+        return pushNotificationService.sendDataOnlyTypedNotificationToMultiple(
             type = type,
             tokens = tokens,
             title = title,
             body = body,
             data = data,
-            tag = tag
+            tag = tag,
+            includeSoundFlag = true,
+            sound = sound
         )
     }
 }
-
