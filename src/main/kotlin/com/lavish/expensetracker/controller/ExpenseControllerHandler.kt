@@ -356,9 +356,18 @@ class ExpenseControllerHandler(
         throw ExpenseAccessDeniedException("You don't have permission to view this expense")
     }
 
+    /**
+     * Determines if the current user has permission to delete the given expense.
+     * A user can delete an expense if:
+     * 1. They are the owner of the expense, OR
+     * 2. The expense belongs to a family and the user is a member of that family.
+     *
+     * @param expense The expense to check deletion permissions for
+     * @param currentUser The user attempting to delete the expense
+     * @return true if the user can delete the expense, false otherwise
+     */
     private fun canDeleteExpense(expense: ExpenseDto, currentUser: ExpenseUser): Boolean {
-        val owner = userService.findById(expense.userId) ?: return false
-        return expense.userId == currentUser.id || (currentUser.familyId != null && currentUser.familyId == owner.familyId && currentUser.familyId.isNotBlank())
+        return expense.userId == currentUser.id || (currentUser.familyId != null && currentUser.familyId == expense.familyId)
     }
 
     private fun sendExpenseNotification(
