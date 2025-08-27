@@ -1,6 +1,5 @@
 package com.lavish.expensetracker.controller
 
-import com.lavish.expensetracker.config.PushNotificationService
 import com.lavish.expensetracker.model.ExpenseUser
 import com.lavish.expensetracker.model.Family
 import com.lavish.expensetracker.model.Notification
@@ -246,29 +245,41 @@ class FamilyController @Autowired constructor(
         }
     }
 
+    // New helper to save and return notification with generated ID
+    private fun saveAndReturnNotification(notification: Notification): Notification? = try {
+        val saved = notificationRepository.save(notification)
+        logger.debug("Notification saved with id=${'$'}{saved.id}")
+        saved
+    } catch (ex: Exception) {
+        logger.warn("Failed to save notification: ${'$'}{ex.message}")
+        null
+    }
+
     // Optimized push notification sending with error handling
     private fun sendPushNotification(
         token: String?,
         title: String,
         message: String,
         data: Map<String, String>,
-        recipientEmail: String
+        recipientEmail: String,
+        notificationId: Long? = null
     ) {
         if (token.isNullOrBlank()) {
             logger.warn("FCM token is null or empty for user: $recipientEmail")
             return
         }
         val type = data["type"]?.let { runCatching { NotificationType.valueOf(it) }.getOrNull() } ?: NotificationType.GENERAL
+        val enrichedData = if (notificationId != null) data + ("notificationId" to notificationId.toString()) else data
         try {
             familyNotificationService.sendToSingle(
                 token = token,
                 type = type,
                 title = title,
                 body = message,
-                data = data,
-                tag = data["familyId"] ?: data["family_id"] ?: data["alias_name"]
+                data = enrichedData,
+                tag = enrichedData["familyId"] ?: enrichedData["family_id"] ?: enrichedData["alias_name"]
             )
-            logger.info("Push notification sent successfully to: $recipientEmail")
+            logger.info("Push notification sent successfully to: $recipientEmail (notificationId=${'$'}notificationId)")
         } catch (ex: Exception) {
             logger.error("Failed to send push notification to: $recipientEmail", ex)
         }
@@ -751,181 +762,161 @@ class FamilyController @Autowired constructor(
     private fun sendInvitationNotification(invitedUser: Any, family: Family, headUser: Any) {
         val title = "Family Invitation"
         val message =
-            "You have been invited to join the family '${family.name}' by ${(headUser as ExpenseUser).name}. Please accept the invitation to join."
+            "You have been invited to join the family '${'$'}{family.name}' by ${(headUser as ExpenseUser).name}. Please accept the invitation to join."
+
+        val headExpenseUser = headUser as ExpenseUser
+        val invitedExpenseUser = invitedUser as ExpenseUser
+
+        val notification = createNotification(
+            title,
+            message,
+            family.familyId,
+            headExpenseUser.name ?: headExpenseUser.email,
+            headExpenseUser.id,
+            invitedExpenseUser.id,
+            NotificationType.JOIN_FAMILY_INVITATION,
+            family.aliasName,
+            true
+        )
+        val saved = saveAndReturnNotification(notification)
 
         val data = mapOf(
             "alias_name" to family.aliasName,
             "family_name" to family.name,
-            "invited_member_email" to headUser.email,
-            "sender_name" to (headUser.name ?: ""),
-            "sender_id" to headUser.id,
+            "invited_member_email" to headExpenseUser.email,
+            "sender_name" to (headExpenseUser.name ?: ""),
+            "sender_id" to headExpenseUser.id,
             "type" to NotificationType.JOIN_FAMILY_INVITATION.name
         )
 
         sendPushNotification(
-            (invitedUser as ExpenseUser).fcmToken,
+            invitedExpenseUser.fcmToken,
             title,
             message,
             data,
-            invitedUser.email
+            invitedExpenseUser.email,
+            saved?.id
         )
-
-        try {
-            val notification = createNotification(
-                title,
-                message,
-                family.familyId,
-                headUser.name ?: headUser.email,
-                headUser.id,
-                invitedUser.id,
-                NotificationType.JOIN_FAMILY_INVITATION,
-                family.aliasName,
-                true
-            )
-            notificationRepository.save(notification)
-            logger.info("Notification saved successfully for invitation")
-        } catch (ex: Exception) {
-            logger.error("Failed to save notification for invitation: ${ex.message}", ex)
-            // Don't fail the entire invitation process if notification saving fails
-        }
     }
 
     // Helper to notify invitee that invitation was cancelled
     private fun notifyInvitationCancelled(user: Any, family: Family, headUser: Any) {
         val title = "Invitation Cancelled"
-        val message = "The invitation to join the family '${family.name}' has been cancelled."
-        val data = mapOf(
-            "alias_name" to family.aliasName,
-            "family_name" to family.name,
-            "sender_email" to (headUser as ExpenseUser).email,
-            "sender_name" to (headUser.name ?: ""),
-            "sender_id" to headUser.id,
-            "type" to NotificationType.JOIN_FAMILY_INVITATION_CANCELLED.name
-        )
-        sendPushNotification(
-            (user as ExpenseUser).fcmToken,
-            title,
-            message,
-            data,
-            user.email
-        )
+        val message = "The invitation to join the family '${'$'}{family.name}' has been cancelled."
+        val head = headUser as ExpenseUser
+        val target = user as ExpenseUser
         val notification = createNotification(
             title,
             message,
             family.familyId,
-            headUser.name ?: headUser.email,
-            headUser.id,
-            user.id,
+            head.name ?: head.email,
+            head.id,
+            target.id,
             NotificationType.JOIN_FAMILY_INVITATION_CANCELLED,
             family.aliasName
         )
-        saveNotificationSafely(notification)
+        val saved = saveAndReturnNotification(notification)
+        val data = mapOf(
+            "alias_name" to family.aliasName,
+            "family_name" to family.name,
+            "sender_email" to head.email,
+            "sender_name" to (head.name ?: ""),
+            "sender_id" to head.id,
+            "type" to NotificationType.JOIN_FAMILY_INVITATION_CANCELLED.name
+        )
+        sendPushNotification(target.fcmToken, title, message, data, target.email, saved?.id)
     }
 
     // Helper method for notifying family head
     private fun notifyFamilyHead(family: Family, user: Any, action: String) {
         val headUser = userRepository.findById(family.headId).orElse(null) ?: return
-        val userName = (user as ExpenseUser).name ?: user.email
-
+        val member = user as ExpenseUser
+        val userName = member.name ?: member.email
         val title = "Family Member Update"
-        val message = "$userName $action '${family.name}'."
-
-        val data = mapOf(
-            "alias_name" to family.aliasName,
-            "family_name" to family.name,
-            "sender_name" to user.email,
-            "sender_id" to user.id,
-            "type" to NotificationType.FAMILY_MEMBER_LEFT.name
-        )
-
-        sendPushNotification(headUser.fcmToken, title, message, data, headUser.email)
-
+        val message = "${'$'}userName $action '${'$'}{family.name}'."
         val notification = createNotification(
             title,
             message,
             family.familyId,
             userName,
-            user.id,
+            member.id,
             headUser.id,
             NotificationType.FAMILY_MEMBER_LEFT,
             family.aliasName
         )
-        saveNotificationSafely(notification)
+        val saved = saveAndReturnNotification(notification)
+        val data = mapOf(
+            "alias_name" to family.aliasName,
+            "family_name" to family.name,
+            "sender_name" to member.email,
+            "sender_id" to member.id,
+            "type" to NotificationType.FAMILY_MEMBER_LEFT.name
+        )
+        sendPushNotification(headUser.fcmToken, title, message, data, headUser.email, saved?.id)
     }
 
     // Helper method for notifying family head of join request
     private fun notifyFamilyHeadOfJoinRequest(family: Family, user: Any) {
         val headUser = userRepository.findById(family.headId).orElse(null) ?: return
-        val userName = (user as ExpenseUser).name ?: user.email
-
+        val requester = user as ExpenseUser
+        val userName = requester.name ?: requester.email
         val title = "Join Request"
-        val message = "$userName (${user.email}) has requested to join your family '${family.name}'."
-
-        val data = mapOf(
-            "alias_name" to family.aliasName,
-            "family_name" to family.name,
-            "requester_email" to user.email,
-            "sender_id" to user.id,
-            "sender_name" to userName,
-            "type" to NotificationType.JOIN_FAMILY_REQUEST.name
-        )
-
-        sendPushNotification(headUser.fcmToken, title, message, data, headUser.email)
-
+        val message = "${'$'}userName (${requester.email}) has requested to join your family '${'$'}{family.name}'."
         val notification = createNotification(
             title,
             message,
             family.familyId,
             userName,
-            user.id,
+            requester.id,
             headUser.id,
             NotificationType.JOIN_FAMILY_REQUEST,
-            family.aliasName
+            family.aliasName,
+            true
         )
-        saveNotificationSafely(notification)
+        val saved = saveAndReturnNotification(notification)
+        val data = mapOf(
+            "alias_name" to family.aliasName,
+            "family_name" to family.name,
+            "requester_email" to requester.email,
+            "sender_id" to requester.id,
+            "sender_name" to userName,
+            "type" to NotificationType.JOIN_FAMILY_REQUEST.name
+        )
+        sendPushNotification(headUser.fcmToken, title, message, data, headUser.email, saved?.id)
     }
 
     // Helper method for notifying join request acceptance
     private fun notifyJoinRequestAccepted(user: Any, family: Family, headUser: Any) {
+        val requester = user as ExpenseUser
+        val head = headUser as ExpenseUser
         val title = "Join Request Accepted"
-        val message = "Your request to join the family '${family.name}' has been accepted."
-
+        val message = "Your request to join the family '${'$'}{family.name}' has been accepted."
+        val notification = createNotification(
+            title, message, family.familyId, head.name ?: head.email, head.id, requester.id,
+            NotificationType.JOIN_FAMILY_REQUEST_ACCEPTED, family.aliasName
+        )
+        val saved = saveAndReturnNotification(notification)
         val data = mapOf(
             "alias_name" to family.aliasName,
             "family_name" to family.name,
-            "sender_email" to (headUser as ExpenseUser).email,
-            "sender_id" to headUser.id,
-            "sender_name" to (headUser.name ?: ""),
+            "sender_email" to head.email,
+            "sender_id" to head.id,
+            "sender_name" to (head.name ?: ""),
             "type" to NotificationType.JOIN_FAMILY_REQUEST_ACCEPTED.name
         )
-
-        sendPushNotification(
-            (user as ExpenseUser).fcmToken,
-            title,
-            message,
-            data,
-            user.email
-        )
-
-        val notification = createNotification(
-            title,
-            message,
-            family.familyId,
-            headUser.name ?: headUser.email,
-            headUser.id,
-            user.id,
-            NotificationType.JOIN_FAMILY_REQUEST_ACCEPTED,
-            family.aliasName
-        )
-        saveNotificationSafely(notification)
+        sendPushNotification(requester.fcmToken, title, message, data, requester.email, saved?.id)
     }
 
     // Helper method for notifying invitation acceptance
     private fun notifyInvitationAccepted(user: ExpenseUser, family: Family, headUser: ExpenseUser) {
         val userName = user.name ?: user.email
         val title = "Invitation Accepted"
-        val message = "$userName (${user.email}) has accepted your invitation to join the family '${family.name}'."
-
+        val message = "${'$'}userName (${user.email}) has accepted your invitation to join the family '${'$'}{family.name}'."
+        val notification = createNotification(
+            title, message, family.familyId, userName, user.id, headUser.id,
+            NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED, family.aliasName
+        )
+        val saved = saveAndReturnNotification(notification)
         val data = mapOf(
             "alias_name" to family.aliasName,
             "sender_name" to userName,
@@ -934,486 +925,61 @@ class FamilyController @Autowired constructor(
             "sender_id" to user.id,
             "type" to NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED.name
         )
-
-        sendPushNotification(headUser.fcmToken, title, message, data, headUser.email)
-
-        val notification = createNotification(
-            title,
-            message,
-            family.familyId,
-            userName,
-            user.id,
-            headUser.id,
-            NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED,
-            family.aliasName
-        )
-        saveNotificationSafely(notification)
+        sendPushNotification(headUser.fcmToken, title, message, data, headUser.email, saved?.id)
     }
 
     // Helper method for notifying join request rejection
     private fun notifyJoinRequestRejected(user: Any, family: Family, headUser: Any) {
+        val requester = user as ExpenseUser
+        val head = headUser as ExpenseUser
         val title = "Join Request Rejected"
-        val message = "Your request to join the family '${family.name}' has been rejected."
-
+        val message = "Your request to join the family '${'$'}{family.name}' has been rejected."
+        val notification = createNotification(
+            title, message, family.familyId, head.name ?: head.email, head.id, requester.id,
+            NotificationType.JOIN_FAMILY_REQUEST_REJECTED, family.aliasName
+        )
+        val saved = saveAndReturnNotification(notification)
         val data = mapOf(
             "alias_name" to family.aliasName,
             "family_name" to family.name,
-            "sender_email" to (headUser as ExpenseUser).email,
-            "sender_name" to (headUser.name ?: ""),
-            "sender_id" to headUser.id,
+            "sender_email" to head.email,
+            "sender_name" to (head.name ?: ""),
+            "sender_id" to head.id,
             "type" to NotificationType.JOIN_FAMILY_REQUEST_REJECTED.name
         )
-
-        sendPushNotification(
-            (user as ExpenseUser).fcmToken,
-            title,
-            message,
-            data,
-            user.email
-        )
-
-        val notification = createNotification(
-            title,
-            message,
-            family.familyId,
-            headUser.name ?: headUser.email,
-            headUser.id,
-            user.id,
-            NotificationType.JOIN_FAMILY_REQUEST_REJECTED,
-            family.aliasName
-        )
-        saveNotificationSafely(notification)
-    }
-
-    @PostMapping("/remove-member")
-    @Operation(
-        summary = "Remove a member from the family",
-        description = "Allows the family head to remove a member from the family"
-    )
-    @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Member removed successfully",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "412",
-                description = "Invalid email format",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "404",
-                description = "User or family not found",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "409",
-                description = "Conflict, member not in family",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "500",
-                description = "Internal server error",
-                content = [Content(mediaType = "application/json")]
-            )
-        ]
-    )
-    fun removeFamilyMember(@Valid @RequestBody request: RemoveMemberRequest): ResponseEntity<*> {
-        logger.info("Removing member with email: ${request.memberEmail}")
-
-        return try {
-            validateEmail(request.memberEmail)?.let { error ->
-                return ApiResponseUtil.badRequest(error)
-            }
-
-            val headId = authUtil.getCurrentUserId()
-            val headUser = userRepository.findById(headId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logUserNotFound(headId, "remove family member"))
-
-            val familyId = headUser.familyId
-                ?: return ApiResponseUtil.badRequest(logUserNotInFamily(headId, "remove family member"))
-
-            val family = familyRepository.findById(familyId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logFamilyNotFound(familyId, "remove family member"))
-
-            if (family.headId != headId) {
-                return ApiResponseUtil.forbidden(logNotFamilyHead(headId, family.headId, "remove family member"))
-            }
-
-            val memberToRemove = findUserByEmail(request.memberEmail)
-                ?: return ApiResponseUtil.notFound("User not found")
-
-            if (memberToRemove.familyId != familyId) {
-                return ApiResponseUtil.badRequest("Member not in this family")
-            }
-
-            if (memberToRemove.id == headId) {
-                return ApiResponseUtil.badRequest("Head cannot remove self. Leave instead")
-            }
-
-            if (!family.membersIds.contains(memberToRemove.id)) {
-                return ApiResponseUtil.badRequest("Member not in this family")
-            }
-
-            val updatedFamily = family.copy(
-                membersIds = (family.membersIds - memberToRemove.id).toMutableList(),
-                updatedAt = System.currentTimeMillis()
-            )
-            familyRepository.save(updatedFamily)
-
-            userRepository.save(memberToRemove.copy(familyId = null, updatedAt = System.currentTimeMillis()))
-
-            // Notify the removed member
-            notifyMemberRemoved(memberToRemove, family, headUser)
-            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
-
-            val response = mapOf(
-                "family" to updatedFamily,
-                "members" to members
-            )
-
-
-            logger.info("Member removed successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Member removed from family successfully", response))
-        } catch (ex: Exception) {
-            logger.error("Exception in removeFamilyMember", ex)
-            ApiResponseUtil.internalServerError("An error occurred while removing family member")
-        }
+        sendPushNotification(requester.fcmToken, title, message, data, requester.email, saved?.id)
     }
 
     private fun notifyMemberRemoved(user: Any, family: Family, headUser: Any) {
+        val member = user as ExpenseUser
+        val head = headUser as ExpenseUser
         val title = "Removed from Family"
-        val message = "You have been removed from the family '${family.name}' by the family head."
-
+        val message = "You have been removed from the family '${'$'}{family.name}' by the family head."
+        val notification = createNotification(
+            title, message, family.familyId, head.name ?: head.email, head.id, member.id,
+            NotificationType.FAMILY_MEMBER_REMOVED, family.aliasName
+        )
+        val saved = saveAndReturnNotification(notification)
         val data = mapOf(
             "alias_name" to family.aliasName,
             "family_name" to family.name,
-            "sender_email" to (headUser as ExpenseUser).email,
-            "sender_name" to (headUser.name ?: ""),
-            "sender_id" to headUser.id,
+            "sender_email" to head.email,
+            "sender_name" to (head.name ?: ""),
+            "sender_id" to head.id,
             "type" to NotificationType.FAMILY_MEMBER_REMOVED.name
         )
-
-        sendPushNotification(
-            (user as ExpenseUser).fcmToken,
-            title,
-            message,
-            data,
-            user.email
-        )
-
-        val notification = createNotification(
-            title,
-            message,
-            family.familyId,
-            headUser.name ?: headUser.email,
-            headUser.id,
-            user.id,
-            NotificationType.FAMILY_MEMBER_REMOVED,
-            family.aliasName
-        )
-        saveNotificationSafely(notification)
+        sendPushNotification(member.fcmToken, title, message, data, member.email, saved?.id)
     }
 
-    @PostMapping("/cancel-invitation")
-    @Operation(summary = "Cancel an invitation", description = "Allows the family head to cancel a pending invitation")
-    @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Invitation cancelled successfully",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "412",
-                description = "Invalid email format",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "404",
-                description = "User or family not found",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "409",
-                description = "Conflict, no pending invitation found",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "500",
-                description = "Internal server error",
-                content = [Content(mediaType = "application/json")]
-            )
-        ]
-    )
-    fun cancelInvitation(@Valid @RequestBody request: CancelInvitationRequest): ResponseEntity<*> {
-        logger.info("Cancelling invitation for member with email: ${request.invitedMemberEmail}")
-
-        return try {
-            validateEmail(request.invitedMemberEmail)?.let { error ->
-                return ApiResponseUtil.badRequest(error)
-            }
-
-            val currentUserId = authUtil.getCurrentUserId()
-            val headUser = userRepository.findById(currentUserId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logUserNotFound(currentUserId, "cancel invitation"))
-
-            val familyId = headUser.familyId
-                ?: return ApiResponseUtil.badRequest(logUserNotInFamily(currentUserId, "cancel invitation"))
-
-            val family = familyRepository.findById(familyId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logFamilyNotFound(familyId, "cancel invitation"))
-
-            if (family.headId != currentUserId) {
-                return ApiResponseUtil.forbidden(logNotFamilyHead(currentUserId, family.headId, "cancel invitation"))
-            }
-
-            var validatedNotif: Notification? = null
-            if (request.notificationId != null) {
-                val (notif, notifError) = validateActionableNotification(request.notificationId, NotificationType.JOIN_FAMILY_INVITATION)
-                if (notifError != null) return when (notifError) {
-                    "Notification not found" -> ApiResponseUtil.notFound("Notification not found")
-                    "Invalid notification" -> ApiResponseUtil.badRequest("Invalid notification")
-                    "Already handled" -> ApiResponseUtil.badRequest("Invitation already handled")
-                    "Expired" -> ApiResponseUtil.badRequest("Invitation expired")
-                    else -> ApiResponseUtil.badRequest("Invalid notification")
-                } else validatedNotif = notif
-            }
-
-            if (!family.pendingMemberEmails.contains(request.invitedMemberEmail)) {
-                // Mark notification handled if we had one
-                validatedNotif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
-                return ApiResponseUtil.notFound("No pending invitation")
-            }
-
-            val updatedFamily = family.copy(
-                pendingMemberEmails = (family.pendingMemberEmails - request.invitedMemberEmail).toMutableList(),
-                updatedAt = System.currentTimeMillis()
-            )
-            familyRepository.save(updatedFamily)
-
-            // Notify the user about cancellation
-            val invitedUser = findUserByEmail(request.invitedMemberEmail)
-            if (invitedUser != null) {
-                notifyInvitationCancelled(invitedUser, family, headUser)
-            }
-            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
-
-            val response = mapOf(
-                "family" to updatedFamily,
-                "members" to members
-            )
-
-            // Mark originating notification as handled
-            validatedNotif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
-
-            logger.info("Invitation cancelled successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Invitation cancelled successfully", response))
-        } catch (ex: Exception) {
-            logger.error("Exception in cancelInvitation", ex)
-            ApiResponseUtil.internalServerError("An error occurred while cancelling invitation")
-        }
-    }
-
-    @PostMapping("/resend-invitation")
-    @Operation(summary = "Resend an invitation", description = "Allows the family head to resend a pending invitation")
-    @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Invitation resent successfully",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "412",
-                description = "Invalid email format",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "404",
-                description = "User or family not found",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "409",
-                description = "Conflict, no pending invitation found",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "500",
-                description = "Internal server error",
-                content = [Content(mediaType = "application/json")]
-            )
-        ]
-    )
-    fun resendInvitation(@Valid @RequestBody request: InviteMemberRequest): ResponseEntity<*> {
-        logger.info("Resending invitation for member with email: ${request.invitedMemberEmail}")
-
-        return try {
-            validateEmail(request.invitedMemberEmail)?.let { error ->
-                return ApiResponseUtil.badRequest(error)
-            }
-
-            val currentUserId = authUtil.getCurrentUserId()
-            val headUser = userRepository.findById(currentUserId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logUserNotFound(currentUserId, "resend invitation"))
-
-            val familyId = headUser.familyId
-                ?: return ApiResponseUtil.badRequest(logUserNotInFamily(currentUserId, "resend invitation"))
-
-            val family = familyRepository.findById(familyId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logFamilyNotFound(familyId, "resend invitation"))
-
-            if (family.headId != currentUserId) {
-                return ApiResponseUtil.forbidden(logNotFamilyHead(currentUserId, family.headId, "resend invitation"))
-            }
-
-            // Validate notification if provided
-            val (notif, notifError) = validateActionableNotification(request.notificationId, NotificationType.JOIN_FAMILY_INVITATION)
-            if (notifError != null) return when (notifError) {
-                "Notification not found" -> ApiResponseUtil.notFound("Notification not found")
-                "Invalid notification" -> ApiResponseUtil.badRequest("Invalid notification")
-                "Already handled" -> ApiResponseUtil.badRequest("Invitation already handled")
-                "Expired" -> ApiResponseUtil.badRequest("Invitation expired")
-                else -> ApiResponseUtil.badRequest("Invalid notification")
-            }
-
-            if (!family.pendingMemberEmails.contains(request.invitedMemberEmail)) {
-                return ApiResponseUtil.notFound("No pending invitation. Send a new one.")
-            }
-
-            val invitedUser = findUserByEmail(request.invitedMemberEmail)
-                ?: return ApiResponseUtil.notFound("User not found")
-
-            if (invitedUser.familyId != null) {
-                return ApiResponseUtil.conflict("User already in a family")
-            }
-
-            // Resend invitation notification
-            sendInvitationNotification(invitedUser, family, headUser)
-
-            // If there was a notification context, mark it as re-sent but no change needed except maybe refresh timestamp? (Skipping to keep history)
-            logger.info("Invitation resent successfully")
-            val members = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
-
-            val response = mapOf(
-                "family" to family,
-                "members" to members
-            )
-
-            ResponseEntity.ok(
-                BasicFamilySuccessResponse(
-                    "Invitation resent to ${request.invitedMemberEmail} successfully",
-                    response
-                )
-            )
-        } catch (ex: Exception) {
-            logger.error("Exception in resendInvitation", ex)
-            ApiResponseUtil.internalServerError("An error occurred while resending invitation")
-        }
-    }
-
-    @PostMapping("/reject-invitation")
-    @Operation(
-        summary = "Reject a family invitation",
-        description = "Allows a user to reject an invitation to join a family"
-    )
-    @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Invitation rejected successfully",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "412",
-                description = "Bad request or user not invited to this family",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "404",
-                description = "User or family not found",
-                content = [Content(mediaType = "application/json")]
-            ),
-            ApiResponse(
-                responseCode = "500",
-                description = "Internal server error",
-                content = [Content(mediaType = "application/json")]
-            )
-        ]
-    )
-    fun rejectInvitation(@Valid @RequestBody request: JoinFamilyRequest): ResponseEntity<*> {
-        logger.info("Rejecting family invitation for alias: ${request.aliasName}")
-
-        return try {
-            val userId = authUtil.getCurrentUserId()
-            val (notif, notifError) = validateActionableNotification(request.notificationId, NotificationType.JOIN_FAMILY_INVITATION)
-            if (notifError != null) return when (notifError) {
-                "Notification not found" -> ApiResponseUtil.notFound("Notification not found")
-                "Invalid notification" -> ApiResponseUtil.badRequest("Invalid notification")
-                "Already handled" -> ApiResponseUtil.badRequest("Invitation already handled")
-                "Expired" -> ApiResponseUtil.badRequest("Invitation expired")
-                else -> ApiResponseUtil.badRequest("Invalid notification")
-            }
-
-            val user = userRepository.findById(userId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logUserNotFound(userId, "reject family invitation"))
-
-            val family = familyRepository.findByAliasName(request.aliasName.trim())
-                ?: return ApiResponseUtil.notFound(
-                    logFamilyNotFoundByAlias(
-                        request.aliasName,
-                        "reject family invitation"
-                    )
-                )
-
-            if (!family.pendingMemberEmails.contains(user.email)) {
-                notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
-                if (request.notificationId != null) {
-                    val notification = notificationRepository.findById(
-                        request.notificationId
-                    )
-
-                    if (notification.isEmpty) {
-                        return ApiResponseUtil.notFound("No pending invitation")
-                    }
-
-                    if (notification.isPresent && notification.get().type == NotificationType.JOIN_FAMILY_INVITATION) {
-                        return ApiResponseUtil.badRequest("Invitation already handled")
-                    }
-                }
-
-                return ApiResponseUtil.badRequest("No pending invitation")
-            }
-
-            val updatedFamily = family.copy(
-                pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
-                updatedAt = System.currentTimeMillis()
-            )
-            familyRepository.save(updatedFamily)
-
-            val headUser = userRepository.findById(family.headId).orElse(null)
-                ?: return ApiResponseUtil.notFound(logUserNotFound(family.headId, "reject family invitation"))
-
-            sendInvitationRejectedNotification(user, updatedFamily, headUser)
-            notif?.let { try { notificationRepository.save(it.copy(isRead = true, actionable = false)) } catch (_: Exception) {} }
-
-            logger.info("Family invitation rejected successfully")
-            ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation rejected successfully", family=null))
-
-        } catch (ex: Exception) {
-            logger.error("Exception in rejectInvitation", ex)
-            ApiResponseUtil.internalServerError("An error occurred while rejecting invitation")
-        }
-    }
-
-    // Helper method for sending invitation rejection notifications
     private fun sendInvitationRejectedNotification(user: ExpenseUser, family: Family, headUser: ExpenseUser) {
         val userName = user.name ?: user.email
         val title = "Invitation Rejected"
-        val message = "$userName (${user.email}) has rejected your invitation to join the family '${family.name}'."
-
+        val message = "${'$'}userName (${user.email}) has rejected your invitation to join the family '${'$'}{family.name}'."
+        val notification = createNotification(
+            title, message, family.familyId, userName, user.id, headUser.id,
+            NotificationType.JOIN_FAMILY_INVITATION_REJECTED, family.aliasName
+        )
+        val saved = saveAndReturnNotification(notification)
         val data = mapOf(
             "type" to NotificationType.JOIN_FAMILY_INVITATION_REJECTED.name,
             "familyId" to family.familyId,
@@ -1421,25 +987,7 @@ class FamilyController @Autowired constructor(
             "rejectedUserEmail" to user.email,
             "rejectedUserName" to userName
         )
-        familyNotificationService.sendToSingle(
-            token = headUser.fcmToken,
-            type = NotificationType.JOIN_FAMILY_INVITATION_REJECTED,
-            title = title,
-            body = message,
-            data = data,
-            tag = family.familyId
-        )
-        val notification = createNotification(
-            title,
-            message,
-            family.familyId,
-            userName,
-            user.id,
-            headUser.id,
-            NotificationType.JOIN_FAMILY_INVITATION_REJECTED,
-            family.aliasName
-        )
-        saveNotificationSafely(notification)
+        sendPushNotification(headUser.fcmToken, title, message, data, headUser.email, saved?.id)
     }
 
     @PostMapping("/update-name")
@@ -1932,10 +1480,9 @@ class FamilyController @Autowired constructor(
             // Get family head to send notification
             val familyHead = userRepository.findById(family.headId).orElse(null)
             if (familyHead != null) {
-                // Create notification for family head
                 val notification = createNotification(
                     title = "New Family Join Request",
-                    message = "${user.name} wants to join your family '${family.name}'",
+                    message = "${'$'}{user.name} wants to join your family '${'$'}{family.name}'",
                     familyId = family.familyId,
                     senderName = (user.name ?: user.email),
                     senderId = userId,
@@ -1945,13 +1492,12 @@ class FamilyController @Autowired constructor(
                     actionable = true
                 )
 
-                saveNotificationSafely(notification)
+                val saved = saveAndReturnNotification(notification)
 
-                // Send push notification to family head
                 sendPushNotification(
                     token = familyHead.fcmToken,
                     title = "New Family Join Request",
-                    message = "${user.name} wants to join your family '${family.name}'",
+                    message = "${'$'}{user.name} wants to join your family '${'$'}{family.name}'",
                     data = mapOf(
                         "type" to "JOIN_FAMILY_REQUEST",
                         "familyId" to family.familyId,
@@ -1960,7 +1506,8 @@ class FamilyController @Autowired constructor(
                         "familyName" to family.name,
                         "familyAlias" to family.aliasName
                     ),
-                    recipientEmail = familyHead.email
+                    recipientEmail = familyHead.email,
+                    notificationId = saved?.id
                 )
 
                 logger.info("Join request notification sent to family head: ${familyHead.email}")
