@@ -198,14 +198,12 @@ class FamilyApplicationService(
         val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         val family = familyRepository.findByAliasName(request.aliasName.trim()) ?: return ApiResponseUtil.notFound("Family not found")
         val updatedFamily = family.copy(
-            membersIds = (family.membersIds + user.id).toMutableList(),
             pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
             updatedAt = now()
         )
         familyRepository.save(updatedFamily)
-        userRepository.save(user.copy(familyId = updatedFamily.familyId, updatedAt = now()))
         val head = userRepository.findById(family.headId).orElse(null)
-        if (head != null) notifyInvitationAccepted(user, updatedFamily, head)
+        if (head != null) notifyInvitationRejected(user, updatedFamily, head)
         return ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation accepted successfully.", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
     }
 
@@ -366,6 +364,19 @@ class FamilyApplicationService(
         val notif = createNotification("Invitation Accepted", "$userName (${user.email}) has accepted your invitation to join the family '${family.name}'.", family.familyId, userName, user.id, headUser.id, NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED, family.aliasName)
         val saved = saveNotification(notif)
         sendDataPush(headUser.fcmToken, NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED, "Invitation Accepted", "$userName (${user.email}) has accepted your invitation to join the family '${family.name}'.", mapOf(
+            "alias_name" to family.aliasName,
+            "sender_name" to userName,
+            "family_name" to family.name,
+            "sender_email" to user.email,
+            "sender_id" to user.id
+        ), saved?.id)
+    }
+
+    private fun notifyInvitationRejected(user: ExpenseUser, family: Family, headUser: ExpenseUser) {
+        val userName = user.name ?: user.email
+        val notif = createNotification("Invitation Rejected", "$userName (${user.email}) has rejected your invitation to join the family '${family.name}'.", family.familyId, userName, user.id, headUser.id, NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED, family.aliasName)
+        val saved = saveNotification(notif)
+        sendDataPush(headUser.fcmToken, NotificationType.JOIN_FAMILY_INVITATION_ACCEPTED, "Invitation Rejected", "$userName (${user.email}) has rejected your invitation to join the family '${family.name}'.", mapOf(
             "alias_name" to family.aliasName,
             "sender_name" to userName,
             "family_name" to family.name,
