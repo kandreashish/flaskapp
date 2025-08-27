@@ -8,6 +8,7 @@ import com.lavish.expensetracker.model.NotificationType
 import com.lavish.expensetracker.repository.ExpenseUserRepository
 import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.repository.NotificationRepository
+import com.lavish.expensetracker.service.FamilyNotificationService
 import com.lavish.expensetracker.util.ApiResponseUtil
 import com.lavish.expensetracker.util.AuthUtil
 import io.swagger.v3.oas.annotations.Operation
@@ -37,9 +38,9 @@ import java.util.*
 class FamilyController @Autowired constructor(
     private val familyRepository: FamilyRepository,
     private val userRepository: ExpenseUserRepository,
-    private val pushNotificationService: PushNotificationService,
     private val authUtil: AuthUtil,
     private val notificationRepository: NotificationRepository,
+    @Autowired private val familyNotificationService: FamilyNotificationService,
 ) {
     private val logger = LoggerFactory.getLogger(FamilyController::class.java)
 
@@ -257,9 +258,16 @@ class FamilyController @Autowired constructor(
             logger.warn("FCM token is null or empty for user: $recipientEmail")
             return
         }
-
+        val type = data["type"]?.let { runCatching { NotificationType.valueOf(it) }.getOrNull() } ?: NotificationType.GENERAL
         try {
-            pushNotificationService.sendNotificationWithData(token, title, message, data)
+            familyNotificationService.sendToSingle(
+                token = token,
+                type = type,
+                title = title,
+                body = message,
+                data = data,
+                tag = data["familyId"] ?: data["family_id"] ?: data["alias_name"]
+            )
             logger.info("Push notification sent successfully to: $recipientEmail")
         } catch (ex: Exception) {
             logger.error("Failed to send push notification to: $recipientEmail", ex)
@@ -1407,21 +1415,20 @@ class FamilyController @Autowired constructor(
         val message = "$userName (${user.email}) has rejected your invitation to join the family '${family.name}'."
 
         val data = mapOf(
-            "type" to "invitation_rejected",
+            "type" to NotificationType.JOIN_FAMILY_INVITATION_REJECTED.name,
             "familyId" to family.familyId,
             "familyName" to family.name,
             "rejectedUserEmail" to user.email,
             "rejectedUserName" to userName
         )
-
-        pushNotificationService.sendNotificationWithData(
-            headUser.fcmToken,
-            title,
-            message,
-            data,
-            NotificationType.JOIN_FAMILY_INVITATION_REJECTED.name,
+        familyNotificationService.sendToSingle(
+            token = headUser.fcmToken,
+            type = NotificationType.JOIN_FAMILY_INVITATION_REJECTED,
+            title = title,
+            body = message,
+            data = data,
+            tag = family.familyId
         )
-
         val notification = createNotification(
             title,
             message,

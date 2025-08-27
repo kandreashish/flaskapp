@@ -8,6 +8,7 @@ import com.lavish.expensetracker.exception.ExpenseValidationException
 import com.lavish.expensetracker.model.*
 import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.repository.NotificationRepository
+import com.lavish.expensetracker.service.ExpenseNotificationService
 import com.lavish.expensetracker.service.ExpenseService
 import com.lavish.expensetracker.service.UserDeviceService
 import com.lavish.expensetracker.service.UserService
@@ -26,11 +27,11 @@ import java.time.ZoneOffset
 class ExpenseController(
     private val expenseService: ExpenseService,
     private val authUtil: AuthUtil,
-    @Autowired private val pushNotificationService: PushNotificationService,
     private val userService: UserService,
     private val userDeviceService: UserDeviceService,
     private val familyRepository: FamilyRepository,
-    private val notificationRepository: NotificationRepository // Injecting NotificationRepository
+    private val notificationRepository: NotificationRepository, // Injecting NotificationRepository
+    @Autowired private val expenseNotificationService: ExpenseNotificationService
 ) {
     private val logger = LoggerFactory.getLogger(ExpenseController::class.java)
 
@@ -361,10 +362,10 @@ class ExpenseController(
         expenseUser: ExpenseUser = getCurrentUserWithValidation(),
     ) {
         try {
-            logger.debug("Sending notification to ${fcmTokens.size} FCM tokens")
+            logger.debug("Sending notification to ${'$'}{fcmTokens.size} FCM tokens")
 
             val formattedAmount = formatAmount(amount, expenseUser)
-            val invalidTokens = pushNotificationService.sendExpenseNotificationToMultiple(
+            val invalidTokens = expenseNotificationService.sendExpenseNotificationToMultiple(
                 title = title,
                 body = body,
                 type = type,
@@ -376,14 +377,14 @@ class ExpenseController(
             )
 
             val successfulNotifications = fcmTokens.size - invalidTokens.size
-            logger.info("Expense notification sent to $successfulNotifications devices. Invalid tokens: ${invalidTokens.size}")
+            logger.info("Expense notification sent to ${'$'}successfulNotifications devices. Invalid tokens: ${'$'}{invalidTokens.size}")
 
             if (invalidTokens.isNotEmpty()) {
                 cleanupInvalidTokens(invalidTokens)
             }
 
         } catch (e: Exception) {
-            logger.error("Error sending notifications to FCM tokens: ${e.message}", e)
+            logger.error("Error sending notifications to FCM tokens: ${'$'}{e.message}", e)
             throw e
         }
     }
@@ -828,7 +829,8 @@ class ExpenseController(
 
         val title = "Expense Notification"
         val body = "Expense '${expense!!.description}' of ${currentUser.currencyPreference + expense.amount}"
-        val invalidTokens = pushNotificationService.sendNotificationToMultiple(fcmTokens, title, body)
+        val invalidTokens = expenseNotificationService.sendNotificationToMultiple(fcmTokens, title, body,
+            NotificationType.GENERAL)
 
         if (invalidTokens.isNotEmpty()) {
             userDeviceService.removeInvalidTokens(invalidTokens)
