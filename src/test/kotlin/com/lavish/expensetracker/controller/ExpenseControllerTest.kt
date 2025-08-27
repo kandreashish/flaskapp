@@ -11,6 +11,7 @@ import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.service.ExpenseService
 import com.lavish.expensetracker.service.UserDeviceService
 import com.lavish.expensetracker.service.UserService
+import com.lavish.expensetracker.service.ExpenseNotificationService
 import com.lavish.expensetracker.util.AuthUtil
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
@@ -37,6 +38,7 @@ class ExpenseControllerTest {
     private lateinit var userDeviceService: UserDeviceService
     private lateinit var familyRepository: FamilyRepository
     private lateinit var notificationRepository: NotificationRepository
+    private lateinit var expenseNotificationService: ExpenseNotificationService
 
     private lateinit var controller: ExpenseController
 
@@ -101,15 +103,17 @@ class ExpenseControllerTest {
         userDeviceService = mock(UserDeviceService::class.java)
         familyRepository = mock(FamilyRepository::class.java)
         notificationRepository = mock(NotificationRepository::class.java)
+        expenseNotificationService = mock(ExpenseNotificationService::class.java)
 
+        // Updated constructor invocation: removed pushNotificationService (controller no longer depends directly on it)
         controller = ExpenseController(
             expenseService,
             authUtil,
-            pushNotificationService,
             userService,
             userDeviceService,
             familyRepository,
-            notificationRepository
+            notificationRepository,
+            expenseNotificationService
         )
 
         // Common stubs
@@ -271,8 +275,9 @@ class ExpenseControllerTest {
     fun createExpense_personal_success_withInvalidTokensCleanup() {
         val dto = expense(id = "", userId = "", familyId = null)
         `when`(expenseService.createExpense(any())).thenAnswer { (it.arguments[0] as ExpenseDto).copy(expenseId = "newId") }
+        // Stub wrapper service instead of underlying push service
         `when`(
-            pushNotificationService.sendExpenseNotificationToMultiple(
+            expenseNotificationService.sendExpenseNotificationToMultiple(
                 anyString(),
                 anyString(),
                 any(),
@@ -282,8 +287,7 @@ class ExpenseControllerTest {
                 anyString(),
                 anyString()
             )
-        )
-            .thenReturn(listOf("badToken"))
+        ).thenReturn(listOf("badToken"))
         val response = controller.createExpense(dto)
         assertEquals(HttpStatus.CREATED, response.statusCode)
         verify(userDeviceService).removeInvalidTokens(listOf("badToken"))
@@ -303,7 +307,7 @@ class ExpenseControllerTest {
         `when`(familyRepository.findById(fam.familyId)).thenReturn(Optional.of(fam))
         `when`(userService.getFamilyMembersFcmTokens(fam.familyId)).thenReturn(listOf(userWithFamily))
         `when`(
-            pushNotificationService.sendExpenseNotificationToMultiple(
+            expenseNotificationService.sendExpenseNotificationToMultiple(
                 anyString(),
                 anyString(),
                 any(),
@@ -313,8 +317,7 @@ class ExpenseControllerTest {
                 anyString(),
                 anyString()
             )
-        )
-            .thenReturn(emptyList())
+        ).thenReturn(emptyList())
         val dto = expense(id = "", userId = "", familyId = fam.familyId)
         `when`(expenseService.createExpense(any())).thenAnswer { (it.arguments[0] as ExpenseDto).copy(expenseId = "id2") }
         controller.createExpense(dto)
@@ -509,9 +512,7 @@ class ExpenseControllerTest {
         val e = expense()
         `when`(expenseService.getExpenseById(e.expenseId)).thenReturn(e)
         `when`(userService.getAllFcmTokens(baseUser.id)).thenReturn(listOf("token1", "token2"))
-        `when`(pushNotificationService.sendNotificationToMultiple(anyList(), anyString(), anyString())).thenReturn(
-            emptyList()
-        )
+        `when`(expenseNotificationService.sendNotificationToMultiple(anyList(), anyString(), anyString(), any())).thenReturn(emptyList())
         val res = controller.notifyExpense(ExpenseController.ExpenseNotificationRequest(e.expenseId))
         assertTrue(res.body!!.contains("successfully"))
     }
@@ -530,9 +531,7 @@ class ExpenseControllerTest {
         val e = expense()
         `when`(expenseService.getExpenseById(e.expenseId)).thenReturn(e)
         `when`(userService.getAllFcmTokens(baseUser.id)).thenReturn(listOf("t1", "t2", "t3"))
-        `when`(pushNotificationService.sendNotificationToMultiple(anyList(), anyString(), anyString())).thenReturn(
-            listOf("t2")
-        )
+        `when`(expenseNotificationService.sendNotificationToMultiple(anyList(), anyString(), anyString(), any())).thenReturn(listOf("t2"))
         val res = controller.notifyExpense(ExpenseController.ExpenseNotificationRequest(e.expenseId))
         assertEquals(HttpStatus.OK, res.statusCode)
         verify(userDeviceService).removeInvalidTokens(listOf("t2"))
@@ -721,15 +720,8 @@ class ExpenseControllerTest {
         val dto = expense(id = "", userId = "", familyId = null)
         `when`(expenseService.createExpense(any())).thenAnswer { (it.arguments[0] as ExpenseDto).copy(expenseId = "nid") }
         `when`(
-            pushNotificationService.sendExpenseNotificationToMultiple(
-                anyString(),
-                anyString(),
-                any(),
-                anyList(),
-                anyString(),
-                anyString(),
-                anyString(),
-                anyString()
+            expenseNotificationService.sendExpenseNotificationToMultiple(
+                anyString(), anyString(), any(), anyList(), anyString(), anyString(), anyString(), anyString()
             )
         ).thenThrow(RuntimeException("fcm fail"))
         val res = controller.createExpense(dto)
@@ -741,15 +733,8 @@ class ExpenseControllerTest {
         val dto = expense(id = "", userId = "", familyId = null)
         `when`(expenseService.createExpense(any())).thenAnswer { (it.arguments[0] as ExpenseDto).copy(expenseId = "nid2") }
         `when`(
-            pushNotificationService.sendExpenseNotificationToMultiple(
-                anyString(),
-                anyString(),
-                any(),
-                anyList(),
-                anyString(),
-                anyString(),
-                anyString(),
-                anyString()
+            expenseNotificationService.sendExpenseNotificationToMultiple(
+                anyString(), anyString(), any(), anyList(), anyString(), anyString(), anyString(), anyString()
             )
         ).thenReturn(listOf("bad1"))
         doThrow(RuntimeException("cleanup fail")).`when`(userDeviceService).removeInvalidTokens(listOf("bad1"))
@@ -838,7 +823,7 @@ class ExpenseControllerTest {
 
         // Mock successful notification sending (no invalid tokens)
         `when`(
-            pushNotificationService.sendExpenseNotificationToMultiple(
+            expenseNotificationService.sendExpenseNotificationToMultiple(
                 anyString(), anyString(), any(), eq(expectedTokens), anyString(), anyString(), anyString(), anyString()
             )
         ).thenReturn(emptyList())
@@ -856,7 +841,7 @@ class ExpenseControllerTest {
         assertEquals(HttpStatus.CREATED, response.statusCode)
 
         // Verify notification was sent to ALL family member devices
-        verify(pushNotificationService).sendExpenseNotificationToMultiple(
+        verify(expenseNotificationService).sendExpenseNotificationToMultiple(
             title = anyString(),
             body = anyString(),
             type = any(),
@@ -883,7 +868,7 @@ class ExpenseControllerTest {
 
         // Mock successful notification sending
         `when`(
-            pushNotificationService.sendExpenseNotificationToMultiple(
+            expenseNotificationService.sendExpenseNotificationToMultiple(
                 anyString(), anyString(), any(), eq(listOf("personal_device1", "personal_device2", "personal_device3")),
                 anyString(), anyString(), anyString(), anyString()
             )
@@ -902,7 +887,7 @@ class ExpenseControllerTest {
         assertEquals(HttpStatus.CREATED, response.statusCode)
 
         // Verify notification was sent to all user's personal devices
-        verify(pushNotificationService).sendExpenseNotificationToMultiple(
+        verify(expenseNotificationService).sendExpenseNotificationToMultiple(
             title = anyString(),
             body = anyString(),
             type = any(),
@@ -949,7 +934,7 @@ class ExpenseControllerTest {
 
         // Mock notification service returning invalid tokens
         `when`(
-            pushNotificationService.sendExpenseNotificationToMultiple(
+            expenseNotificationService.sendExpenseNotificationToMultiple(
                 anyString(), anyString(), any(), eq(allTokens), anyString(), anyString(), anyString(), anyString()
             )
         ).thenReturn(invalidTokens)
@@ -967,7 +952,7 @@ class ExpenseControllerTest {
         assertEquals(HttpStatus.CREATED, response.statusCode)
 
         // Verify notification was attempted to all devices
-        verify(pushNotificationService).sendExpenseNotificationToMultiple(
+        verify(expenseNotificationService).sendExpenseNotificationToMultiple(
             anyString(), anyString(), any(), eq(allTokens), anyString(), anyString(), anyString(), anyString()
         )
 
@@ -1259,7 +1244,7 @@ class ExpenseControllerTest {
         `when`(familyRepository.findById(fam.familyId)).thenReturn(Optional.of(fam))
         `when`(userService.getFamilyMembersFcmTokens(fam.familyId)).thenReturn(listOf(userWithFamily))
         `when`(
-            pushNotificationService.sendExpenseNotificationToMultiple(
+            expenseNotificationService.sendExpenseNotificationToMultiple(
                 anyString(),
                 anyString(),
                 any(),
@@ -1269,8 +1254,7 @@ class ExpenseControllerTest {
                 anyString(),
                 anyString()
             )
-        )
-            .thenReturn(emptyList())
+        ).thenReturn(emptyList())
         `when`(notificationRepository.save(any())).thenThrow(RuntimeException("Database save failed"))
 
         val dto = expense(id = "", userId = "", familyId = fam.familyId)
