@@ -32,6 +32,17 @@ data class JoinFamilyRequest(
     val notificationId: Long?
 )
 
+data class RejectFamilyRequest(
+    @field:NotBlank(message = "Alias name is required")
+    @field:Size(
+        min = FamilyDtoConstraints.FAMILY_ALIAS_LENGTH,
+        max = FamilyDtoConstraints.FAMILY_ALIAS_LENGTH,
+        message = "Alias name must be exactly ${FamilyDtoConstraints.FAMILY_ALIAS_LENGTH} characters"
+    )
+    val aliasName: String,
+    val notificationId: Long?
+)
+
 data class InviteMemberRequest(
     @field:NotBlank(message = "Email is required")
     @field:Email(message = "Valid email is required")

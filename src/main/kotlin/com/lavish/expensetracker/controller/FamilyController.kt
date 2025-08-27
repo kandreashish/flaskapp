@@ -69,6 +69,11 @@ class FamilyController(
     fun acceptInvitation(@Valid @RequestBody request: JoinFamilyRequest): ResponseEntity<*> =
         familyService.acceptInvitation(request)
 
+    @PostMapping("/reject-invitation")
+    @Operation(summary = "Reject invitation to family")
+    fun rejectInvitation(@Valid @RequestBody request: RejectFamilyRequest): ResponseEntity<*> =
+        familyService.rejectInvitation(request)
+
     @PostMapping("/reject-join-request")
     @Operation(summary = "Reject a join request (head only)")
     fun rejectJoinRequest(@Valid @RequestBody request: RejectJoinRequestRequest): ResponseEntity<*> =

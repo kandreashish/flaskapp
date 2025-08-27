@@ -194,6 +194,21 @@ class FamilyApplicationService(
         return ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation accepted successfully.", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
     }
 
+    fun rejectInvitation(request: RejectFamilyRequest): ResponseEntity<*> {
+        val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
+        val family = familyRepository.findByAliasName(request.aliasName.trim()) ?: return ApiResponseUtil.notFound("Family not found")
+        val updatedFamily = family.copy(
+            membersIds = (family.membersIds + user.id).toMutableList(),
+            pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
+            updatedAt = now()
+        )
+        familyRepository.save(updatedFamily)
+        userRepository.save(user.copy(familyId = updatedFamily.familyId, updatedAt = now()))
+        val head = userRepository.findById(family.headId).orElse(null)
+        if (head != null) notifyInvitationAccepted(user, updatedFamily, head)
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation accepted successfully.", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
+    }
+
     fun rejectJoinRequest(request: RejectJoinRequestRequest): ResponseEntity<*> {
         val head = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         val family = head.familyId?.let { familyRepository.findById(it).orElse(null) } ?: return ApiResponseUtil.badRequest("Not in a family")
