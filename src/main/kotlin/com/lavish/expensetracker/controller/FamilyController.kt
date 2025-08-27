@@ -1418,7 +1418,8 @@ class FamilyController @Autowired constructor(
             headUser.fcmToken,
             title,
             message,
-            data
+            data,
+            NotificationType.JOIN_FAMILY_INVITATION_REJECTED.name,
         )
 
         val notification = createNotification(
