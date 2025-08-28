@@ -30,6 +30,7 @@ class FamilyApplicationService(
         const val JOIN_REQUEST_TTL_MS = 3L * 24 * 60 * 60 * 1000
         private const val WEEK_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
         private const val MAX_ATTEMPTS_PER_WEEK = 3
+        private const val MAX_TOTAL_ATTEMPTS_PER_FAMILY = 5 // hard cap across all time
         private val BACKOFF_SCHEDULE_MS = listOf(0L, 6L * 3600_000, 12L * 3600_000, 24L * 3600_000) // attempt indices 1..n
     }
 
@@ -129,7 +130,9 @@ class FamilyApplicationService(
     fun getOwnPendingJoinRequests(): ResponseEntity<*> {
         val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         val pending = joinRequestRepository.findByRequesterIdAndStatus(user.id, JoinRequestStatus.PENDING)
-        val enriched = pending.mapNotNull { req ->
+        // ensure only one (latest) per family
+        val distinctLatest = pending.groupBy { it.familyId }.values.map { group -> group.maxByOrNull { it.createdAt }!! }
+        val enriched = distinctLatest.mapNotNull { req ->
             val fam = familyRepository.findById(req.familyId).orElse(null) ?: return@mapNotNull null
             mapOf(
                 "request" to req,
@@ -168,6 +171,9 @@ class FamilyApplicationService(
         if (family.membersIds.contains(user.id)) return ApiResponseUtil.conflict("Already a member")
         val throttle = computeJoinRequestThrottle(user.id, family.familyId)
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
+        // cancel any previous pending requests for same family
+        val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
+        existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.contains(user.id)) {
             val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
             familyRepository.save(updated)
@@ -525,10 +531,19 @@ class FamilyApplicationService(
         val now = now()
         val attempts = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(userId, familyId)
         if (attempts.isEmpty()) return null
+        // Hard cap across all time
+        if (attempts.size >= MAX_TOTAL_ATTEMPTS_PER_FAMILY) {
+            return mapOf(
+                "error" to "CONFLICT",
+                "message" to "Max retries over. Ask family owner to send invitation",
+                "reason" to "MAX_RETRIES",
+                "attempts" to attempts.size,
+                "maxAttempts" to MAX_TOTAL_ATTEMPTS_PER_FAMILY
+            )
+        }
         val windowAttempts = attempts.filter { now - it.createdAt <= WEEK_WINDOW_MS }
         // Weekly cap
         if (windowAttempts.size >= MAX_ATTEMPTS_PER_WEEK) {
-            val latest = windowAttempts.first()
             val nextAllowedAt = windowAttempts.minByOrNull { it.createdAt }!!.createdAt + WEEK_WINDOW_MS
             val remaining = (nextAllowedAt - now).coerceAtLeast(0)
             return mapOf(
@@ -590,6 +605,9 @@ class FamilyApplicationService(
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
         val throttle = computeJoinRequestThrottle(user.id, family.familyId)
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
+        // cancel previous pending ones
+        val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
+        existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.contains(user.id)) {
             val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
             familyRepository.save(updated); updated
