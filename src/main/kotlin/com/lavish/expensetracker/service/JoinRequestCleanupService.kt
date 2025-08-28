@@ -40,7 +40,7 @@ class JoinRequestCleanupService(
         val familyOpt = try { familyRepository.findById(pending.familyId) } catch (_: Exception) { return false }
         if (familyOpt.isEmpty) return false
         val family = familyOpt.get()
-        val inList = family.pendingJoinRequests.contains(pending.requesterId)
+        val inList = family.pendingJoinRequests.any { it.userId == pending.requesterId }
         val updatedReq = pending.copy(status = JoinRequestStatus.CANCELLED, updatedAt = System.currentTimeMillis())
         try {
             joinRequestRepository.save(updatedReq)
@@ -49,7 +49,7 @@ class JoinRequestCleanupService(
         }
         if (!inList) return false
         val newFamily = family.copy(
-            pendingJoinRequests = (family.pendingJoinRequests - pending.requesterId).toMutableList(),
+            pendingJoinRequests = family.pendingJoinRequests.filterNot { it.userId == pending.requesterId }.toMutableList(),
             updatedAt = System.currentTimeMillis()
         )
         return try {
@@ -61,4 +61,3 @@ class JoinRequestCleanupService(
         }
     }
 }
-

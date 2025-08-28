@@ -3,6 +3,22 @@ package com.lavish.expensetracker.model
 import jakarta.persistence.*
 import kotlinx.serialization.Serializable
 
+@Embeddable
+@Serializable
+data class PendingMemberInvite(
+    val email: String,
+    val userId: String? = null,
+    val name: String? = null
+)
+
+@Embeddable
+@Serializable
+data class PendingJoinRequestRef(
+    val userId: String,
+    val email: String? = null,
+    val name: String? = null
+)
+
 @Entity
 @Table(name = "families")
 @Serializable
@@ -25,10 +41,10 @@ data class Family(
     val membersIds: MutableList<String> = mutableListOf(),
 
     @ElementCollection
-    val pendingMemberEmails: MutableList<String> = mutableListOf(),
+    val pendingMemberEmails: MutableList<PendingMemberInvite> = mutableListOf(),
 
     @ElementCollection
-    val pendingJoinRequests: MutableList<String> = mutableListOf(),
+    val pendingJoinRequests: MutableList<PendingJoinRequestRef> = mutableListOf(),
 
     @Column(nullable = false)
     val updatedAt: Long = System.currentTimeMillis(),

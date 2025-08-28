@@ -58,7 +58,7 @@ class FamilyApplicationService(
     fun getFamilyDetails(): ResponseEntity<*> {
         val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         val familyId = user.familyId ?: return ApiResponseUtil.badRequest("Not in a family")
-        val family = familyRepository.findById(familyId).orElse(null)
+        val family: Family = familyRepository.findById(familyId).orElse(null)
             ?: return ApiResponseUtil.notFound("Family not found")
         return ResponseEntity.ok(mapOf("family" to family, "members" to listMembers(family)))
     }
@@ -83,8 +83,8 @@ class FamilyApplicationService(
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
         val throttle = computeJoinRequestThrottle(user.id, family.familyId)
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
-        val updatedFamily = if (!family.pendingJoinRequests.contains(user.id)) {
-            family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
+        val updatedFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
+            family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email)).toMutableList(), updatedAt = now())
                 .also { familyRepository.save(it) }
         } else family
         val joinReq = JoinRequest(
@@ -154,8 +154,8 @@ class FamilyApplicationService(
             ?: return ApiResponseUtil.notFound("No pending join request to cancel")
         val cancelled = pending.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now())
         joinRequestRepository.save(cancelled)
-        if (family.pendingJoinRequests.contains(user.id)) {
-            val updatedFamily = family.copy(pendingJoinRequests = (family.pendingJoinRequests - user.id).toMutableList(), updatedAt = now())
+        if (family.pendingJoinRequests.any { it.userId == user.id }) {
+            val updatedFamily = family.copy(pendingJoinRequests = family.pendingJoinRequests.filterNot { it.userId == user.id }.toMutableList(), updatedAt = now())
             familyRepository.save(updatedFamily)
         }
         return ResponseEntity.ok(mapOf("message" to "Join request cancelled", "request" to cancelled))
@@ -172,8 +172,8 @@ class FamilyApplicationService(
         // cancel any previous pending requests for same family
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
         existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
-        val ensuredFamily = if (!family.pendingJoinRequests.contains(user.id)) {
-            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
+        val ensuredFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email)).toMutableList(), updatedAt = now())
             familyRepository.save(updated)
             updated
         } else family
@@ -215,10 +215,17 @@ class FamilyApplicationService(
         val familyId = head.familyId ?: return ApiResponseUtil.badRequest("Not in a family")
         val family = familyRepository.findById(familyId).orElse(null) ?: return ApiResponseUtil.notFound("Family not found")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can invite")
-        val invited = userRepository.findAll().find { it.email == request.invitedMemberEmail } ?: return ApiResponseUtil.notFound("User not found")
+        val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) } ?: return ApiResponseUtil.notFound("User not found")
         if (invited.familyId != null) return ApiResponseUtil.conflict("User already in a family")
-        if (family.pendingMemberEmails.contains(request.invitedMemberEmail)) return ApiResponseUtil.conflict("Already invited")
-        val updated = family.copy(pendingMemberEmails = (family.pendingMemberEmails + request.invitedMemberEmail).toMutableList(), updatedAt = now())
+        if (family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }) return ApiResponseUtil.conflict("Already invited")
+        val updated = family.copy(
+            pendingMemberEmails = (family.pendingMemberEmails + PendingMemberInvite(
+                email = request.invitedMemberEmail,
+                userId = invited.id,
+                name = invited.name ?: invited.email
+            )).toMutableList(),
+            updatedAt = now()
+        )
         familyRepository.save(updated)
         sendInvitationNotification(invited, updated, head)
         return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation sent to ${request.invitedMemberEmail} and is pending acceptance", mapOf("family" to updated, "members" to listMembers(updated))))
@@ -229,9 +236,9 @@ class FamilyApplicationService(
         val head = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         val family = head.familyId?.let { familyRepository.findById(it).orElse(null) } ?: return ApiResponseUtil.badRequest("Not in a family")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can resend")
-        val invited = userRepository.findAll().find { it.email == request.invitedMemberEmail } ?: return ApiResponseUtil.notFound("User not found")
+        val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) } ?: return ApiResponseUtil.notFound("User not found")
         if (invited.familyId != null) return ApiResponseUtil.conflict("User already in a family")
-        if (!family.pendingMemberEmails.contains(request.invitedMemberEmail)) return ApiResponseUtil.conflict("No pending invitation. Send new")
+        if (!family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }) return ApiResponseUtil.conflict("No pending invitation. Send new")
         sendInvitationNotification(invited, family, head)
         return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation resent to ${request.invitedMemberEmail} successfully", mapOf("family" to family, "members" to listMembers(family))))
     }
@@ -241,10 +248,13 @@ class FamilyApplicationService(
         val head = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         val family = head.familyId?.let { familyRepository.findById(it).orElse(null) } ?: return ApiResponseUtil.badRequest("Not in a family")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can cancel")
-        if (!family.pendingMemberEmails.contains(request.invitedMemberEmail)) return ApiResponseUtil.notFound("No pending invitation")
-        val updated = family.copy(pendingMemberEmails = (family.pendingMemberEmails - request.invitedMemberEmail).toMutableList(), updatedAt = now())
+        if (!family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }) return ApiResponseUtil.notFound("No pending invitation")
+        val updated = family.copy(
+            pendingMemberEmails = family.pendingMemberEmails.filterNot { it.email.equals(request.invitedMemberEmail, true) }.toMutableList(),
+            updatedAt = now()
+        )
         familyRepository.save(updated)
-        val invited = userRepository.findAll().find { it.email == request.invitedMemberEmail }
+        val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) }
         if (invited != null) notifyInvitationCancelled(invited, updated, head)
         return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation cancelled successfully", mapOf("family" to updated, "members" to listMembers(updated))))
     }
@@ -265,11 +275,11 @@ class FamilyApplicationService(
         val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         if (user.familyId != null) return ApiResponseUtil.conflict("Already in a family")
         val family = familyRepository.findByAliasName(request.aliasName.trim()) ?: return ApiResponseUtil.notFound("Family not found")
-        if (!family.pendingMemberEmails.contains(user.email)) return ApiResponseUtil.badRequest("No pending invitation")
+        if (!family.pendingMemberEmails.any { it.email.equals(user.email, true) }) return ApiResponseUtil.badRequest("No pending invitation")
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
         val updatedFamily = family.copy(
             membersIds = (family.membersIds + user.id).toMutableList(),
-            pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
+            pendingMemberEmails = family.pendingMemberEmails.filterNot { it.email.equals(user.email, true) }.toMutableList(),
             updatedAt = now()
         )
         familyRepository.save(updatedFamily)
@@ -283,7 +293,7 @@ class FamilyApplicationService(
         val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         val family = familyRepository.findByAliasName(request.aliasName.trim()) ?: return ApiResponseUtil.notFound("Family not found")
         val updatedFamily = family.copy(
-            pendingMemberEmails = (family.pendingMemberEmails - user.email).toMutableList(),
+            pendingMemberEmails = family.pendingMemberEmails.filterNot { it.email.equals(user.email, true) }.toMutableList(),
             updatedAt = now()
         )
         familyRepository.save(updatedFamily)
@@ -297,8 +307,8 @@ class FamilyApplicationService(
         val family = head.familyId?.let { familyRepository.findById(it).orElse(null) } ?: return ApiResponseUtil.badRequest("Not in a family")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can reject")
         val requester = userRepository.findAll().find { it.id == request.requesterId } ?: return ApiResponseUtil.notFound("User not found")
-        val updatedFamily = if (family.pendingJoinRequests.contains(requester.id)) {
-            family.copy(pendingJoinRequests = (family.pendingJoinRequests - requester.id).toMutableList(), updatedAt = now()).also { familyRepository.save(it) }
+        val updatedFamily = if (family.pendingJoinRequests.any { it.userId == requester.id }) {
+            family.copy(pendingJoinRequests = family.pendingJoinRequests.filterNot { it.userId == requester.id }.toMutableList(), updatedAt = now()).also { familyRepository.save(it) }
         } else family
         // update join request record if exists
         val pendingRecord = joinRequestRepository.findByRequesterIdAndFamilyIdAndStatus(requester.id, family.familyId, JoinRequestStatus.PENDING)
@@ -316,14 +326,14 @@ class FamilyApplicationService(
         val requester = userRepository.findAll().find { it.id == request.requesterId } ?: return ApiResponseUtil.notFound("User not found")
         if (requester.familyId != null) return ApiResponseUtil.conflict("User already in a family")
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
-        if (!family.pendingJoinRequests.contains(requester.id)) {
+        if (!family.pendingJoinRequests.any { it.userId == requester.id }) {
             // fall back: ensure there is a pending repo request else error
             val pendingRecord = joinRequestRepository.findByRequesterIdAndFamilyIdAndStatus(requester.id, family.familyId, JoinRequestStatus.PENDING)
                 ?: return ApiResponseUtil.notFound("No pending join request")
         }
         val updatedFamily = family.copy(
             membersIds = (family.membersIds + requester.id).toMutableList(),
-            pendingJoinRequests = (family.pendingJoinRequests - requester.id).toMutableList(),
+            pendingJoinRequests = family.pendingJoinRequests.filterNot { it.userId == requester.id }.toMutableList(),
             updatedAt = now()
         )
         familyRepository.save(updatedFamily)
@@ -555,8 +565,8 @@ class FamilyApplicationService(
             ?: return ApiResponseUtil.notFound("Family not found")
         val cancelled = jr.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now())
         joinRequestRepository.save(cancelled)
-        if (family.pendingJoinRequests.contains(user.id)) {
-            familyRepository.save(family.copy(pendingJoinRequests = (family.pendingJoinRequests - user.id).toMutableList(), updatedAt = now()))
+        if (family.pendingJoinRequests.any { it.userId == user.id }) {
+            familyRepository.save(family.copy(pendingJoinRequests = family.pendingJoinRequests.filterNot { it.userId == user.id }.toMutableList(), updatedAt = now()))
         }
         return ResponseEntity.ok(mapOf("message" to "Join request cancelled", "request" to cancelled))
     }
@@ -576,8 +586,8 @@ class FamilyApplicationService(
         // cancel previous pending ones
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
         existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
-        val ensuredFamily = if (!family.pendingJoinRequests.contains(user.id)) {
-            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
+        val ensuredFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email)).toMutableList(), updatedAt = now())
             familyRepository.save(updated); updated
         } else family
         val newReq = JoinRequest(
