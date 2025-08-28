@@ -6,6 +6,7 @@ import com.lavish.expensetracker.model.Family
 import com.lavish.expensetracker.model.Notification
 import com.lavish.expensetracker.repository.ExpenseUserRepository
 import com.lavish.expensetracker.repository.FamilyRepository
+import com.lavish.expensetracker.repository.JoinRequestRepository
 import com.lavish.expensetracker.repository.NotificationRepository
 import com.lavish.expensetracker.util.AuthUtil
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -25,6 +26,7 @@ class FamilyApplicationServiceTest {
     private lateinit var authUtil: AuthUtil
     private lateinit var familyNotificationService: FamilyNotificationService
     private lateinit var service: FamilyApplicationService
+    private lateinit var joinRequestRepository: JoinRequestRepository
 
     private val userId = "user-123"
     private val baseUser = ExpenseUser(
@@ -40,16 +42,18 @@ class FamilyApplicationServiceTest {
     @BeforeEach
     fun setup() {
         familyRepository = mock(FamilyRepository::class.java)
+        joinRequestRepository = mock(JoinRequestRepository::class.java)
         userRepository = mock(ExpenseUserRepository::class.java)
         notificationRepository = mock(NotificationRepository::class.java)
         authUtil = mock(AuthUtil::class.java)
         familyNotificationService = mock(FamilyNotificationService::class.java)
         service = FamilyApplicationService(
-            familyRepository,
-            userRepository,
-            notificationRepository,
-            authUtil,
-            familyNotificationService
+            familyRepository = familyRepository,
+            userRepository = userRepository,
+            notificationRepository = notificationRepository,
+            authUtil = authUtil,
+            familyNotificationService = familyNotificationService,
+            joinRequestRepository = joinRequestRepository
         )
         `when`(authUtil.getCurrentUserId()).thenReturn(userId)
         `when`(userRepository.findById(userId)).thenReturn(Optional.of(baseUser))
