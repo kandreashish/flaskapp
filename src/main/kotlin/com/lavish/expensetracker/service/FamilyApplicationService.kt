@@ -616,7 +616,25 @@ class FamilyApplicationService(
             "aliasName" to family.aliasName,
             "maxSize" to family.maxSize,
             "memberCount" to family.membersIds.size,
-            "updatedAt" to family.updatedAt
+            "updatedAt" to family.updatedAt,
+            "pendingMemberInvites" to family.pendingMemberEmails.map { inv ->
+                mapOf(
+                    "email" to inv.email,
+                    "userId" to inv.userId,
+                    "name" to inv.name,
+                    "profilePic" to inv.profilePic,
+                    "profilePicLow" to inv.profilePicLow
+                )
+            },
+            "pendingJoinRequests" to family.pendingJoinRequests.map { pj ->
+                mapOf(
+                    "userId" to pj.userId,
+                    "email" to pj.email,
+                    "name" to pj.name,
+                    "profilePic" to pj.profilePic,
+                    "profilePicLow" to pj.profilePicLow
+                )
+            }
         ),
         "members" to listMembers(family).map { m ->
             mapOf(
@@ -628,23 +646,5 @@ class FamilyApplicationService(
                 "profilePicLow" to m.profilePicLow
             )
         },
-        "pendingMemberInvites" to family.pendingMemberEmails.map { inv ->
-            mapOf(
-                "email" to inv.email,
-                "userId" to inv.userId,
-                "name" to inv.name,
-                "profilePic" to inv.profilePic,
-                "profilePicLow" to inv.profilePicLow
-            )
-        },
-        "pendingJoinRequests" to family.pendingJoinRequests.map { pj ->
-            mapOf(
-                "userId" to pj.userId,
-                "email" to pj.email,
-                "name" to pj.name,
-                "profilePic" to pj.profilePic,
-                "profilePicLow" to pj.profilePicLow
-            )
-        }
     )
 }
