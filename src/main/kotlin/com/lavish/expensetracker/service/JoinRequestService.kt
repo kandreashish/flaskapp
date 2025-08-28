@@ -34,7 +34,7 @@ class JoinRequestService(
         computeThrottle(requesterId, familyId)?.let { throttle ->
             val reason = throttle["reason"] as? String
             if (reason == "MAX_RETRIES") {
-                throw IllegalStateException("Max retries over. Ask family owner to send invitation")
+                throw IllegalStateException("Max retries over. Ask family owner to send")
             } else {
                 throw IllegalStateException(throttle["message"] as? String ?: "Request throttled")
             }
@@ -153,7 +153,7 @@ class JoinRequestService(
         if (attempts.size >= MAX_TOTAL_ATTEMPTS_PER_FAMILY) {
             return mapOf(
                 "reason" to "MAX_RETRIES",
-                "message" to "Max retries over. Ask family owner to send invitation",
+                "message" to "Max retries over. Ask family owner to send",
                 "attempts" to attempts.size,
                 "maxAttempts" to MAX_TOTAL_ATTEMPTS_PER_FAMILY
             )

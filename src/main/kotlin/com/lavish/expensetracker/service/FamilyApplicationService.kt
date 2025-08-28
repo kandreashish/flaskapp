@@ -535,7 +535,7 @@ class FamilyApplicationService(
         if (attempts.size >= MAX_TOTAL_ATTEMPTS_PER_FAMILY) {
             return mapOf(
                 "error" to "CONFLICT",
-                "message" to "Max retries over. Ask family owner to send invitation",
+                "message" to "Max retries over. Ask family owner to send",
                 "reason" to "MAX_RETRIES",
                 "attempts" to attempts.size,
                 "maxAttempts" to MAX_TOTAL_ATTEMPTS_PER_FAMILY
