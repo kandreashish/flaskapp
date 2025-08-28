@@ -8,7 +8,9 @@ import kotlinx.serialization.Serializable
 data class PendingMemberInvite(
     val email: String,
     val userId: String? = null,
-    val name: String? = null
+    val name: String? = null,
+    val profilePic: String? = null,
+    val profilePicLow: String? = null
 )
 
 @Embeddable
@@ -16,7 +18,9 @@ data class PendingMemberInvite(
 data class PendingJoinRequestRef(
     val userId: String,
     val email: String? = null,
-    val name: String? = null
+    val name: String? = null,
+    val profilePic: String? = null,
+    val profilePicLow: String? = null
 )
 
 @Entity

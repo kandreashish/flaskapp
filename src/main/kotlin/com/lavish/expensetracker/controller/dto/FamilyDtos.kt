@@ -90,7 +90,7 @@ data class UpdateFamilyNameRequest(
 
 data class BasicFamilySuccessResponse(
     val message: String,
-    val family: Map<String, Any>?
+    val family: Map<String, Any?>?
 )
 
 data class JoinRequestActionRequest(

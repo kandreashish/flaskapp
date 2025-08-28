@@ -52,7 +52,7 @@ class FamilyApplicationService(
         )
         familyRepository.save(family)
         userRepository.save(user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Family created successfully", mapOf("family" to family, "members" to listMembers(family))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Family created successfully", buildFamilyPayload(family)))
     }
 
     fun getFamilyDetails(): ResponseEntity<*> {
@@ -60,7 +60,7 @@ class FamilyApplicationService(
         val familyId = user.familyId ?: return ApiResponseUtil.badRequest("Not in a family")
         val family: Family = familyRepository.findById(familyId).orElse(null)
             ?: return ApiResponseUtil.notFound("Family not found")
-        return ResponseEntity.ok(mapOf("family" to family, "members" to listMembers(family)))
+        return ResponseEntity.ok(mapOf("family" to buildFamilyPayload(family)["family"], "members" to buildFamilyPayload(family)["members"], "pendingMemberInvites" to buildFamilyPayload(family)["pendingMemberInvites"], "pendingJoinRequests" to buildFamilyPayload(family)["pendingJoinRequests"]))
     }
 
     fun joinFamily(request: JoinFamilyRequest): ResponseEntity<*> {
@@ -72,7 +72,7 @@ class FamilyApplicationService(
         val updated = family.copy(membersIds = (family.membersIds + user.id).toMutableList(), updatedAt = now())
         familyRepository.save(updated)
         userRepository.save(user.copy(familyId = family.familyId, updatedAt = now()))
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Joined family successfully", mapOf("family" to updated, "members" to listMembers(updated))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Joined family successfully", buildFamilyPayload(updated)))
     }
 
     fun requestToJoinFamily(request: JoinFamilyRequest): ResponseEntity<*> {
@@ -84,7 +84,7 @@ class FamilyApplicationService(
         val throttle = computeJoinRequestThrottle(user.id, family.familyId)
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
         val updatedFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email)).toMutableList(), updatedAt = now())
+            family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
                 .also { familyRepository.save(it) }
         } else family
         val joinReq = JoinRequest(
@@ -173,7 +173,7 @@ class FamilyApplicationService(
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
         existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email)).toMutableList(), updatedAt = now())
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
             familyRepository.save(updated)
             updated
         } else family
@@ -222,13 +222,15 @@ class FamilyApplicationService(
             pendingMemberEmails = (family.pendingMemberEmails + PendingMemberInvite(
                 email = request.invitedMemberEmail,
                 userId = invited.id,
-                name = invited.name ?: invited.email
+                name = invited.name ?: invited.email,
+                profilePic = invited.profilePic,
+                profilePicLow = invited.profilePicLow
             )).toMutableList(),
             updatedAt = now()
         )
         familyRepository.save(updated)
         sendInvitationNotification(invited, updated, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation sent to ${request.invitedMemberEmail} and is pending acceptance", mapOf("family" to updated, "members" to listMembers(updated))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation sent to ${request.invitedMemberEmail} and is pending acceptance", buildFamilyPayload(updated)))
     }
 
     fun resendInvitation(request: InviteMemberRequest): ResponseEntity<*> {
@@ -240,7 +242,7 @@ class FamilyApplicationService(
         if (invited.familyId != null) return ApiResponseUtil.conflict("User already in a family")
         if (!family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }) return ApiResponseUtil.conflict("No pending invitation. Send new")
         sendInvitationNotification(invited, family, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation resent to ${request.invitedMemberEmail} successfully", mapOf("family" to family, "members" to listMembers(family))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation resent to ${request.invitedMemberEmail} successfully", buildFamilyPayload(family)))
     }
 
     fun cancelInvitation(request: CancelInvitationRequest): ResponseEntity<*> {
@@ -256,7 +258,7 @@ class FamilyApplicationService(
         familyRepository.save(updated)
         val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) }
         if (invited != null) notifyInvitationCancelled(invited, updated, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation cancelled successfully", mapOf("family" to updated, "members" to listMembers(updated))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation cancelled successfully", buildFamilyPayload(updated)))
     }
 
     fun updateFamilyName(request: UpdateFamilyNameRequest): ResponseEntity<*> {
@@ -268,7 +270,7 @@ class FamilyApplicationService(
         if (conflict) return ApiResponseUtil.conflict("Family name already in use")
         val updated = family.copy(name = request.familyName.trim(), updatedAt = now())
         familyRepository.save(updated)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Family name updated successfully", mapOf("family" to updated, "members" to listMembers(updated))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Family name updated successfully", buildFamilyPayload(updated)))
     }
 
     fun acceptInvitation(request: JoinFamilyRequest): ResponseEntity<*> {
@@ -286,7 +288,7 @@ class FamilyApplicationService(
         userRepository.save(user.copy(familyId = updatedFamily.familyId, updatedAt = now()))
         val head = userRepository.findById(family.headId).orElse(null)
         if (head != null) notifyInvitationAccepted(user, updatedFamily, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation accepted successfully.", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation accepted successfully.", buildFamilyPayload(updatedFamily)))
     }
 
     fun rejectInvitation(request: RejectFamilyRequest): ResponseEntity<*> {
@@ -299,7 +301,7 @@ class FamilyApplicationService(
         familyRepository.save(updatedFamily)
         val head = userRepository.findById(family.headId).orElse(null)
         if (head != null) notifyInvitationRejected(user, updatedFamily, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation accepted successfully.", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Family invitation accepted successfully.", buildFamilyPayload(updatedFamily)))
     }
 
     fun rejectJoinRequest(request: RejectJoinRequestRequest): ResponseEntity<*> {
@@ -316,7 +318,7 @@ class FamilyApplicationService(
             joinRequestRepository.save(pendingRecord.copy(status = JoinRequestStatus.REJECTED, updatedAt = now()))
         }
         notifyJoinRequestRejected(requester, updatedFamily, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Join request rejected", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Join request rejected", buildFamilyPayload(updatedFamily)))
     }
 
     fun acceptJoinRequest(request: AcceptJoinRequestRequest): ResponseEntity<*> {
@@ -343,7 +345,7 @@ class FamilyApplicationService(
             joinRequestRepository.save(pendingRecord.copy(status = JoinRequestStatus.ACCEPTED, updatedAt = now(), processedBy = head.id))
         }
         notifyJoinRequestAccepted(requester, updatedFamily, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Join request accepted", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Join request accepted", buildFamilyPayload(updatedFamily)))
     }
 
     fun removeMember(request: RemoveMemberRequest): ResponseEntity<*> {
@@ -358,7 +360,7 @@ class FamilyApplicationService(
         familyRepository.save(updated)
         userRepository.save(member.copy(familyId = null, updatedAt = now()))
         notifyMemberRemoved(member, updated, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Member removed from family successfully", mapOf("family" to updated, "members" to listMembers(updated))))
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Member removed from family successfully", buildFamilyPayload(updated)))
     }
 
     /* ===================== Validation Helpers ===================== */
@@ -587,7 +589,7 @@ class FamilyApplicationService(
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
         existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email)).toMutableList(), updatedAt = now())
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
             familyRepository.save(updated); updated
         } else family
         val newReq = JoinRequest(
@@ -603,4 +605,46 @@ class FamilyApplicationService(
         notifyHeadNewJoinRequest(user, ensuredFamily, saved)
         return ResponseEntity.ok(mapOf("message" to "Join request sent", "requestId" to saved.id))
     }
+
+    /* ===================== Response Helpers ===================== */
+
+    private fun buildFamilyPayload(family: Family): Map<String, Any?> = mapOf(
+        "family" to mapOf(
+            "familyId" to family.familyId,
+            "headId" to family.headId,
+            "name" to family.name,
+            "aliasName" to family.aliasName,
+            "maxSize" to family.maxSize,
+            "memberCount" to family.membersIds.size,
+            "updatedAt" to family.updatedAt
+        ),
+        "members" to listMembers(family).map { m ->
+            mapOf(
+                "id" to m.id,
+                "name" to (m.name ?: m.email),
+                "email" to m.email,
+                "aliasName" to m.aliasName,
+                "profilePic" to m.profilePic,
+                "profilePicLow" to m.profilePicLow
+            )
+        },
+        "pendingMemberInvites" to family.pendingMemberEmails.map { inv ->
+            mapOf(
+                "email" to inv.email,
+                "userId" to inv.userId,
+                "name" to inv.name,
+                "profilePic" to inv.profilePic,
+                "profilePicLow" to inv.profilePicLow
+            )
+        },
+        "pendingJoinRequests" to family.pendingJoinRequests.map { pj ->
+            mapOf(
+                "userId" to pj.userId,
+                "email" to pj.email,
+                "name" to pj.name,
+                "profilePic" to pj.profilePic,
+                "profilePicLow" to pj.profilePicLow
+            )
+        }
+    )
 }
