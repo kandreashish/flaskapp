@@ -139,6 +139,8 @@ class ExpenseControllerHandler(
                 modifiedBy = currentUser.id,
                 lastModifiedOn = System.currentTimeMillis()
             ))
+
+            if(updated == null) return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(mapOf("error" to "Failed to update expense"))
             sendExpenseNotification(
                 type = if (existing.familyId.isNullOrBlank()) NotificationType.EXPENSE_UPDATED else NotificationType.FAMILY_EXPENSE_UPDATED,
                 title = "Expense Updated",

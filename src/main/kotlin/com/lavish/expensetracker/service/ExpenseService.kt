@@ -83,7 +83,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         }
     }
 
-    fun updateExpense(id: String, expenseDetails: ExpenseDto): ExpenseDto {
+    fun updateExpense(id: String, expenseDetails: ExpenseDto): ExpenseDto? {
         return try {
             val existingExpense = expenseRepository.findById(id)
                 .orElseThrow { ExpenseNotFoundException("Expense not found with id: $id") }
