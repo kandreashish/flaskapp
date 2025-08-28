@@ -7,9 +7,11 @@ import com.lavish.expensetracker.model.auth.FailureAuthResponse
 import com.lavish.expensetracker.model.auth.FirebaseLoginRequest
 import com.lavish.expensetracker.model.auth.RefreshTokenRequest
 import com.lavish.expensetracker.model.auth.SuccessAuthResponse
+import com.lavish.expensetracker.model.auth.LogoutRequest
 import com.lavish.expensetracker.service.AuthService
 import com.lavish.expensetracker.service.JwtService
 import com.lavish.expensetracker.service.RefreshTokenService
+import com.lavish.expensetracker.service.UserService
 import com.lavish.expensetracker.util.AuthUtil
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
@@ -29,7 +31,8 @@ class AuthController(
     private val authService: AuthService,
     private val authUtil: AuthUtil,
     private val jwtService: JwtService,
-    private val refreshTokenService: RefreshTokenService // Add RefreshTokenService here
+    private val refreshTokenService: RefreshTokenService,
+    private val userService: UserService
 ) {
 
     private val logger = LoggerFactory.getLogger(AuthController::class.java)
@@ -108,8 +111,35 @@ class AuthController(
     }
 
     @PostMapping("/logout")
-    fun logout(): ResponseEntity<Any> {
-        return ResponseEntity.ok(mapOf("message" to "Logged out successfully"))
+    fun logout(@Valid @RequestBody request: LogoutRequest): ResponseEntity<Any> {
+        return try {
+            val currentUserId = authUtil.getCurrentUserId()
+
+            // Deactivate the specific device token for this user
+            try {
+                // userService not directly injected here; use authService + repository? Simpler: add lazy userService? For now omit if not available.
+                userService.removeDevice(currentUserId, request.fcmToken)
+            } catch (ex: Exception) {
+                logger.warn("Failed to deactivate device token during logout for user {}: {}", currentUserId, ex.message)
+            }
+
+            // Revoke refresh tokens
+            if (request.revokeAll == true) {
+                refreshTokenService.revokeAllUserTokens(currentUserId)
+            } else if (!request.refreshToken.isNullOrBlank()) {
+                refreshTokenService.revokeRefreshToken(request.refreshToken)
+            }
+
+            ResponseEntity.ok(
+                mapOf(
+                    "message" to "Logged out successfully",
+                )
+            )
+        } catch (e: Exception) {
+            logger.error("Logout failed", e)
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(mapOf("message" to "Logout failed", "error" to (e.message ?: "Unknown error")))
+        }
     }
 
     /**

@@ -89,4 +89,6 @@ class UserDeviceService(
             }
         }
     }
+
+    fun findByToken(fcmToken: String): UserDevice? = userDeviceRepository.findByFcmToken(fcmToken)
 }

@@ -67,3 +67,11 @@ data class RefreshTokenRequest(
     @field:NotBlank(message = "Refresh token is required")
     val refreshToken: String
 )
+
+@kotlinx.serialization.Serializable
+data class LogoutRequest(
+    @field:NotBlank(message = "FCM token is required")
+    val fcmToken: String,
+    val refreshToken: String? = null,
+    val revokeAll: Boolean? = null
+)

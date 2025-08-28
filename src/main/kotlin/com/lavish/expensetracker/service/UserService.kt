@@ -28,10 +28,25 @@ class UserService(
     fun updateFcmToken(userId: String, fcmToken: String, deviceName: String? = null, deviceType: String? = null): Boolean {
         val user = userRepository.findById(userId).orElse(null) ?: return false
 
-        // Add or update device token in the new UserDevice table
+        // Capture previous ownership (if any) BEFORE transfer
+        val previousDevice = userDeviceService.findByToken(fcmToken)
+        val previousUserId = previousDevice?.userId
+
+        // Add or update device token in the new UserDevice table (handles transfer)
         userDeviceService.addOrUpdateDevice(userId, fcmToken, deviceName, deviceType)
 
-        // Keep the legacy fcmToken field updated for backward compatibility
+        // If token moved from another user, clear that user's legacy fcmToken field (only if still same token)
+        if (previousUserId != null && previousUserId != userId) {
+            userRepository.findById(previousUserId).ifPresent { prevUser ->
+                if (prevUser.fcmToken == fcmToken) {
+                    val clearedPrev = prevUser.copy(fcmToken = null, updatedAt = System.currentTimeMillis())
+                    userRepository.save(clearedPrev)
+                    logger.info("Cleared legacy fcmToken for previous user {} due to token transfer", previousUserId)
+                }
+            }
+        }
+
+        // Update legacy field for current user (backward compatibility)
         val updatedUser = user.copy(
             fcmToken = fcmToken,
             updatedAt = System.currentTimeMillis()
