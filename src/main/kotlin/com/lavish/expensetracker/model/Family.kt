@@ -1,26 +1,25 @@
 package com.lavish.expensetracker.model
 
 import jakarta.persistence.*
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Embeddable
 @Serializable
-data class PendingMemberInvite(
-    val email: String,
+data class PendingMembersDetails(
+    val email: String? = null,
     val userId: String? = null,
     val name: String? = null,
     val profilePic: String? = null,
-    val profilePicLow: String? = null
+    val profilePicLow: String? = null,
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 @Embeddable
 @Serializable
-data class PendingJoinRequestRef(
+data class MemberJoinRecord(
     val userId: String,
-    val email: String? = null,
-    val name: String? = null,
-    val profilePic: String? = null,
-    val profilePicLow: String? = null
+    val joinedAt: Long = System.currentTimeMillis()
 )
 
 @Entity
@@ -45,10 +44,17 @@ data class Family(
     val membersIds: MutableList<String> = mutableListOf(),
 
     @ElementCollection
-    val pendingMemberEmails: MutableList<PendingMemberInvite> = mutableListOf(),
+    val memberJoins: MutableList<MemberJoinRecord> = mutableListOf(),
 
+    // Invitations sent by head to potential members
     @ElementCollection
-    val pendingJoinRequests: MutableList<PendingJoinRequestRef> = mutableListOf(),
+    @SerialName("pendingMemberEmails")
+    val pendingMemberEmails: MutableList<PendingMembersDetails> = mutableListOf(),
+
+    // Join requests created by users wanting to join
+    @ElementCollection
+    @SerialName("pendingJoinRequests")
+    val pendingJoinRequests: MutableList<PendingMembersDetails> = mutableListOf(),
 
     @Column(nullable = false)
     val updatedAt: Long = System.currentTimeMillis(),

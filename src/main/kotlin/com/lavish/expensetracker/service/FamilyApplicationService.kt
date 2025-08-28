@@ -41,6 +41,7 @@ class FamilyApplicationService(
             ?: return ApiResponseUtil.notFound("User not found")
         if (user.familyId != null) return ApiResponseUtil.conflict("Already in a family")
         val alias = generateUniqueAliasName()
+        val nowTs = System.currentTimeMillis()
         val family = Family(
             familyId = UUID.randomUUID().toString(),
             headId = userId,
@@ -48,10 +49,11 @@ class FamilyApplicationService(
             aliasName = alias,
             maxSize = FAMILY_MAX_SIZE,
             membersIds = mutableListOf(userId),
-            updatedAt = System.currentTimeMillis()
+            memberJoins = mutableListOf(MemberJoinRecord(userId = userId, joinedAt = nowTs)),
+            updatedAt = nowTs
         )
         familyRepository.save(family)
-        userRepository.save(user.copy(familyId = family.familyId, updatedAt = System.currentTimeMillis()))
+        userRepository.save(user.copy(familyId = family.familyId, updatedAt = nowTs))
         return ResponseEntity.ok(BasicFamilySuccessResponse("Family created successfully", buildFamilyPayload(family)))
     }
 
@@ -60,7 +62,9 @@ class FamilyApplicationService(
         val familyId = user.familyId ?: return ApiResponseUtil.badRequest("Not in a family")
         val family: Family = familyRepository.findById(familyId).orElse(null)
             ?: return ApiResponseUtil.notFound("Family not found")
-        return ResponseEntity.ok(mapOf("family" to buildFamilyPayload(family)["family"], "members" to buildFamilyPayload(family)["members"], "pendingMemberInvites" to buildFamilyPayload(family)["pendingMemberInvites"], "pendingJoinRequests" to buildFamilyPayload(family)["pendingJoinRequests"]))
+        // Return only the family payload (which already nests pending invites & requests) and members
+        val payload = buildFamilyPayload(family)
+        return ResponseEntity.ok(payload)
     }
 
     fun joinFamily(request: JoinFamilyRequest): ResponseEntity<*> {
@@ -69,7 +73,7 @@ class FamilyApplicationService(
         if (user.familyId != null) return ApiResponseUtil.conflict("Already in a family")
         val family = familyRepository.findByAliasName(request.aliasName) ?: return ApiResponseUtil.notFound("Family not found")
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
-        val updated = family.copy(membersIds = (family.membersIds + user.id).toMutableList(), updatedAt = now())
+        val updated = family.copy(membersIds = (family.membersIds + user.id).toMutableList(), memberJoins = (family.memberJoins + MemberJoinRecord(userId = user.id, joinedAt = now())).toMutableList(), updatedAt = now())
         familyRepository.save(updated)
         userRepository.save(user.copy(familyId = family.familyId, updatedAt = now()))
         return ResponseEntity.ok(BasicFamilySuccessResponse("Joined family successfully", buildFamilyPayload(updated)))
@@ -81,10 +85,14 @@ class FamilyApplicationService(
         if (user.familyId != null) return ApiResponseUtil.conflict("Already in a family")
         val family = familyRepository.findByAliasName(request.aliasName) ?: return ApiResponseUtil.notFound("Family not found")
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
+        // Block join request if an invitation for this user already exists
+        if (family.pendingMemberEmails.any { it.email.equals(user.email, true) }) {
+            return ApiResponseUtil.conflict("Invitation already present. Accept or reject the invitation.")
+        }
         val throttle = computeJoinRequestThrottle(user.id, family.familyId)
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
         val updatedFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
+            family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
                 .also { familyRepository.save(it) }
         } else family
         val joinReq = JoinRequest(
@@ -167,13 +175,17 @@ class FamilyApplicationService(
         val family = familyRepository.findByAliasName(request.aliasName) ?: return ApiResponseUtil.notFound("Family not found")
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
         if (family.membersIds.contains(user.id)) return ApiResponseUtil.conflict("Already a member")
+        // Block resend if invitation already exists
+        if (family.pendingMemberEmails.any { it.email.equals(user.email, true) }) {
+            return ApiResponseUtil.conflict("Invitation already present. Accept or reject the invitation.")
+        }
         val throttle = computeJoinRequestThrottle(user.id, family.familyId)
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
         // cancel any previous pending requests for same family
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
         existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
             familyRepository.save(updated)
             updated
         } else family
@@ -219,7 +231,7 @@ class FamilyApplicationService(
         if (invited.familyId != null) return ApiResponseUtil.conflict("User already in a family")
         if (family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }) return ApiResponseUtil.conflict("Already invited")
         val updated = family.copy(
-            pendingMemberEmails = (family.pendingMemberEmails + PendingMemberInvite(
+            pendingMemberEmails = (family.pendingMemberEmails + PendingMembersDetails(
                 email = request.invitedMemberEmail,
                 userId = invited.id,
                 name = invited.name ?: invited.email,
@@ -239,8 +251,17 @@ class FamilyApplicationService(
         val family = head.familyId?.let { familyRepository.findById(it).orElse(null) } ?: return ApiResponseUtil.badRequest("Not in a family")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can resend")
         val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) } ?: return ApiResponseUtil.notFound("User not found")
-        if (invited.familyId != null) return ApiResponseUtil.conflict("User already in a family")
-        if (!family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }) return ApiResponseUtil.conflict("No pending invitation. Send new")
+        val hasPending = family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }
+        if (!hasPending) return ApiResponseUtil.conflict("No pending invitation. Send new")
+        // If user already in a (any) family, remove stale invitation instead of resending
+        if (invited.familyId != null) {
+            val updated = family.copy(
+                pendingMemberEmails = family.pendingMemberEmails.filterNot { it.email.equals(request.invitedMemberEmail, true) }.toMutableList(),
+                updatedAt = now()
+            )
+            familyRepository.save(updated)
+            return ApiResponseUtil.conflict("User already in a family. Pending invitation removed.")
+        }
         sendInvitationNotification(invited, family, head)
         return ResponseEntity.ok(BasicFamilySuccessResponse("Invitation resent to ${request.invitedMemberEmail} successfully", buildFamilyPayload(family)))
     }
@@ -281,6 +302,7 @@ class FamilyApplicationService(
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
         val updatedFamily = family.copy(
             membersIds = (family.membersIds + user.id).toMutableList(),
+            memberJoins = (family.memberJoins + MemberJoinRecord(userId = user.id, joinedAt = now())).toMutableList(),
             pendingMemberEmails = family.pendingMemberEmails.filterNot { it.email.equals(user.email, true) }.toMutableList(),
             updatedAt = now()
         )
@@ -335,6 +357,7 @@ class FamilyApplicationService(
         }
         val updatedFamily = family.copy(
             membersIds = (family.membersIds + requester.id).toMutableList(),
+            memberJoins = (family.memberJoins + MemberJoinRecord(userId = requester.id, joinedAt = now())).toMutableList(),
             pendingJoinRequests = family.pendingJoinRequests.filterNot { it.userId == requester.id }.toMutableList(),
             updatedAt = now()
         )
@@ -583,13 +606,17 @@ class FamilyApplicationService(
             ?: return ApiResponseUtil.notFound("Family not found")
         if (user.familyId != null && user.familyId == family.familyId) return ApiResponseUtil.conflict("Already in family")
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
+        // Block resend if invitation exists
+        if (family.pendingMemberEmails.any { it.email.equals(user.email, true) }) {
+            return ApiResponseUtil.conflict("Invitation already present. Accept or reject the invitation.")
+        }
         val throttle = computeJoinRequestThrottle(user.id, family.familyId)
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
         // cancel previous pending ones
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
         existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingJoinRequestRef(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
             familyRepository.save(updated); updated
         } else family
         val newReq = JoinRequest(
@@ -623,7 +650,8 @@ class FamilyApplicationService(
                     "userId" to inv.userId,
                     "name" to inv.name,
                     "profilePic" to inv.profilePic,
-                    "profilePicLow" to inv.profilePicLow
+                    "profilePicLow" to inv.profilePicLow,
+                    "createdAt" to inv.createdAt
                 )
             },
             "pendingJoinRequests" to family.pendingJoinRequests.map { pj ->
@@ -632,18 +660,21 @@ class FamilyApplicationService(
                     "email" to pj.email,
                     "name" to pj.name,
                     "profilePic" to pj.profilePic,
-                    "profilePicLow" to pj.profilePicLow
+                    "profilePicLow" to pj.profilePicLow,
+                    "createdAt" to pj.createdAt
                 )
             }
         ),
         "members" to listMembers(family).map { m ->
+            val join = family.memberJoins.firstOrNull { it.userId == m.id }
             mapOf(
                 "id" to m.id,
                 "name" to (m.name ?: m.email),
                 "email" to m.email,
                 "aliasName" to m.aliasName,
                 "profilePic" to m.profilePic,
-                "profilePicLow" to m.profilePicLow
+                "profilePicLow" to m.profilePicLow,
+                "joinedAt" to join?.joinedAt
             )
         },
     )
