@@ -28,10 +28,7 @@ class FamilyApplicationService(
         private const val FAMILY_MAX_SIZE = 10
         private const val MAX_GENERATION_ATTEMPTS = 100
         const val JOIN_REQUEST_TTL_MS = 3L * 24 * 60 * 60 * 1000
-        private const val WEEK_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
-        private const val MAX_ATTEMPTS_PER_WEEK = 3
-        private const val MAX_TOTAL_ATTEMPTS_PER_FAMILY = 5 // hard cap across all time
-        private val BACKOFF_SCHEDULE_MS = listOf(0L, 6L * 3600_000, 12L * 3600_000, 24L * 3600_000) // attempt indices 1..n
+        private const val MAX_TOTAL_ATTEMPTS_PER_FAMILY = 2 // initial + 1 resend allowed; 3rd attempt blocked
     }
 
     /* ===================== Public Endpoint Facade Methods ===================== */
@@ -528,53 +525,17 @@ class FamilyApplicationService(
     private fun now() = System.currentTimeMillis()
 
     private fun computeJoinRequestThrottle(userId: String, familyId: String): Map<String, Any>? {
-        val now = now()
         val attempts = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(userId, familyId)
-        if (attempts.isEmpty()) return null
-        // Hard cap across all time
-        if (attempts.size >= MAX_TOTAL_ATTEMPTS_PER_FAMILY) {
-            return mapOf(
+        // Block starting with 3rd request (attemptNumber = attempts.size + 1). So if attempts.size >= 2, next is blocked.
+        return if (attempts.size >= MAX_TOTAL_ATTEMPTS_PER_FAMILY) {
+            mapOf(
                 "error" to "CONFLICT",
                 "message" to "Max retries over. Ask family owner to send",
                 "reason" to "MAX_RETRIES",
                 "attempts" to attempts.size,
                 "maxAttempts" to MAX_TOTAL_ATTEMPTS_PER_FAMILY
             )
-        }
-        val windowAttempts = attempts.filter { now - it.createdAt <= WEEK_WINDOW_MS }
-        // Weekly cap
-        if (windowAttempts.size >= MAX_ATTEMPTS_PER_WEEK) {
-            val nextAllowedAt = windowAttempts.minByOrNull { it.createdAt }!!.createdAt + WEEK_WINDOW_MS
-            val remaining = (nextAllowedAt - now).coerceAtLeast(0)
-            return mapOf(
-                "error" to "CONFLICT",
-                "message" to "Weekly join request limit reached",
-                "reason" to "WEEKLY_LIMIT",
-                "cooldownSeconds" to (remaining / 1000),
-                "attemptsInLast7Days" to windowAttempts.size,
-                "maxAttemptsPer7Days" to MAX_ATTEMPTS_PER_WEEK,
-                "nextAllowedAt" to nextAllowedAt
-            )
-        }
-        val latest = attempts.first()
-        val attemptNumber = attempts.size + 1 // next attempt number notionally
-        val backoffIndex = (windowAttempts.size - 1).coerceAtLeast(0)
-        val requiredDelay = BACKOFF_SCHEDULE_MS.getOrNull(backoffIndex) ?: BACKOFF_SCHEDULE_MS.last()
-        val elapsed = now - latest.createdAt
-        if (elapsed < requiredDelay) {
-            val remaining = requiredDelay - elapsed
-            return mapOf(
-                "error" to "CONFLICT",
-                "message" to "Join request backoff active",
-                "reason" to "BACKOFF",
-                "cooldownSeconds" to (remaining / 1000),
-                "attemptsInLast7Days" to windowAttempts.size,
-                "maxAttemptsPer7Days" to MAX_ATTEMPTS_PER_WEEK,
-                "nextAllowedAt" to (now + remaining),
-                "attemptNumber" to attemptNumber
-            )
-        }
-        return null
+        } else null
     }
 
     fun cancelOwnJoinRequestById(request: JoinRequestByIdActionRequest): ResponseEntity<*> {
