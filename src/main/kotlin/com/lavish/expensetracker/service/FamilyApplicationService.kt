@@ -5,6 +5,7 @@ import com.lavish.expensetracker.model.*
 import com.lavish.expensetracker.repository.ExpenseUserRepository
 import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.repository.NotificationRepository
+import com.lavish.expensetracker.repository.JoinRequestRepository
 import com.lavish.expensetracker.util.ApiResponseUtil
 import com.lavish.expensetracker.util.AuthUtil
 import org.slf4j.LoggerFactory
@@ -19,14 +20,17 @@ class FamilyApplicationService(
     private val notificationRepository: NotificationRepository,
     private val authUtil: AuthUtil,
     private val familyNotificationService: FamilyNotificationService,
+    private val joinRequestRepository: JoinRequestRepository,
 ) {
     private val logger = LoggerFactory.getLogger(FamilyApplicationService::class.java)
 
     companion object {
         private const val FAMILY_MAX_SIZE = 10
         private const val MAX_GENERATION_ATTEMPTS = 100
-        private const val INVITATION_TTL_MS = 3L * 24 * 60 * 60 * 1000
-        private const val JOIN_REQUEST_TTL_MS = 3L * 24 * 60 * 60 * 1000
+        const val JOIN_REQUEST_TTL_MS = 3L * 24 * 60 * 60 * 1000
+        private const val WEEK_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
+        private const val MAX_ATTEMPTS_PER_WEEK = 3
+        private val BACKOFF_SCHEDULE_MS = listOf(0L, 6L * 3600_000, 12L * 3600_000, 24L * 3600_000) // attempt indices 1..n
     }
 
     /* ===================== Public Endpoint Facade Methods ===================== */
@@ -78,32 +82,109 @@ class FamilyApplicationService(
         if (user.familyId != null) return ApiResponseUtil.conflict("Already in a family")
         val family = familyRepository.findByAliasName(request.aliasName) ?: return ApiResponseUtil.notFound("Family not found")
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
-        if (family.pendingJoinRequests.contains(user.id)) return ApiResponseUtil.conflict("Join request already pending")
-        val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
-        familyRepository.save(updated)
-        val head = userRepository.findById(family.headId).orElse(null)
-        if (head != null) {
-            val notif = createNotification(
-                title = "New Family Join Request",
-                message = "${user.name} wants to join your family '${family.name}'",
-                familyId = family.familyId,
-                senderName = user.name ?: user.email,
-                senderId = user.id,
-                receiverId = head.id,
-                type = NotificationType.JOIN_FAMILY_REQUEST,
-                familyAliasName = family.aliasName,
-                actionable = true
+        val throttle = computeJoinRequestThrottle(user.id, family.familyId)
+        if (throttle != null) return ResponseEntity.status(409).body(throttle)
+        val updatedFamily = if (!family.pendingJoinRequests.contains(user.id)) {
+            family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
+                .also { familyRepository.save(it) }
+        } else family
+        val joinReq = JoinRequest(
+            id = UUID.randomUUID().toString(),
+            requesterId = user.id,
+            familyId = updatedFamily.familyId,
+            message = null,
+            status = JoinRequestStatus.PENDING,
+            createdAt = now(),
+            updatedAt = now()
+        )
+        joinRequestRepository.save(joinReq)
+        notifyHeadNewJoinRequest(user, updatedFamily, joinReq)
+        return ResponseEntity.ok(mapOf("message" to "Join request sent successfully", "familyName" to updatedFamily.name, "familyAlias" to updatedFamily.aliasName, "status" to "pending", "requestId" to joinReq.id))
+    }
+
+    private fun notifyHeadNewJoinRequest(user: ExpenseUser, family: Family, joinReq: JoinRequest) {
+        val head = userRepository.findById(family.headId).orElse(null) ?: return
+        val notif = createNotification(
+            title = "New Family Join Request",
+            message = "${user.name ?: user.email} wants to join your family '${family.name}'",
+            familyId = family.familyId,
+            senderName = user.name ?: user.email,
+            senderId = user.id,
+            receiverId = head.id,
+            type = NotificationType.JOIN_FAMILY_REQUEST,
+            familyAliasName = family.aliasName,
+            actionable = true
+        )
+        val saved = saveNotification(notif)
+        sendDataPush(head.fcmToken, NotificationType.JOIN_FAMILY_REQUEST, "New Family Join Request", "${user.name ?: user.email} wants to join your family '${family.name}'", mapOf(
+            "familyId" to family.familyId,
+            "requesterId" to user.id,
+            "requesterName" to (user.name ?: user.email),
+            "familyName" to family.name,
+            "familyAlias" to family.aliasName,
+            "joinRequestId" to joinReq.id
+        ), saved?.id)
+    }
+
+    fun getOwnPendingJoinRequests(): ResponseEntity<*> {
+        val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
+        val pending = joinRequestRepository.findByRequesterIdAndStatus(user.id, JoinRequestStatus.PENDING)
+        val enriched = pending.mapNotNull { req ->
+            val fam = familyRepository.findById(req.familyId).orElse(null) ?: return@mapNotNull null
+            mapOf(
+                "request" to req,
+                "family" to mapOf(
+                    "familyId" to fam.familyId,
+                    "name" to fam.name,
+                    "alias" to fam.aliasName,
+                    "headId" to fam.headId,
+                    "memberCount" to fam.membersIds.size,
+                    "maxSize" to fam.maxSize
+                )
             )
-            val saved = saveNotification(notif)
-            sendDataPush(head.fcmToken, NotificationType.JOIN_FAMILY_REQUEST, "New Family Join Request", "${user.name} wants to join your family '${family.name}'", mapOf(
-                "familyId" to family.familyId,
-                "requesterId" to user.id,
-                "requesterName" to (user.name ?: user.email),
-                "familyName" to family.name,
-                "familyAlias" to family.aliasName
-            ), saved?.id)
         }
-        return ResponseEntity.ok(mapOf("message" to "Join request sent successfully", "familyName" to family.name, "familyAlias" to family.aliasName, "status" to "pending"))
+        return ResponseEntity.ok(mapOf("pendingJoinRequests" to enriched))
+    }
+
+    fun cancelOwnJoinRequest(request: JoinRequestActionRequest): ResponseEntity<*> {
+        val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
+        val family = familyRepository.findByAliasName(request.aliasName) ?: return ApiResponseUtil.notFound("Family not found")
+        val pending = joinRequestRepository.findByRequesterIdAndFamilyIdAndStatus(user.id, family.familyId, JoinRequestStatus.PENDING)
+            ?: return ApiResponseUtil.notFound("No pending join request to cancel")
+        val cancelled = pending.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now())
+        joinRequestRepository.save(cancelled)
+        if (family.pendingJoinRequests.contains(user.id)) {
+            val updatedFamily = family.copy(pendingJoinRequests = (family.pendingJoinRequests - user.id).toMutableList(), updatedAt = now())
+            familyRepository.save(updatedFamily)
+        }
+        return ResponseEntity.ok(mapOf("message" to "Join request cancelled", "request" to cancelled))
+    }
+
+    fun resendJoinRequest(request: JoinRequestActionRequest): ResponseEntity<*> {
+        val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
+        if (user.familyId != null) return ApiResponseUtil.conflict("Already in a family")
+        val family = familyRepository.findByAliasName(request.aliasName) ?: return ApiResponseUtil.notFound("Family not found")
+        if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
+        if (family.membersIds.contains(user.id)) return ApiResponseUtil.conflict("Already a member")
+        val throttle = computeJoinRequestThrottle(user.id, family.familyId)
+        if (throttle != null) return ResponseEntity.status(409).body(throttle)
+        val ensuredFamily = if (!family.pendingJoinRequests.contains(user.id)) {
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
+            familyRepository.save(updated)
+            updated
+        } else family
+        val newReq = JoinRequest(
+            id = UUID.randomUUID().toString(),
+            requesterId = user.id,
+            familyId = ensuredFamily.familyId,
+            message = request.message,
+            status = JoinRequestStatus.PENDING,
+            createdAt = now(),
+            updatedAt = now()
+        )
+        val savedReq = joinRequestRepository.save(newReq)
+        notifyHeadNewJoinRequest(user, ensuredFamily, savedReq)
+        return ResponseEntity.ok(mapOf("message" to "Join request sent", "requestId" to savedReq.id))
     }
 
     fun leaveFamily(): ResponseEntity<*> {
@@ -212,11 +293,16 @@ class FamilyApplicationService(
         val family = head.familyId?.let { familyRepository.findById(it).orElse(null) } ?: return ApiResponseUtil.badRequest("Not in a family")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can reject")
         val requester = userRepository.findAll().find { it.id == request.requesterId } ?: return ApiResponseUtil.notFound("User not found")
-        if (!family.pendingJoinRequests.contains(requester.id)) return ApiResponseUtil.notFound("No pending join request")
-        val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests - requester.id).toMutableList(), updatedAt = now())
-        familyRepository.save(updated)
-        notifyJoinRequestRejected(requester, updated, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Join request rejected", mapOf("family" to updated, "members" to listMembers(updated))))
+        val updatedFamily = if (family.pendingJoinRequests.contains(requester.id)) {
+            family.copy(pendingJoinRequests = (family.pendingJoinRequests - requester.id).toMutableList(), updatedAt = now()).also { familyRepository.save(it) }
+        } else family
+        // update join request record if exists
+        val pendingRecord = joinRequestRepository.findByRequesterIdAndFamilyIdAndStatus(requester.id, family.familyId, JoinRequestStatus.PENDING)
+        if (pendingRecord != null) {
+            joinRequestRepository.save(pendingRecord.copy(status = JoinRequestStatus.REJECTED, updatedAt = now()))
+        }
+        notifyJoinRequestRejected(requester, updatedFamily, head)
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Join request rejected", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
     }
 
     fun acceptJoinRequest(request: AcceptJoinRequestRequest): ResponseEntity<*> {
@@ -224,18 +310,26 @@ class FamilyApplicationService(
         val family = head.familyId?.let { familyRepository.findById(it).orElse(null) } ?: return ApiResponseUtil.badRequest("Not in a family")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can accept")
         val requester = userRepository.findAll().find { it.id == request.requesterId } ?: return ApiResponseUtil.notFound("User not found")
-        if (!family.pendingJoinRequests.contains(requester.id)) return ApiResponseUtil.notFound("No pending join request")
         if (requester.familyId != null) return ApiResponseUtil.conflict("User already in a family")
         if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
-        val updated = family.copy(
+        if (!family.pendingJoinRequests.contains(requester.id)) {
+            // fall back: ensure there is a pending repo request else error
+            val pendingRecord = joinRequestRepository.findByRequesterIdAndFamilyIdAndStatus(requester.id, family.familyId, JoinRequestStatus.PENDING)
+                ?: return ApiResponseUtil.notFound("No pending join request")
+        }
+        val updatedFamily = family.copy(
             membersIds = (family.membersIds + requester.id).toMutableList(),
             pendingJoinRequests = (family.pendingJoinRequests - requester.id).toMutableList(),
             updatedAt = now()
         )
-        familyRepository.save(updated)
+        familyRepository.save(updatedFamily)
         userRepository.save(requester.copy(familyId = family.familyId, updatedAt = now()))
-        notifyJoinRequestAccepted(requester, updated, head)
-        return ResponseEntity.ok(BasicFamilySuccessResponse("Join request accepted", mapOf("family" to updated, "members" to listMembers(updated))))
+        val pendingRecord = joinRequestRepository.findByRequesterIdAndFamilyIdAndStatus(requester.id, family.familyId, JoinRequestStatus.PENDING)
+        if (pendingRecord != null) {
+            joinRequestRepository.save(pendingRecord.copy(status = JoinRequestStatus.ACCEPTED, updatedAt = now(), processedBy = head.id))
+        }
+        notifyJoinRequestAccepted(requester, updatedFamily, head)
+        return ResponseEntity.ok(BasicFamilySuccessResponse("Join request accepted", mapOf("family" to updatedFamily, "members" to listMembers(updatedFamily))))
     }
 
     fun removeMember(request: RemoveMemberRequest): ResponseEntity<*> {
@@ -426,4 +520,91 @@ class FamilyApplicationService(
     private fun listMembers(family: Family) = family.membersIds.mapNotNull { userRepository.findById(it).orElse(null) }
     private fun currentUserOr404(): ExpenseUser? = try { userRepository.findById(authUtil.getCurrentUserId()).orElse(null) } catch (_: Exception) { null }
     private fun now() = System.currentTimeMillis()
+
+    private fun computeJoinRequestThrottle(userId: String, familyId: String): Map<String, Any>? {
+        val now = now()
+        val attempts = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(userId, familyId)
+        if (attempts.isEmpty()) return null
+        val windowAttempts = attempts.filter { now - it.createdAt <= WEEK_WINDOW_MS }
+        // Weekly cap
+        if (windowAttempts.size >= MAX_ATTEMPTS_PER_WEEK) {
+            val latest = windowAttempts.first()
+            val nextAllowedAt = windowAttempts.minByOrNull { it.createdAt }!!.createdAt + WEEK_WINDOW_MS
+            val remaining = (nextAllowedAt - now).coerceAtLeast(0)
+            return mapOf(
+                "error" to "CONFLICT",
+                "message" to "Weekly join request limit reached",
+                "reason" to "WEEKLY_LIMIT",
+                "cooldownSeconds" to (remaining / 1000),
+                "attemptsInLast7Days" to windowAttempts.size,
+                "maxAttemptsPer7Days" to MAX_ATTEMPTS_PER_WEEK,
+                "nextAllowedAt" to nextAllowedAt
+            )
+        }
+        val latest = attempts.first()
+        val attemptNumber = attempts.size + 1 // next attempt number notionally
+        val backoffIndex = (windowAttempts.size - 1).coerceAtLeast(0)
+        val requiredDelay = BACKOFF_SCHEDULE_MS.getOrNull(backoffIndex) ?: BACKOFF_SCHEDULE_MS.last()
+        val elapsed = now - latest.createdAt
+        if (elapsed < requiredDelay) {
+            val remaining = requiredDelay - elapsed
+            return mapOf(
+                "error" to "CONFLICT",
+                "message" to "Join request backoff active",
+                "reason" to "BACKOFF",
+                "cooldownSeconds" to (remaining / 1000),
+                "attemptsInLast7Days" to windowAttempts.size,
+                "maxAttemptsPer7Days" to MAX_ATTEMPTS_PER_WEEK,
+                "nextAllowedAt" to (now + remaining),
+                "attemptNumber" to attemptNumber
+            )
+        }
+        return null
+    }
+
+    fun cancelOwnJoinRequestById(request: JoinRequestByIdActionRequest): ResponseEntity<*> {
+        val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
+        val jr = joinRequestRepository.findById(request.requestId).orElse(null)
+            ?: return ApiResponseUtil.notFound("Join request not found")
+        if (jr.requesterId != user.id) return ApiResponseUtil.forbidden("Not owner of request")
+        if (jr.status != JoinRequestStatus.PENDING) return ApiResponseUtil.conflict("Join request is not pending")
+        val family = familyRepository.findById(jr.familyId).orElse(null)
+            ?: return ApiResponseUtil.notFound("Family not found")
+        val cancelled = jr.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now())
+        joinRequestRepository.save(cancelled)
+        if (family.pendingJoinRequests.contains(user.id)) {
+            familyRepository.save(family.copy(pendingJoinRequests = (family.pendingJoinRequests - user.id).toMutableList(), updatedAt = now()))
+        }
+        return ResponseEntity.ok(mapOf("message" to "Join request cancelled", "request" to cancelled))
+    }
+
+    fun resendJoinRequestById(request: JoinRequestByIdActionRequest): ResponseEntity<*> {
+        val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
+        val jr = joinRequestRepository.findById(request.requestId).orElse(null)
+            ?: return ApiResponseUtil.notFound("Join request not found")
+        if (jr.requesterId != user.id) return ApiResponseUtil.forbidden("Not owner of request")
+        if (jr.status == JoinRequestStatus.ACCEPTED) return ApiResponseUtil.conflict("Already accepted")
+        val family = familyRepository.findById(jr.familyId).orElse(null)
+            ?: return ApiResponseUtil.notFound("Family not found")
+        if (user.familyId != null && user.familyId == family.familyId) return ApiResponseUtil.conflict("Already in family")
+        if (family.membersIds.size >= family.maxSize) return ApiResponseUtil.conflict("Family full")
+        val throttle = computeJoinRequestThrottle(user.id, family.familyId)
+        if (throttle != null) return ResponseEntity.status(409).body(throttle)
+        val ensuredFamily = if (!family.pendingJoinRequests.contains(user.id)) {
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
+            familyRepository.save(updated); updated
+        } else family
+        val newReq = JoinRequest(
+            id = UUID.randomUUID().toString(),
+            requesterId = user.id,
+            familyId = ensuredFamily.familyId,
+            message = request.message,
+            status = JoinRequestStatus.PENDING,
+            createdAt = now(),
+            updatedAt = now()
+        )
+        val saved = joinRequestRepository.save(newReq)
+        notifyHeadNewJoinRequest(user, ensuredFamily, saved)
+        return ResponseEntity.ok(mapOf("message" to "Join request sent", "requestId" to saved.id))
+    }
 }

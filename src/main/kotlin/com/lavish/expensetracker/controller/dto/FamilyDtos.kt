@@ -93,3 +93,19 @@ data class BasicFamilySuccessResponse(
     val family: Map<String, Any>?
 )
 
+data class JoinRequestActionRequest(
+    @field:NotBlank(message = "Alias name is required")
+    @field:Size(
+        min = FamilyDtoConstraints.FAMILY_ALIAS_LENGTH,
+        max = FamilyDtoConstraints.FAMILY_ALIAS_LENGTH,
+        message = "Alias name must be exactly ${FamilyDtoConstraints.FAMILY_ALIAS_LENGTH} characters"
+    )
+    val aliasName: String,
+    val message: String? = null
+)
+
+data class JoinRequestByIdActionRequest(
+    @field:NotBlank(message = "requestId is required")
+    val requestId: String,
+    val message: String? = null
+)

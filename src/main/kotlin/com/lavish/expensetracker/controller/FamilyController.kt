@@ -86,9 +86,43 @@ class FamilyController(
 
     @PostMapping("/remove-member")
     @Operation(summary = "Remove member from family (head only)")
-    @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "Member removed", content = [Content(mediaType = "application/json", schema = Schema(implementation = BasicFamilySuccessResponse::class))])
-    ])
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Member removed",
+                content = [Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = BasicFamilySuccessResponse::class)
+                )]
+            )
+        ]
+    )
     fun removeMember(@Valid @RequestBody request: RemoveMemberRequest): ResponseEntity<*> =
         familyService.removeMember(request)
+
+    @PostMapping("/join-request/cancel")
+    @Operation(summary = "Cancel own pending join request")
+    fun cancelOwnJoinRequest(@Valid @RequestBody request: JoinRequestActionRequest): ResponseEntity<*> =
+        familyService.cancelOwnJoinRequest(request)
+
+    @PostMapping("/join-request/resend")
+    @Operation(summary = "Resend (create new) join request - backoff & weekly limits applied")
+    fun resendJoinRequest(@Valid @RequestBody request: JoinRequestActionRequest): ResponseEntity<*> =
+        familyService.resendJoinRequest(request)
+
+    @PostMapping("/join-request/cancel/by-id")
+    @Operation(summary = "Cancel own pending join request by requestId")
+    fun cancelOwnJoinRequestById(@Valid @RequestBody request: JoinRequestByIdActionRequest): ResponseEntity<*> =
+        familyService.cancelOwnJoinRequestById(request)
+
+    @PostMapping("/join-request/resend/by-id")
+    @Operation(summary = "Resend join request by previous requestId (creates new) - backoff & weekly limits applied")
+    fun resendJoinRequestById(@Valid @RequestBody request: JoinRequestByIdActionRequest): ResponseEntity<*> =
+        familyService.resendJoinRequestById(request)
+
+    @GetMapping("/join-requests/pending")
+    @Operation(summary = "List own pending join requests with basic family details (no alias needed)")
+    fun listOwnPendingJoinRequests(): ResponseEntity<*> =
+        familyService.getOwnPendingJoinRequests()
 }

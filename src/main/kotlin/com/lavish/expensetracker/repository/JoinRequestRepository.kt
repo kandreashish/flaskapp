@@ -8,9 +8,9 @@ import org.springframework.stereotype.Repository
 @Repository
 interface JoinRequestRepository : JpaRepository<JoinRequest, String> {
     fun findByRequesterId(requesterId: String): List<JoinRequest>
-    fun findByFamilyId(familyId: String): List<JoinRequest>
-    fun findByRequesterIdAndFamilyId(requesterId: String, familyId: String): JoinRequest?
     fun findByRequesterIdAndStatus(requesterId: String, status: JoinRequestStatus): List<JoinRequest>
     fun findByFamilyIdAndStatus(familyId: String, status: JoinRequestStatus): List<JoinRequest>
     fun findByRequesterIdAndFamilyIdAndStatus(requesterId: String, familyId: String, status: JoinRequestStatus): JoinRequest?
+    fun findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(requesterId: String, familyId: String): List<JoinRequest>
+    fun findByStatusAndCreatedAtLessThan(status: JoinRequestStatus, createdAt: Long): List<JoinRequest>
 }
