@@ -29,7 +29,7 @@ class FamilyApplicationService(
         private const val MAX_GENERATION_ATTEMPTS = 100
         const val JOIN_REQUEST_TTL_MS = 3L * 24 * 60 * 60 * 1000
         private const val ATTEMPT_WINDOW_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
-        private const val MAX_ATTEMPTS_PER_WINDOW = 2 // initial + 1 resend within window
+        private const val MAX_ATTEMPTS_PER_WINDOW = 5 // initial send + up to 4 resends within window
     }
 
     /* ===================== Public Endpoint Facade Methods ===================== */
@@ -171,7 +171,7 @@ class FamilyApplicationService(
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
         // cancel any previous pending requests for same family
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
-        existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now())) }
+        existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.contains(user.id)) {
             val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
             familyRepository.save(updated)
@@ -575,7 +575,7 @@ class FamilyApplicationService(
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
         // cancel previous pending ones
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
-        existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now())) }
+        existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.contains(user.id)) {
             val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + user.id).toMutableList(), updatedAt = now())
             familyRepository.save(updated); updated

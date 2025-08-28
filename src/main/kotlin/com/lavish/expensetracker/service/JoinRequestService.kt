@@ -17,7 +17,7 @@ class JoinRequestService(
 
     companion object {
         private const val ATTEMPT_WINDOW_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
-        private const val MAX_ATTEMPTS_PER_WINDOW = 2 // initial + 1 resend within the rolling window
+        private const val MAX_ATTEMPTS_PER_WINDOW = 5 // initial + 4 resends within rolling window
     }
 
     fun sendJoinRequest(requesterId: String, familyId: String, message: String? = null): JoinRequest {
