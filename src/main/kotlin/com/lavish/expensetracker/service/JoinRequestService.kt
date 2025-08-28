@@ -16,7 +16,8 @@ class JoinRequestService(
 ) {
 
     companion object {
-        private const val MAX_TOTAL_ATTEMPTS_PER_FAMILY = 2 // initial + 1 resend
+        private const val ATTEMPT_WINDOW_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
+        private const val MAX_ATTEMPTS_PER_WINDOW = 2 // initial + 1 resend within the rolling window
     }
 
     fun sendJoinRequest(requesterId: String, familyId: String, message: String? = null): JoinRequest {
@@ -25,16 +26,17 @@ class JoinRequestService(
         if (family.membersIds.contains(requesterId)) {
             throw IllegalStateException("User is already a member of this family")
         }
-        // Simple cap
+        val now = System.currentTimeMillis()
         val attempts = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(requesterId, familyId)
-        if (attempts.size >= MAX_TOTAL_ATTEMPTS_PER_FAMILY) {
+        val recent = attempts.filter { now - it.createdAt <= ATTEMPT_WINDOW_MS }
+        val counted = recent.filter { it.status != JoinRequestStatus.CANCELLED }
+        if (counted.size >= MAX_ATTEMPTS_PER_WINDOW) {
             throw IllegalStateException("Max retries over. Ask family owner to send")
         }
-        // Cancel existing pending (keep only new one logically active)
+        // Cancel existing pending (keep only latest logically active)
         attempts.filter { it.status == JoinRequestStatus.PENDING }.forEach { jr ->
-            joinRequestRepository.save(jr.copy(status = JoinRequestStatus.CANCELLED, updatedAt = System.currentTimeMillis()))
+            joinRequestRepository.save(jr.copy(status = JoinRequestStatus.CANCELLED, updatedAt = now))
         }
-        val now = System.currentTimeMillis()
         val joinRequest = JoinRequest(
             id = UUID.randomUUID().toString(),
             requesterId = requesterId,
@@ -135,7 +137,7 @@ class JoinRequestService(
     }
 
     private fun computeThrottle(userId: String, familyId: String): Map<String, Any>? {
-        // Deprecated logic removed; retain method for any legacy calls but now just returns null.
+        // Not used now (window logic enforced directly in sendJoinRequest); preserve for compatibility.
         return null
     }
 }

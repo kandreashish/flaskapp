@@ -28,7 +28,8 @@ class FamilyApplicationService(
         private const val FAMILY_MAX_SIZE = 10
         private const val MAX_GENERATION_ATTEMPTS = 100
         const val JOIN_REQUEST_TTL_MS = 3L * 24 * 60 * 60 * 1000
-        private const val MAX_TOTAL_ATTEMPTS_PER_FAMILY = 2 // initial + 1 resend allowed; 3rd attempt blocked
+        private const val ATTEMPT_WINDOW_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
+        private const val MAX_ATTEMPTS_PER_WINDOW = 2 // initial + 1 resend within window
     }
 
     /* ===================== Public Endpoint Facade Methods ===================== */
@@ -525,15 +526,21 @@ class FamilyApplicationService(
     private fun now() = System.currentTimeMillis()
 
     private fun computeJoinRequestThrottle(userId: String, familyId: String): Map<String, Any>? {
+        val now = now()
         val attempts = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(userId, familyId)
-        // Block starting with 3rd request (attemptNumber = attempts.size + 1). So if attempts.size >= 2, next is blocked.
-        return if (attempts.size >= MAX_TOTAL_ATTEMPTS_PER_FAMILY) {
+        if (attempts.isEmpty()) return null
+        val recent = attempts.filter { now - it.createdAt <= ATTEMPT_WINDOW_MS }
+        // Count only non-cancelled attempts in window
+        val counted = recent.filter { it.status != JoinRequestStatus.CANCELLED }
+        return if (counted.size >= MAX_ATTEMPTS_PER_WINDOW) {
             mapOf(
                 "error" to "CONFLICT",
                 "message" to "Max retries over. Ask family owner to send",
                 "reason" to "MAX_RETRIES",
-                "attempts" to attempts.size,
-                "maxAttempts" to MAX_TOTAL_ATTEMPTS_PER_FAMILY
+                "attemptsInWindow" to counted.size,
+                "windowMillis" to ATTEMPT_WINDOW_MS,
+                "maxAttemptsPerWindow" to MAX_ATTEMPTS_PER_WINDOW,
+                "windowStart" to (now - ATTEMPT_WINDOW_MS)
             )
         } else null
     }
