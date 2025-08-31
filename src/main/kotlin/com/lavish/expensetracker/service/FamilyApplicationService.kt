@@ -92,7 +92,7 @@ class FamilyApplicationService(
         val throttle = computeJoinRequestThrottle(user.id, family.familyId)
         if (throttle != null) return ResponseEntity.status(409).body(throttle)
         val updatedFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
+            family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow, createdAt = now())).toMutableList(), updatedAt = now())
                 .also { familyRepository.save(it) }
         } else family
         val joinReq = JoinRequest(
@@ -185,7 +185,7 @@ class FamilyApplicationService(
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
         existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow, createdAt = now())).toMutableList(), updatedAt = now())
             familyRepository.save(updated)
             updated
         } else family
@@ -236,7 +236,8 @@ class FamilyApplicationService(
                 userId = invited.id,
                 name = invited.name ?: invited.email,
                 profilePic = invited.profilePic,
-                profilePicLow = invited.profilePicLow
+                profilePicLow = invited.profilePicLow,
+                createdAt = now()
             )).toMutableList(),
             updatedAt = now()
         )
@@ -616,7 +617,7 @@ class FamilyApplicationService(
         val existing = joinRequestRepository.findByRequesterIdAndFamilyIdOrderByCreatedAtDesc(user.id, family.familyId).filter { it.status == JoinRequestStatus.PENDING }
         existing.forEach { prev -> joinRequestRepository.save(prev.copy(status = JoinRequestStatus.REJECTED, updatedAt = now())) }
         val ensuredFamily = if (!family.pendingJoinRequests.any { it.userId == user.id }) {
-            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow)).toMutableList(), updatedAt = now())
+            val updated = family.copy(pendingJoinRequests = (family.pendingJoinRequests + PendingMembersDetails(userId = user.id, email = user.email, name = user.name ?: user.email, profilePic = user.profilePic, profilePicLow = user.profilePicLow, createdAt = now())).toMutableList(), updatedAt = now())
             familyRepository.save(updated); updated
         } else family
         val newReq = JoinRequest(
