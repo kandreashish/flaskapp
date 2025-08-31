@@ -12,8 +12,12 @@ data class PendingMembersDetails(
     val name: String? = null,
     val profilePic: String? = null,
     val profilePicLow: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
-)
+    // Made nullable to prevent JPA instantiation failure if legacy rows have NULL
+    val createdAt: Long? = System.currentTimeMillis()
+) {
+    @Transient
+    val effectiveCreatedAt: Long = createdAt ?: System.currentTimeMillis()
+}
 
 @Embeddable
 @Serializable
