@@ -227,7 +227,7 @@ class FamilyApplicationService(
         val familyId = head.familyId ?: return ApiResponseUtil.badRequest("Not in a family")
         val family = familyRepository.findById(familyId).orElse(null) ?: return ApiResponseUtil.notFound("Family not found")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can invite")
-        val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) } ?: return ApiResponseUtil.notFound("User not found")
+        val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) } ?: return ApiResponseUtil.notFound("No user associated with this email")
         if (invited.familyId != null) return ApiResponseUtil.conflict("User already in a family")
         if (family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }) return ApiResponseUtil.conflict("Already invited")
         val updated = family.copy(
@@ -251,7 +251,7 @@ class FamilyApplicationService(
         val head = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
         val family = head.familyId?.let { familyRepository.findById(it).orElse(null) } ?: return ApiResponseUtil.badRequest("Not in a family")
         if (family.headId != head.id) return ApiResponseUtil.forbidden("Only head can resend")
-        val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) } ?: return ApiResponseUtil.notFound("User not found")
+        val invited = userRepository.findAll().find { it.email.equals(request.invitedMemberEmail, true) } ?: return ApiResponseUtil.notFound("No user associated with this email")
         val hasPending = family.pendingMemberEmails.any { it.email.equals(request.invitedMemberEmail, true) }
         if (!hasPending) return ApiResponseUtil.conflict("No pending invitation. Send new")
         // If user already in a (any) family, remove stale invitation instead of resending
