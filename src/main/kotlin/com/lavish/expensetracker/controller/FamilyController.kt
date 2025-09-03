@@ -44,6 +44,10 @@ class FamilyController(
     @Operation(summary = "Leave current family")
     fun leaveFamily(): ResponseEntity<*> = familyService.leaveFamily()
 
+    @PostMapping("/delete")
+    @Operation(summary = "Leave current family")
+    fun delete(): ResponseEntity<*> = familyService.deleteFamily()
+
     @PostMapping("/invite")
     @Operation(summary = "Invite member by email")
     fun inviteMember(@Valid @RequestBody request: InviteMemberRequest): ResponseEntity<*> =

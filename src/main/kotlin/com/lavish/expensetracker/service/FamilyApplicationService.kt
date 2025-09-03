@@ -221,6 +221,24 @@ class FamilyApplicationService(
         return ResponseEntity.ok(mapOf("message" to "Left family successfully"))
     }
 
+    fun deleteFamily(): ResponseEntity<*> {
+        val user = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
+        val familyId = user.familyId ?: return ApiResponseUtil.badRequest("Not in a family")
+        val family = familyRepository.findById(familyId).orElse(null) ?: return ApiResponseUtil.notFound("Family not found")
+        if (!family.membersIds.contains(user.id)) return ApiResponseUtil.badRequest("Not a member of this family")
+        val remaining = family.membersIds.toMutableList().apply { remove(user.id) }
+        if (remaining.isEmpty()) {
+            familyRepository.delete(family)
+            userRepository.save(user.copy(familyId = null, updatedAt = now()))
+            return ResponseEntity.ok(mapOf("message" to "Family deleted"))
+        }
+        val newHead = if (family.headId == user.id) remaining.first() else family.headId
+        val updated = family.copy(membersIds = remaining, headId = newHead, updatedAt = now())
+        familyRepository.save(updated)
+        userRepository.save(user.copy(familyId = null, updatedAt = now()))
+        return ResponseEntity.ok(mapOf("message" to "Deleted family successfully"))
+    }
+
     fun inviteMember(request: InviteMemberRequest): ResponseEntity<*> {
         validateEmail(request.invitedMemberEmail)?.let { return ApiResponseUtil.badRequest(it) }
         val head = currentUserOr404() ?: return ApiResponseUtil.notFound("User not found")
