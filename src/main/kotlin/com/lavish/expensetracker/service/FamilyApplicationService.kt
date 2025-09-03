@@ -687,7 +687,7 @@ class FamilyApplicationService(
         "members" to listMembers(family).map { m ->
             val join = family.memberJoins.firstOrNull { it.userId == m.id }
             mapOf(
-                "id" to m.id,
+                "userId" to m.id,
                 "name" to (m.name ?: m.email),
                 "email" to m.email,
                 "aliasName" to m.aliasName,
