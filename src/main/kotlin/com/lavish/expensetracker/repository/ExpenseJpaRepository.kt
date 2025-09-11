@@ -334,4 +334,106 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         lastModified: Long,
         pageable: Pageable
     ): Page<Expense>
+
+    // Multi-currency support methods
+
+    /**
+     * Get total expenses grouped by currency for a user
+     */
+    @Query("""
+        SELECT e.currency, SUM(e.amount), COUNT(e) 
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false 
+        GROUP BY e.currency
+    """)
+    fun getTotalsByCurrencyForUser(@Param("userId") userId: String): List<Array<Any>>
+
+    /**
+     * Get total expenses grouped by currency for a user within date range
+     */
+    @Query("""
+        SELECT e.currency, SUM(e.amount), COUNT(e) 
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false 
+        AND e.date BETWEEN :startDate AND :endDate
+        GROUP BY e.currency
+    """)
+    fun getTotalsByCurrencyForUserAndDateRange(
+        @Param("userId") userId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get total expenses grouped by currency for a family
+     */
+    @Query("""
+        SELECT e.currency, SUM(e.amount), COUNT(e) 
+        FROM Expense e 
+        WHERE e.familyId = :familyId AND e.deleted = false 
+        GROUP BY e.currency
+    """)
+    fun getTotalsByCurrencyForFamily(@Param("familyId") familyId: String): List<Array<Any>>
+
+    /**
+     * Get total expenses grouped by currency for a family within date range
+     */
+    @Query("""
+        SELECT e.currency, SUM(e.amount), COUNT(e) 
+        FROM Expense e 
+        WHERE e.familyId = :familyId AND e.deleted = false 
+        AND e.date BETWEEN :startDate AND :endDate
+        GROUP BY e.currency
+    """)
+    fun getTotalsByCurrencyForFamilyAndDateRange(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get expenses by user and currency
+     */
+    fun findByUserIdAndCurrency(userId: String, currency: String, pageable: Pageable): Page<Expense>
+
+    /**
+     * Get expenses by user, currency and date range
+     */
+    fun findByUserIdAndCurrencyAndDateBetween(
+        userId: String,
+        currency: String,
+        startDate: Long,
+        endDate: Long,
+        pageable: Pageable
+    ): Page<Expense>
+
+    /**
+     * Get total amount for user in specific currency
+     */
+    @Query("""
+        SELECT COALESCE(SUM(e.amount), 0) 
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.currency = :currency AND e.deleted = false
+    """)
+    fun getTotalForUserAndCurrency(@Param("userId") userId: String, @Param("currency") currency: String): Double
+
+    /**
+     * Get all unique currencies used by a user
+     */
+    @Query("""
+        SELECT DISTINCT e.currency 
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false
+    """)
+    fun getDistinctCurrenciesForUser(@Param("userId") userId: String): List<String>
+
+    /**
+     * Get all unique currencies used in a family
+     */
+    @Query("""
+        SELECT DISTINCT e.currency 
+        FROM Expense e 
+        WHERE e.familyId = :familyId AND e.deleted = false
+    """)
+    fun getDistinctCurrenciesForFamily(@Param("familyId") familyId: String): List<String>
 }

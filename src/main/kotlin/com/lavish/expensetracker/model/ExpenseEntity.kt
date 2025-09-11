@@ -14,6 +14,9 @@ data class Expense(
 
     val amount: Double,
 
+    @Column(name = "currency", nullable = false, length = 10)
+    val currency: String = "INR", // ISO currency code (USD, EUR, INR, etc.)
+
     val category: String,
 
     val description: String,
@@ -59,6 +62,7 @@ fun Expense.toDto() = ExpenseDto(
     expenseId = this.expenseId,
     userId = this.userId,
     amount = this.amount,
+    currency = this.currency,
     category = this.category,
     description = this.description,
     date = this.date,
@@ -79,6 +83,7 @@ fun ExpenseDto.toEntity() = Expense(
     expenseId = this.expenseId,
     userId = this.userId,
     amount = this.amount,
+    currency = this.currency,
     category = this.category,
     description = this.description,
     date = this.date,

@@ -1,15 +1,7 @@
 package com.lavish.expensetracker.service
 
-import com.lavish.expensetracker.exception.DatabaseOperationException
-import com.lavish.expensetracker.exception.ExpenseAccessDeniedException
-import com.lavish.expensetracker.exception.ExpenseCreationException
-import com.lavish.expensetracker.exception.ExpenseNotFoundException
-import com.lavish.expensetracker.exception.ExpenseValidationException
-import com.lavish.expensetracker.model.Expense
-import com.lavish.expensetracker.model.ExpenseDto
-import com.lavish.expensetracker.model.PagedResponse
-import com.lavish.expensetracker.model.toDto
-import com.lavish.expensetracker.model.toEntity
+import com.lavish.expensetracker.exception.*
+import com.lavish.expensetracker.model.*
 import com.lavish.expensetracker.repository.ExpenseJpaRepository
 import org.springframework.dao.DataAccessException
 import org.springframework.data.domain.Page
@@ -43,11 +35,14 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
     fun createExpense(expense: ExpenseDto): ExpenseDto {
         return try {
+            // Validate and normalize currency
+            val validatedExpense = validateAndSetCurrency(expense)
+
             // Generate ID if not provided
-            val expenseWithId = if (expense.expenseId.isBlank()) {
-                expense.copy(expenseId = UUID.randomUUID().toString())
+            val expenseWithId = if (validatedExpense.expenseId.isBlank()) {
+                validatedExpense.copy(expenseId = UUID.randomUUID().toString())
             } else {
-                expense
+                validatedExpense
             }
 
             // Additional validation before saving
@@ -70,6 +65,8 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         } catch (e: ExpenseCreationException) {
             // Re-throw our custom exceptions
             throw e
+        } catch (e: ExpenseValidationException) {
+            throw e
         } catch (e: DataAccessException) {
             throw DatabaseOperationException(
                 "Database error occurred while creating expense: ${e.message}",
@@ -88,25 +85,29 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             val existingExpense = expenseRepository.findById(id)
                 .orElseThrow { ExpenseNotFoundException("Expense not found with id: $id") }
 
+            // Validate and normalize currency
+            val validatedExpense = validateAndSetCurrency(expenseDetails)
+
             // Validate update data
-            if (expenseDetails.amount <= 0) {
+            if (validatedExpense.amount <= 0) {
                 throw ExpenseCreationException("Amount must be greater than 0")
             }
 
-            if (expenseDetails.userId.isBlank()) {
+            if (validatedExpense.userId.isBlank()) {
                 throw ExpenseCreationException("User ID cannot be empty")
             }
 
             val updatedExpense = existingExpense.copy(
-                userId = expenseDetails.userId,
-                amount = expenseDetails.amount,
-                category = expenseDetails.category,
-                description = expenseDetails.description,
-                date = expenseDetails.date,
-                familyId = expenseDetails.familyId.takeIf { it?.isNotEmpty() == true },
-                modifiedBy = expenseDetails.modifiedBy,
+                userId = validatedExpense.userId,
+                amount = validatedExpense.amount,
+                currency = validatedExpense.currency,
+                category = validatedExpense.category,
+                description = validatedExpense.description,
+                date = validatedExpense.date,
+                familyId = validatedExpense.familyId.takeIf { it?.isNotEmpty() == true },
+                modifiedBy = validatedExpense.modifiedBy,
                 lastModifiedOn = System.currentTimeMillis(),
-                synced = expenseDetails.synced
+                synced = validatedExpense.synced
             )
 
             expenseRepository.save(updatedExpense).toDto()
@@ -114,6 +115,8 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         } catch (e: ExpenseNotFoundException) {
             throw e
         } catch (e: ExpenseCreationException) {
+            throw e
+        } catch (e: ExpenseValidationException) {
             throw e
         } catch (e: DataAccessException) {
             throw DatabaseOperationException(
@@ -926,7 +929,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
 
         // Get the cursor value from the last expense
         val lastExpense = expenseRepository.findById(lastExpenseId).orElse(null)
-            ?: throw ExpenseNotFoundException("Expense with ID $lastExpenseId not found for cursor pagination")
+            ?: throw ExpenseNotFoundException("Expense with ID '$lastExpenseId' not found for cursor pagination")
 
         val cursorValue = when (sortBy) {
             "expenseCreatedOn" -> lastExpense.expenseCreatedOn
@@ -945,24 +948,21 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             when (sortBy) {
                 "expenseCreatedOn" -> {
                     // Find expenses where expenseCreatedOn >= lastModified AND expenseCreatedOn > cursor
-                    val timestampResult = expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
+                    expenseRepository.findByFamilyIdAndExpenseCreatedOnGreaterThan(
                         familyId, maxOf(lastModified, cursorValue), pageable
                     )
-                    timestampResult
                 }
 
                 "lastModifiedOn" -> {
-                    val timestampResult = expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
+                    expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
                         familyId, maxOf(lastModified, cursorValue), pageable
                     )
-                    timestampResult
                 }
 
                 "date" -> {
-                    val timestampResult = expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
+                    expenseRepository.findByFamilyIdAndDateGreaterThanEqual(
                         familyId, maxOf(lastModified, cursorValue), pageable
                     )
-                    timestampResult
                 }
 
                 else -> expenseRepository.findByFamilyIdAndLastModifiedOnGreaterThan(
@@ -1008,22 +1008,22 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         )
     }
 
-    fun getFamilyExpensesSinceDate(
-        familyId: String,
-        date: String,
-        size: Int,
-        sortBy: String = "date",
-        isAsc: Boolean = true
-    ): PagedResponse<ExpenseDto> {
-        val sinceTimestamp = try {
-            LocalDate.parse(date).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
-        } catch (e: Exception) {
-            throw ExpenseValidationException(
-                "Invalid date format. Use YYYY-MM-DD format",
-                listOf("Date parsing error: ${e.message}")
-            )
+
+    // Multi-currency support methods
+
+    /**
+     * Validates and sets currency for expense creation/update
+     */
+    private fun validateAndSetCurrency(expense: ExpenseDto, userService: UserService? = null): ExpenseDto {
+        val normalizedCurrency = CurrencyUtils.normalizeCurrency(expense.currency)
+
+        // Validate currency code
+        if (!CurrencyUtils.isValidCurrency(normalizedCurrency)) {
+            throw ExpenseValidationException("Invalid currency code: ${expense.currency}")
         }
 
-        return getFamilyExpensesSince(familyId, sinceTimestamp, size, sortBy, isAsc)
+        return expense.copy(currency = normalizedCurrency)
     }
+
+
 }
