@@ -37,6 +37,7 @@ class SecurityConfig(
                     .requestMatchers("/api/files/**").permitAll() // File serving endpoints (profile pictures)
                     .requestMatchers("/h2-console/**").permitAll() // H2 console
                     .requestMatchers("/error").permitAll() // Error page
+                    .requestMatchers("/api/currencies/**").permitAll() // Add this line
                     .requestMatchers(
                         "/actuator/health",
                         "/actuator/health/**",
