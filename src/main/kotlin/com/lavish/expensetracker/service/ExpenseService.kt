@@ -101,6 +101,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
                 userId = validatedExpense.userId,
                 amount = validatedExpense.amount,
                 currency = validatedExpense.currency,
+                currencyPrefix = validatedExpense.currencyPrefix, // Add the missing currencyPrefix field
                 category = validatedExpense.category,
                 description = validatedExpense.description,
                 date = validatedExpense.date,
