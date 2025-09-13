@@ -13,7 +13,7 @@ data class PagedResponse<T>(
     val isLast: Boolean,
     val hasNext: Boolean,
     val hasPrevious: Boolean,
-    val totalSumForMonth : Double, // Optional field for total sum of expenses for the month
+    val totalSumByCurrency: Map<String, Double> = emptyMap(), // Map of currency code to total sum for that currency
     val offset: Int? = null, // For offset-based pagination
     val lastExpenseId: String? = null // For cursor-based pagination
 )

@@ -3,6 +3,7 @@ package com.lavish.expensetracker.service
 import com.lavish.expensetracker.exception.*
 import com.lavish.expensetracker.model.*
 import com.lavish.expensetracker.repository.ExpenseJpaRepository
+import com.lavish.expensetracker.util.CurrencyUtils
 import org.springframework.dao.DataAccessException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
@@ -208,12 +209,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isLast = result.isLast,
             hasNext = result.hasNext(),
             hasPrevious = result.hasPrevious(),
-            totalSumForMonth = getMonthlyExpenseSum(
+            totalSumByCurrency = getMonthlyExpenseSumByCurrency(
                 userId,
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 null
-            ).toDouble(),
+            ),
         )
     }
 
@@ -333,12 +334,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             hasNext = hasMore,
             hasPrevious = false,
             lastExpenseId = result.content.lastOrNull()?.expenseId,
-            totalSumForMonth = getMonthlyExpenseSum(
+            totalSumByCurrency = getMonthlyExpenseSumByCurrency(
                 userId,
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 null
-            ).toDouble(),
+            ),
         )
     }
 
@@ -432,12 +433,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isLast = !hasMore,
             hasNext = hasMore,
             hasPrevious = false,
-            totalSumForMonth = getMonthlyExpenseSum(
+            totalSumByCurrency = getMonthlyExpenseSumByCurrency(
                 userId,
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 null
-            ).toDouble(),
+            ),
         )
     }
 
@@ -495,12 +496,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             hasNext = hasMore,
             hasPrevious = false,
             lastExpenseId = result.content.lastOrNull()?.expenseId,
-            totalSumForMonth = getMonthlyExpenseSum(
+            totalSumByCurrency = getMonthlyExpenseSumByCurrency(
                 userId,
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 null
-            ).toDouble(),
+            ),
         )
     }
 
@@ -577,16 +578,16 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             size = validatedSize,
             totalElements = totalElements,
             totalPages = -1,
-            isFirst = false,
+            isFirst = true,
             isLast = !hasMore,
             hasNext = hasMore,
-            hasPrevious = true,
-            totalSumForMonth = getMonthlyExpenseSum(
+            hasPrevious = false,
+            totalSumByCurrency = getMonthlyExpenseSumByCurrency(
                 userId,
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 null
-            ).toDouble(),
+            ),
         )
     }
 
@@ -614,11 +615,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             totalPages = result.totalPages,
             isFirst = result.isFirst,
             isLast = result.isLast,
-            totalSumForMonth = getFamilyMonthlyExpenseSum(
+            totalSumByCurrency = getFamilyMonthlyExpenseSumByCurrency(
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 familyId
-            ).toDouble(),
+            ),
             hasNext = result.hasNext(),
             hasPrevious = result.hasPrevious()
         )
@@ -649,12 +650,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             totalPages = result.totalPages,
             isFirst = result.isFirst,
             isLast = result.isLast,
-            totalSumForMonth = getMonthlyExpenseSum(
+            totalSumByCurrency = getMonthlyExpenseSumByCurrency(
                 userId,
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 null
-            ).toDouble(),
+            ),
             hasNext = result.hasNext(),
             hasPrevious = result.hasPrevious()
         )
@@ -754,12 +755,12 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = true,
             isLast = !result.hasNext(),
             hasNext = result.hasNext(),
-            totalSumForMonth = getMonthlyExpenseSum(
+            totalSumByCurrency = getMonthlyExpenseSumByCurrency(
                 userId,
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 null
-            ).toDouble(),
+            ),
             hasPrevious = false
         )
     }
@@ -841,11 +842,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isFirst = false, // We don't know the position in cursor-based pagination
             isLast = result.content.size < validatedSize,
             hasNext = result.content.size == validatedSize,
-            totalSumForMonth = getFamilyMonthlyExpenseSum(
+            totalSumByCurrency = getFamilyMonthlyExpenseSumByCurrency(
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 familyId
-            ).toDouble(),
+            ),
             hasPrevious = true // Since we're using a cursor, there's likely previous data
         )
     }
@@ -906,11 +907,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isLast = result.content.size < validatedSize,
             hasNext = result.content.size == validatedSize,
             hasPrevious = false,
-            totalSumForMonth = getFamilyMonthlyExpenseSum(
+            totalSumByCurrency = getFamilyMonthlyExpenseSumByCurrency(
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 familyId
-            ).toDouble(),
+            ),
         )
     }
 
@@ -1001,11 +1002,11 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
             isLast = result.content.size < validatedSize,
             hasNext = result.content.size == validatedSize,
             hasPrevious = true,
-            totalSumForMonth = getFamilyMonthlyExpenseSum(
+            totalSumByCurrency = getFamilyMonthlyExpenseSumByCurrency(
                 LocalDate.now().year,
                 LocalDate.now().monthValue,
                 familyId
-            ).toDouble(),
+            ),
         )
     }
 
@@ -1026,5 +1027,55 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
         return expense.copy(currency = normalizedCurrency)
     }
 
+    fun getMonthlyExpenseSumByCurrency(userId: String, year: Int, month: Int, familyId: String? = null): Map<String, Double> {
+        val yearMonth = YearMonth.of(year, month)
+        val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+
+        val results = expenseRepository.sumExpensesByUserIdAndFamilyIdAndDateRangeGroupByCurrency(
+            userId = userId,
+            familyId = familyId,
+            startDate = startDate,
+            endDate = endDate
+        )
+
+        return results.associate { result ->
+            val currencyCode = result[0] as String
+            val currencySymbol = CurrencyUtils.getCurrencySymbol(currencyCode)
+            val amount = when (val sum = result[1]) {
+                is java.math.BigDecimal -> sum.toDouble()
+                is Double -> sum
+                is Long -> sum.toDouble()
+                is Int -> sum.toDouble()
+                else -> 0.0
+            }
+            currencySymbol to amount
+        }
+    }
+
+    fun getFamilyMonthlyExpenseSumByCurrency(year: Int, month: Int, familyId: String): Map<String, Double> {
+        val yearMonth = YearMonth.of(year, month)
+        val startDate = yearMonth.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+
+        val results = expenseRepository.sumExpensesByFamilyIdAndDateRangeGroupByCurrency(
+            familyId = familyId,
+            startDate = startDate,
+            endDate = endDate
+        )
+
+        return results.associate { result ->
+            val currencyCode = result[0] as String
+            val currencySymbol = CurrencyUtils.getCurrencySymbol(currencyCode)
+            val amount = when (val sum = result[1]) {
+                is java.math.BigDecimal -> sum.toDouble()
+                is Double -> sum
+                is Long -> sum.toDouble()
+                is Int -> sum.toDouble()
+                else -> 0.0
+            }
+            currencySymbol to amount
+        }
+    }
 
 }

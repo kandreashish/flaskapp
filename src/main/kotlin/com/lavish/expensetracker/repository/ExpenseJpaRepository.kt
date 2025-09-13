@@ -436,4 +436,20 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         WHERE e.familyId = :familyId AND e.deleted = false
     """)
     fun getDistinctCurrenciesForFamily(@Param("familyId") familyId: String): List<String>
+
+    // Currency-based aggregation methods
+    @Query("SELECT e.currency, COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.userId = :userId AND e.deleted = false AND (:familyId IS NULL AND e.familyId IS NULL OR e.familyId = :familyId) AND e.date >= :startDate AND e.date <= :endDate GROUP BY e.currency")
+    fun sumExpensesByUserIdAndFamilyIdAndDateRangeGroupByCurrency(
+        @Param("userId") userId: String,
+        @Param("familyId") familyId: String?,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    @Query("SELECT e.currency, COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.familyId = :familyId AND e.deleted = false AND e.date >= :startDate AND e.date <= :endDate GROUP BY e.currency")
+    fun sumExpensesByFamilyIdAndDateRangeGroupByCurrency(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
 }
