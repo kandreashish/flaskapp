@@ -93,4 +93,26 @@ class CurrencyService {
     fun getCurrencySymbol(code: String): String? {
         return CurrencyData.getCurrencyByCode(code)?.symbol
     }
+
+    /**
+     * Get currency code by symbol (reverse lookup)
+     * For example: "$" -> "USD", "₹" -> "INR", "€" -> "EUR"
+     */
+    fun getCurrencyCodeBySymbol(symbol: String): String? {
+        return CurrencyData.currencyInfoList.find { it.symbol == symbol }?.code
+    }
+
+    /**
+     * Validate if a currency symbol is supported
+     */
+    fun isCurrencySymbolSupported(symbol: String): Boolean {
+        return CurrencyData.currencyInfoList.any { it.symbol == symbol && it.isSupported }
+    }
+
+    /**
+     * Get currency info by symbol
+     */
+    fun getCurrencyBySymbol(symbol: String): CurrencyInfo? {
+        return CurrencyData.currencyInfoList.find { it.symbol == symbol }
+    }
 }

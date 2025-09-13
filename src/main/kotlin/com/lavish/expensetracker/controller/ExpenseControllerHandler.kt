@@ -8,6 +8,7 @@ import com.lavish.expensetracker.service.ExpenseNotificationService
 import com.lavish.expensetracker.service.ExpenseService
 import com.lavish.expensetracker.service.UserDeviceService
 import com.lavish.expensetracker.service.UserService
+import com.lavish.expensetracker.service.CurrencyService
 import com.lavish.expensetracker.util.AuthUtil
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -26,7 +27,8 @@ class ExpenseControllerHandler(
     private val userDeviceService: UserDeviceService,
     private val familyRepository: FamilyRepository,
     private val notificationRepository: NotificationRepository,
-    private val expenseNotificationService: ExpenseNotificationService
+    private val expenseNotificationService: ExpenseNotificationService,
+    private val currencyService: CurrencyService // Add currency service
 ) {
 
     // Internal pagination containers
@@ -89,13 +91,27 @@ class ExpenseControllerHandler(
                 return preconditionFailed("You are not part of this family", "Cannot add expense to a family you are not a member of")
         }
         val now = System.currentTimeMillis()
+
+        // Validate and use the currency prefix sent from the app
+        val currencyPrefix = if (expense.currencyPrefix.isNotBlank()) {
+            // Validate that the sent currency symbol is supported
+            if (!currencyService.isCurrencySymbolSupported(expense.currencyPrefix)) {
+                return preconditionFailed("Invalid currency", "Currency symbol '${expense.currencyPrefix}' is not supported")
+            }
+            expense.currencyPrefix
+        } else {
+            // Fallback to user's preference if no currency prefix provided
+            currencyService.getCurrencySymbol(currentUser.currencyPreference)
+                ?: currentUser.currencyPreference
+        }
+
         val expenseWithUser = expense.copy(
             userId = currentUser.id,
             createdBy = currentUser.id,
             modifiedBy = currentUser.id,
             expenseCreatedOn = now,
             lastModifiedOn = now,
-            currencyPrefix = currentUser.currencyPreference,
+            currencyPrefix = currencyPrefix, // Use validated currency prefix from app
             updatedUserName = currentUser.name ?: currentUser.email
         )
         val created = try { expenseService.createExpense(expenseWithUser) } catch (e: Exception) {
@@ -134,10 +150,24 @@ class ExpenseControllerHandler(
                 if (!family.membersIds.contains(currentUser.id) && family.headId != currentUser.id)
                     return preconditionFailed("You are not part of this family", "Cannot update expense to a family you are not a member of")
             }
+
+            // Validate and use the currency prefix sent from the app (same logic as create)
+            val currencyPrefix = if (expense.currencyPrefix.isNotBlank()) {
+                if (!currencyService.isCurrencySymbolSupported(expense.currencyPrefix)) {
+                    return preconditionFailed("Invalid currency", "Currency symbol '${expense.currencyPrefix}' is not supported")
+                }
+                expense.currencyPrefix
+            } else {
+                // Fallback to user's preference if no currency prefix provided
+                currencyService.getCurrencySymbol(currentUser.currencyPreference)
+                    ?: currentUser.currencyPreference
+            }
+
             val updated = expenseService.updateExpense(id, expense.copy(
                 userId = currentUser.id,
                 modifiedBy = currentUser.id,
-                lastModifiedOn = System.currentTimeMillis()
+                lastModifiedOn = System.currentTimeMillis(),
+                currencyPrefix = currencyPrefix // Use validated currency prefix from app
             ))
 
             if(updated == null) return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(mapOf("error" to "Failed to update expense"))

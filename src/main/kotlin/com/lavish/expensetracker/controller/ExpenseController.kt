@@ -1,37 +1,24 @@
 package com.lavish.expensetracker.controller
 
-import com.lavish.expensetracker.config.PushNotificationService
-import com.lavish.expensetracker.exception.ExpenseAccessDeniedException
-import com.lavish.expensetracker.exception.ExpenseCreationException
-import com.lavish.expensetracker.exception.ExpenseNotFoundException
-import com.lavish.expensetracker.exception.ExpenseValidationException
-import com.lavish.expensetracker.model.*
+import com.lavish.expensetracker.model.ExpenseDto
 import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.repository.NotificationRepository
-import com.lavish.expensetracker.service.ExpenseNotificationService
-import com.lavish.expensetracker.service.ExpenseService
-import com.lavish.expensetracker.service.UserDeviceService
-import com.lavish.expensetracker.service.UserService
+import com.lavish.expensetracker.service.*
 import com.lavish.expensetracker.util.AuthUtil
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.server.ResponseStatusException
-import java.time.LocalDate
-import java.time.ZoneOffset
 
 @RestController
 @RequestMapping("/api/expenses")
 class ExpenseController(
-    private val expenseService: ExpenseService,
-    private val authUtil: AuthUtil,
-    private val userService: UserService,
-    private val userDeviceService: UserDeviceService,
-    private val familyRepository: FamilyRepository,
-    private val notificationRepository: NotificationRepository,
-    @Autowired private val expenseNotificationService: ExpenseNotificationService
+    expenseService: ExpenseService,
+    authUtil: AuthUtil,
+    userService: UserService,
+    userDeviceService: UserDeviceService,
+    familyRepository: FamilyRepository,
+    notificationRepository: NotificationRepository,
+    @Autowired private val expenseNotificationService: ExpenseNotificationService,
+    private val currencyService: CurrencyService // Add currency service injection
 ) {
     companion object {
         const val MAX_AMOUNT = 1000000.0
@@ -44,7 +31,8 @@ class ExpenseController(
         userDeviceService,
         familyRepository,
         notificationRepository,
-        expenseNotificationService
+        expenseNotificationService,
+        currencyService // Pass currency service to handler
     )
 
     data class ExpenseNotificationRequest(val expenseId: String)
