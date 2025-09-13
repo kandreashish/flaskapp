@@ -16,7 +16,7 @@ data class ExpenseDto(
     val amount: Double = 0.0,
 
     @SerialName("currency")
-    val currency: String = "IN", // ISO currency code
+    val currency: String = "INR", // ISO currency code
 
     @SerialName("category")
     val category: String = "OTHERS", // Use string to decouple from domain enum
