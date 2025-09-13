@@ -294,7 +294,6 @@ class ExpenseRepositoryImpl : ExpenseRepository {
             isLast = page >= totalPages - 1,
             hasNext = page < totalPages - 1,
             hasPrevious = page > 0,
-            totalSumForMonth = 0.0, // Placeholder for total sum of expenses for the month
         )
     }
 }
