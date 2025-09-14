@@ -1016,7 +1016,7 @@ class ExpenseService(private val expenseRepository: ExpenseJpaRepository) {
     /**
      * Validates and sets currency for expense creation/update
      */
-    private fun validateAndSetCurrency(expense: ExpenseDto, userService: UserService? = null): ExpenseDto {
+    private fun validateAndSetCurrency(expense: ExpenseDto): ExpenseDto {
         val normalizedCurrency = CurrencyUtils.normalizeCurrency(expense.currency)
 
         // Validate currency code

@@ -8,6 +8,7 @@ import com.lavish.expensetracker.exception.ExpenseValidationException
 import com.lavish.expensetracker.model.*
 import com.lavish.expensetracker.repository.FamilyRepository
 import com.lavish.expensetracker.repository.NotificationRepository
+import com.lavish.expensetracker.service.CurrencyService
 import com.lavish.expensetracker.service.ExpenseService
 import com.lavish.expensetracker.service.UserDeviceService
 import com.lavish.expensetracker.service.UserService
@@ -39,6 +40,7 @@ class ExpenseControllerTest {
     private lateinit var familyRepository: FamilyRepository
     private lateinit var notificationRepository: NotificationRepository
     private lateinit var expenseNotificationService: ExpenseNotificationService
+    private lateinit var currencyService: CurrencyService
 
     private lateinit var controller: ExpenseController
 
@@ -59,7 +61,9 @@ class ExpenseControllerTest {
         amount: Double = 100.0,
         category: String = "FOOD",
         description: String = "Lunch",
-        ts: Long = System.currentTimeMillis()
+        ts: Long = System.currentTimeMillis(),
+        currency: String = "INR",
+        currencyPrefix: String = "₹"
     ) = ExpenseDto(
         expenseId = id,
         userId = userId,
@@ -76,7 +80,9 @@ class ExpenseControllerTest {
         synced = false,
         deleted = false,
         deletedOn = null,
-        deletedBy = null
+        deletedBy = null,
+        currency = currency,
+        currencyPrefix = currencyPrefix
     )
 
     private fun paged(list: List<ExpenseDto> = listOf(expense()), page: Int = 0, size: Int = 10) = PagedResponse(
@@ -89,7 +95,9 @@ class ExpenseControllerTest {
         isLast = true,
         hasNext = false,
         hasPrevious = false,
-        totalSumForMonth = list.sumOf { it.amount },
+        totalSumByCurrency = list.groupBy { it.currencyPrefix }.mapValues { (_, expenses) ->
+            expenses.sumOf { it.amount }
+        },
         offset = null,
         lastExpenseId = list.lastOrNull()?.expenseId
     )
@@ -104,6 +112,7 @@ class ExpenseControllerTest {
         familyRepository = mock(FamilyRepository::class.java)
         notificationRepository = mock(NotificationRepository::class.java)
         expenseNotificationService = mock(ExpenseNotificationService::class.java)
+        currencyService = mock(CurrencyService::class.java)
 
         // Updated constructor invocation: removed pushNotificationService (controller no longer depends directly on it)
         controller = ExpenseController(
@@ -113,7 +122,8 @@ class ExpenseControllerTest {
             userDeviceService,
             familyRepository,
             notificationRepository,
-            expenseNotificationService
+            expenseNotificationService,
+            currencyService
         )
 
         // Common stubs
