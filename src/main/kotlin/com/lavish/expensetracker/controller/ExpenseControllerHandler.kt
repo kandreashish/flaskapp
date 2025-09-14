@@ -94,7 +94,7 @@ class ExpenseControllerHandler(
 
         // Validate and use the currency prefix sent from the app
         val currencyPrefix = if (expense.currencyPrefix.isNotBlank()) {
-            // Validate that the sent currency symbol is supported
+            // Validate that the received currency symbol is supported
             if (!currencyService.isCurrencySymbolSupported(expense.currencyPrefix)) {
                 return preconditionFailed("Invalid currency", "Currency symbol '${expense.currencyPrefix}' is not supported")
             }
@@ -104,13 +104,15 @@ class ExpenseControllerHandler(
             currencyService.getCurrencySymbol(currentUser.currencyPreference)
                 ?: currentUser.currencyPreference
         }
-
+        val currency = currencyService.getCurrencyBySymbol(currencyPrefix) ?:
+            return preconditionFailed("Invalid currency", "Currency symbol '$currencyPrefix' is not recognized")
         val expenseWithUser = expense.copy(
             userId = currentUser.id,
             createdBy = currentUser.id,
             modifiedBy = currentUser.id,
             expenseCreatedOn = now,
             lastModifiedOn = now,
+            currency = currency.code,
             currencyPrefix = currencyPrefix, // Use validated currency prefix from app
             updatedUserName = currentUser.name ?: currentUser.email
         )
@@ -162,11 +164,13 @@ class ExpenseControllerHandler(
                 currencyService.getCurrencySymbol(currentUser.currencyPreference)
                     ?: currentUser.currencyPreference
             }
-
+            val currency = currencyService.getCurrencyBySymbol(currencyPrefix) ?:
+            return preconditionFailed("Invalid currency", "Currency symbol '$currencyPrefix' is not recognized")
             val updated = expenseService.updateExpense(id, expense.copy(
                 userId = currentUser.id,
                 modifiedBy = currentUser.id,
                 lastModifiedOn = System.currentTimeMillis(),
+                currency = currency.name,
                 currencyPrefix = currencyPrefix // Use validated currency prefix from app
             ))
 

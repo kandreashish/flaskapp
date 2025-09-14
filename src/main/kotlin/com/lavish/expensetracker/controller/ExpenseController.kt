@@ -17,7 +17,7 @@ class ExpenseController(
     userDeviceService: UserDeviceService,
     familyRepository: FamilyRepository,
     notificationRepository: NotificationRepository,
-    @Autowired private val expenseNotificationService: ExpenseNotificationService,
+    @param:Autowired private val expenseNotificationService: ExpenseNotificationService,
     private val currencyService: CurrencyService // Add currency service injection
 ) {
     companion object {
