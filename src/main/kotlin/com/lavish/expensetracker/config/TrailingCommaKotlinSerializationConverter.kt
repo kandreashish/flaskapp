@@ -11,7 +11,7 @@ import java.io.InputStreamReader
 
 class TrailingCommaRequestWrapper(
     request: HttpServletRequest,
-    private val jsonUtils: JsonUtils
+    jsonUtils: JsonUtils
 ) : HttpServletRequestWrapper(request) {
 
     private val cachedBody: ByteArray
