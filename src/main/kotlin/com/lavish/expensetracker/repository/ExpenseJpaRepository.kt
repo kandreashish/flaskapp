@@ -461,7 +461,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     @Query("""
         SELECT COALESCE(SUM(e.amount), 0) as totalAmount, COUNT(e) as expenseCount
         FROM Expense e 
-        WHERE e.userId = :userId AND e.deleted = false 
+        WHERE e.userId = :userId AND e.deleted = false AND e.familyId IS NULL
         AND e.date >= :startDate AND e.date <= :endDate
     """)
     fun getTotalAndCountForUserInDateRange(
@@ -481,7 +481,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     @Query("""
         SELECT e.category, COALESCE(SUM(e.amount), 0), COUNT(e), e.currencyPrefix
         FROM Expense e 
-        WHERE e.userId = :userId AND e.deleted = false 
+        WHERE e.userId = :userId AND e.deleted = false AND e.familyId IS NULL
         AND e.date >= :startDate AND e.date <= :endDate
         GROUP BY e.category, e.currencyPrefix
     """)
@@ -497,7 +497,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
     @Query("""
         SELECT e.currencyPrefix, COALESCE(SUM(e.amount), 0), COUNT(e)
         FROM Expense e 
-        WHERE e.userId = :userId AND e.deleted = false 
+        WHERE e.userId = :userId AND e.deleted = false AND e.familyId IS NULL
         AND e.date >= :startDate AND e.date <= :endDate
         GROUP BY e.currencyPrefix
     """)
@@ -516,7 +516,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
             COALESCE(SUM(e.amount), 0),
             e.currency_prefix
         FROM expenses e 
-        WHERE e.user_id = :userId AND e.deleted = false 
+        WHERE e.user_id = :userId AND e.deleted = false AND e.family_id IS NULL
         AND e.date >= :startDate AND e.date <= :endDate
         GROUP BY FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM'), e.currency_prefix
         ORDER BY FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM')
