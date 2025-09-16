@@ -507,14 +507,18 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
      */
     @Query("""
         SELECT 
-            CONCAT(YEAR(FROM_UNIXTIME(e.date/1000)), '-', LPAD(MONTH(FROM_UNIXTIME(e.date/1000)), 2, '0')) as month,
+            CONCAT(EXTRACT(YEAR FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01')), '-', 
+                   RIGHT(CONCAT('0', EXTRACT(MONTH FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01'))), 2)) as month,
             COALESCE(SUM(e.amount), 0),
             e.currencyPrefix
         FROM Expense e 
         WHERE e.userId = :userId AND e.deleted = false 
         AND e.date >= :startDate AND e.date <= :endDate
-        GROUP BY YEAR(FROM_UNIXTIME(e.date/1000)), MONTH(FROM_UNIXTIME(e.date/1000)), e.currencyPrefix
-        ORDER BY YEAR(FROM_UNIXTIME(e.date/1000)), MONTH(FROM_UNIXTIME(e.date/1000))
+        GROUP BY EXTRACT(YEAR FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01')), 
+                 EXTRACT(MONTH FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01')), 
+                 e.currencyPrefix
+        ORDER BY EXTRACT(YEAR FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01')), 
+                 EXTRACT(MONTH FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01'))
     """)
     fun getMonthlyExpensesForUser(
         @Param("userId") userId: String,
@@ -590,14 +594,18 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
      */
     @Query("""
         SELECT 
-            CONCAT(YEAR(FROM_UNIXTIME(e.date/1000)), '-', LPAD(MONTH(FROM_UNIXTIME(e.date/1000)), 2, '0')) as month,
+            CONCAT(EXTRACT(YEAR FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01')), '-', 
+                   RIGHT(CONCAT('0', EXTRACT(MONTH FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01'))), 2)) as month,
             COALESCE(SUM(e.amount), 0),
             e.currencyPrefix
         FROM Expense e 
         WHERE e.familyId = :familyId AND e.deleted = false 
         AND e.date >= :startDate AND e.date <= :endDate
-        GROUP BY YEAR(FROM_UNIXTIME(e.date/1000)), MONTH(FROM_UNIXTIME(e.date/1000)), e.currencyPrefix
-        ORDER BY YEAR(FROM_UNIXTIME(e.date/1000)), MONTH(FROM_UNIXTIME(e.date/1000))
+        GROUP BY EXTRACT(YEAR FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01')), 
+                 EXTRACT(MONTH FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01')), 
+                 e.currencyPrefix
+        ORDER BY EXTRACT(YEAR FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01')), 
+                 EXTRACT(MONTH FROM DATEADD(MILLISECOND, e.date, DATE '1970-01-01'))
     """)
     fun getMonthlyExpensesForFamily(
         @Param("familyId") familyId: String,
