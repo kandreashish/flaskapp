@@ -29,7 +29,7 @@ class StatisticsService(
         // Get total and count
         val totalAndCount = expenseRepository.getTotalAndCountForUserInDateRange(userId, startDate, endDate)
         val totalExpenses = totalAndCount.getTotalAmount()
-        val expenseCount = totalAndCount.getExpenseCount().toInt()
+        val expenseCount = totalAndCount.getExpenseCount().toDouble()
         val averageExpense = if (expenseCount > 0) totalExpenses / expenseCount else 0.0
 
         // Get user's primary currency
@@ -51,7 +51,7 @@ class StatisticsService(
         return UserStats(
             totalExpenses = totalExpenses,
             currencyPrefix = primaryCurrency,
-            expenseCount = expenseCount,
+            expenseCount = expenseCount.toInt(),
             averageExpense = averageExpense,
             categoryWiseExpenses = categoryWiseExpenses,
             monthlyTrend = monthlyTrend,
@@ -135,7 +135,12 @@ class StatisticsService(
     private fun processCategoryData(categoryData: List<Array<Any>>, totalExpenses: Double): List<CategoryExpense> {
         return categoryData.map { row ->
             val category = ExpenseCategory.fromString(row[0] as String)
-            val amount = row[1] as Double
+            val amount = when (val amountValue = row[1]) {
+                is BigDecimal -> amountValue.toDouble()
+                is Double -> amountValue
+                is Number -> amountValue.toDouble()
+                else -> 0.0
+            }
             val count = (row[2] as Long).toInt()
             val currencyPrefix = row[3] as String
             val percentage = if (totalExpenses > 0) ((amount / totalExpenses) * 100).toFloat() else 0f
@@ -153,7 +158,12 @@ class StatisticsService(
     private fun processCurrencyData(currencyData: List<Array<Any>>): List<CurrencyExpense> {
         return currencyData.map { row ->
             val currencyPrefix = row[0] as String
-            val totalAmount = row[1] as Double
+            val totalAmount = when (val amountValue = row[1]) {
+                is BigDecimal -> amountValue.toDouble()
+                is Double -> amountValue
+                is Number -> amountValue.toDouble()
+                else -> 0.0
+            }
             val count = (row[2] as Long).toInt()
             val averageAmount = if (count > 0) totalAmount / count else 0.0
 
@@ -169,7 +179,12 @@ class StatisticsService(
     private fun processMonthlyData(monthlyData: List<Array<Any>>): List<MonthlyExpense> {
         return monthlyData.map { row ->
             val month = row[0] as String
-            val amount = row[1] as Double
+            val amount = when (val amountValue = row[1]) {
+                is BigDecimal -> amountValue.toDouble()
+                is Double -> amountValue
+                is Number -> amountValue.toDouble()
+                else -> 0.0
+            }
             val currencyPrefix = row[2] as String
 
             MonthlyExpense(
@@ -189,13 +204,25 @@ class StatisticsService(
             val userName = user?.name ?: user?.email ?: "Unknown User"
             val userCurrency = user?.currencyPreference ?: "₹"
             
-            val totalUserExpenses = rows.sumOf { it[1] as Double }
+            val totalUserExpenses = rows.sumOf {
+                when (val amountValue = it[1]) {
+                    is BigDecimal -> amountValue.toDouble()
+                    is Double -> amountValue
+                    is Number -> amountValue.toDouble()
+                    else -> 0.0
+                }
+            }
             val totalUserCount = rows.sumOf { (it[2] as Long).toInt() }
             val percentage = if (totalFamilyExpenses > 0) ((totalUserExpenses / totalFamilyExpenses) * 100).toFloat() else 0f
             
             val currencyWiseExpenses = rows.map { row ->
                 val currencyPrefix = row[3] as String
-                val amount = row[1] as Double
+                val amount = when (val amountValue = row[1]) {
+                    is BigDecimal -> amountValue.toDouble()
+                    is Double -> amountValue
+                    is Number -> amountValue.toDouble()
+                    else -> 0.0
+                }
                 val count = (row[2] as Long).toInt()
                 val averageAmount = if (count > 0) amount / count else 0.0
                 

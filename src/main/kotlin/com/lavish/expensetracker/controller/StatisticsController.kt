@@ -44,16 +44,10 @@ class StatisticsController(
 
             val parsedPeriod = StatisticsService.parsePeriod(period)
 
-            // Check if user is part of a family
-            if (!requestedUser.familyId.isNullOrBlank()) {
-                // Return family stats
-                val familyStats = statisticsService.getFamilyStats(requestedUser.familyId)
-                ResponseEntity.ok(familyStats)
-            } else {
-                // Return personal stats
-                val userStats = statisticsService.getUserStats(userId, parsedPeriod)
-                ResponseEntity.ok(userStats)
-            }
+            // Always return personal stats for personal endpoint
+            // Personal stats should only include expenses with familyId = null
+            val userStats = statisticsService.getUserStats(userId, parsedPeriod)
+            ResponseEntity.ok(userStats)
 
         } catch (e: ResponseStatusException) {
             when (e.statusCode) {
