@@ -452,4 +452,156 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         @Param("startDate") startDate: Long,
         @Param("endDate") endDate: Long
     ): List<Array<Any>>
+
+    // Statistics methods
+    
+    /**
+     * Get total expenses and count for a user in a date range
+     */
+    @Query("""
+        SELECT COALESCE(SUM(e.amount), 0), COUNT(e) 
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+    """)
+    fun getTotalAndCountForUserInDateRange(
+        @Param("userId") userId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): Array<Any>
+
+    /**
+     * Get category-wise expenses for a user in a date range
+     */
+    @Query("""
+        SELECT e.category, COALESCE(SUM(e.amount), 0), COUNT(e), e.currencyPrefix
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+        GROUP BY e.category, e.currencyPrefix
+    """)
+    fun getCategoryWiseExpensesForUser(
+        @Param("userId") userId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get currency-wise expenses for a user in a date range
+     */
+    @Query("""
+        SELECT e.currencyPrefix, COALESCE(SUM(e.amount), 0), COUNT(e)
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+        GROUP BY e.currencyPrefix
+    """)
+    fun getCurrencyWiseExpensesForUser(
+        @Param("userId") userId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get monthly expenses for a user
+     */
+    @Query("""
+        SELECT 
+            CONCAT(YEAR(FROM_UNIXTIME(e.date/1000)), '-', LPAD(MONTH(FROM_UNIXTIME(e.date/1000)), 2, '0')) as month,
+            COALESCE(SUM(e.amount), 0),
+            e.currencyPrefix
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+        GROUP BY YEAR(FROM_UNIXTIME(e.date/1000)), MONTH(FROM_UNIXTIME(e.date/1000)), e.currencyPrefix
+        ORDER BY YEAR(FROM_UNIXTIME(e.date/1000)), MONTH(FROM_UNIXTIME(e.date/1000))
+    """)
+    fun getMonthlyExpensesForUser(
+        @Param("userId") userId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get family member stats for a family in a date range
+     */
+    @Query("""
+        SELECT e.userId, COALESCE(SUM(e.amount), 0), COUNT(e), e.currencyPrefix
+        FROM Expense e 
+        WHERE e.familyId = :familyId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+        GROUP BY e.userId, e.currencyPrefix
+    """)
+    fun getFamilyMemberStats(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get total family expenses and count in a date range
+     */
+    @Query("""
+        SELECT COALESCE(SUM(e.amount), 0), COUNT(e)
+        FROM Expense e 
+        WHERE e.familyId = :familyId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+    """)
+    fun getTotalAndCountForFamilyInDateRange(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): Array<Any>
+
+    /**
+     * Get category-wise expenses for a family in a date range
+     */
+    @Query("""
+        SELECT e.category, COALESCE(SUM(e.amount), 0), COUNT(e), e.currencyPrefix
+        FROM Expense e 
+        WHERE e.familyId = :familyId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+        GROUP BY e.category, e.currencyPrefix
+    """)
+    fun getCategoryWiseExpensesForFamily(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get currency-wise expenses for a family in a date range
+     */
+    @Query("""
+        SELECT e.currencyPrefix, COALESCE(SUM(e.amount), 0), COUNT(e)
+        FROM Expense e 
+        WHERE e.familyId = :familyId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+        GROUP BY e.currencyPrefix
+    """)
+    fun getCurrencyWiseExpensesForFamily(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get monthly expenses for a family
+     */
+    @Query("""
+        SELECT 
+            CONCAT(YEAR(FROM_UNIXTIME(e.date/1000)), '-', LPAD(MONTH(FROM_UNIXTIME(e.date/1000)), 2, '0')) as month,
+            COALESCE(SUM(e.amount), 0),
+            e.currencyPrefix
+        FROM Expense e 
+        WHERE e.familyId = :familyId AND e.deleted = false 
+        AND e.date >= :startDate AND e.date <= :endDate
+        GROUP BY YEAR(FROM_UNIXTIME(e.date/1000)), MONTH(FROM_UNIXTIME(e.date/1000)), e.currencyPrefix
+        ORDER BY YEAR(FROM_UNIXTIME(e.date/1000)), MONTH(FROM_UNIXTIME(e.date/1000))
+    """)
+    fun getMonthlyExpensesForFamily(
+        @Param("familyId") familyId: String,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
 }
