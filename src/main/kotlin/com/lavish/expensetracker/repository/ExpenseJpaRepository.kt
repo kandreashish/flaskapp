@@ -459,7 +459,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
      * Get total expenses and count for a user in a date range
      */
     @Query("""
-        SELECT COALESCE(SUM(e.amount), 0), COUNT(e) 
+        SELECT COALESCE(SUM(e.amount), 0) as totalAmount, COUNT(e) as expenseCount
         FROM Expense e 
         WHERE e.userId = :userId AND e.deleted = false 
         AND e.date >= :startDate AND e.date <= :endDate
@@ -468,7 +468,12 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         @Param("userId") userId: String,
         @Param("startDate") startDate: Long,
         @Param("endDate") endDate: Long
-    ): Array<Any>
+    ): TotalAndCountProjection
+
+    interface TotalAndCountProjection {
+        fun getTotalAmount(): Double
+        fun getExpenseCount(): Long
+    }
 
     /**
      * Get category-wise expenses for a user in a date range
@@ -507,7 +512,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
      */
     @Query(value = """
         SELECT 
-            FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM') as month,
+            FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM') as expense_month,
             COALESCE(SUM(e.amount), 0),
             e.currency_prefix
         FROM expenses e 
@@ -542,7 +547,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
      * Get total family expenses and count in a date range
      */
     @Query("""
-        SELECT COALESCE(SUM(e.amount), 0), COUNT(e)
+        SELECT COALESCE(SUM(e.amount), 0) as totalAmount, COUNT(e) as expenseCount
         FROM Expense e 
         WHERE e.familyId = :familyId AND e.deleted = false 
         AND e.date >= :startDate AND e.date <= :endDate
@@ -551,7 +556,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         @Param("familyId") familyId: String,
         @Param("startDate") startDate: Long,
         @Param("endDate") endDate: Long
-    ): Array<Any>
+    ): TotalAndCountProjection
 
     /**
      * Get category-wise expenses for a family in a date range
@@ -590,7 +595,7 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
      */
     @Query(value = """
         SELECT 
-            FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM') as month,
+            FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM') as expense_month,
             COALESCE(SUM(e.amount), 0),
             e.currency_prefix
         FROM expenses e 

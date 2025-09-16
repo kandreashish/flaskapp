@@ -3,6 +3,7 @@ package com.lavish.expensetracker.service
 import com.lavish.expensetracker.model.*
 import com.lavish.expensetracker.repository.ExpenseJpaRepository
 import org.springframework.stereotype.Service
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneOffset
 
@@ -27,8 +28,8 @@ class StatisticsService(
 
         // Get total and count
         val totalAndCount = expenseRepository.getTotalAndCountForUserInDateRange(userId, startDate, endDate)
-        val totalExpenses = totalAndCount[0] as Double
-        val expenseCount = (totalAndCount[1] as Long).toInt()
+        val totalExpenses = totalAndCount.getTotalAmount()
+        val expenseCount = totalAndCount.getExpenseCount().toInt()
         val averageExpense = if (expenseCount > 0) totalExpenses / expenseCount else 0.0
 
         // Get user's primary currency
@@ -66,8 +67,8 @@ class StatisticsService(
 
         // Get total family expenses and count
         val totalAndCount = expenseRepository.getTotalAndCountForFamilyInDateRange(familyId, startDate, endDate)
-        val totalFamilyExpenses = totalAndCount[0] as Double
-        val totalCount = (totalAndCount[1] as Long).toInt()
+        val totalFamilyExpenses = totalAndCount.getTotalAmount()
+        val totalCount = totalAndCount.getExpenseCount().toInt()
 
         // Get primary currency (we'll use the first member's preference or default)
         val primaryCurrency = "₹" // Default currency for family stats
@@ -134,7 +135,7 @@ class StatisticsService(
     private fun processCategoryData(categoryData: List<Array<Any>>, totalExpenses: Double): List<CategoryExpense> {
         return categoryData.map { row ->
             val category = ExpenseCategory.fromString(row[0] as String)
-            val amount = row[1] as Double
+            val amount = (row[1] as? BigDecimal)?.toDouble() ?: (row[1] as Double)
             val count = (row[2] as Long).toInt()
             val currencyPrefix = row[3] as String
             val percentage = if (totalExpenses > 0) ((amount / totalExpenses) * 100).toFloat() else 0f
@@ -152,7 +153,7 @@ class StatisticsService(
     private fun processCurrencyData(currencyData: List<Array<Any>>): List<CurrencyExpense> {
         return currencyData.map { row ->
             val currencyPrefix = row[0] as String
-            val totalAmount = row[1] as Double
+            val totalAmount = (row[1] as? BigDecimal)?.toDouble() ?: (row[1] as Double)
             val count = (row[2] as Long).toInt()
             val averageAmount = if (count > 0) totalAmount / count else 0.0
 
@@ -168,7 +169,7 @@ class StatisticsService(
     private fun processMonthlyData(monthlyData: List<Array<Any>>): List<MonthlyExpense> {
         return monthlyData.map { row ->
             val month = row[0] as String
-            val amount = row[1] as Double
+            val amount = (row[1] as? BigDecimal)?.toDouble() ?: (row[1] as Double)
             val currencyPrefix = row[2] as String
 
             MonthlyExpense(
@@ -188,13 +189,13 @@ class StatisticsService(
             val userName = user?.name ?: user?.email ?: "Unknown User"
             val userCurrency = user?.currencyPreference ?: "₹"
             
-            val totalUserExpenses = rows.sumOf { it[1] as Double }
+            val totalUserExpenses = rows.sumOf { (it[1] as? BigDecimal)?.toDouble() ?: (it[1] as Double) }
             val totalUserCount = rows.sumOf { (it[2] as Long).toInt() }
             val percentage = if (totalFamilyExpenses > 0) ((totalUserExpenses / totalFamilyExpenses) * 100).toFloat() else 0f
             
             val currencyWiseExpenses = rows.map { row ->
                 val currencyPrefix = row[3] as String
-                val amount = row[1] as Double
+                val amount = (row[1] as? BigDecimal)?.toDouble() ?: (row[1] as Double)
                 val count = (row[2] as Long).toInt()
                 val averageAmount = if (count > 0) amount / count else 0.0
                 
