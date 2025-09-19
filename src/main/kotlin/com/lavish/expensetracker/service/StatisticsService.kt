@@ -34,8 +34,7 @@ class StatisticsService(
         // Get total and count including both personal and family expenses
         val totalAndCount = expenseRepository.getTotalAndCountForUserIncludingFamilyInDateRange(userId, userFamilyId, startDate, endDate)
         val totalExpenses = totalAndCount.getTotalAmount()
-        val expenseCount = totalAndCount.getExpenseCount().toDouble()
-        val averageExpense = if (expenseCount > 0) totalExpenses / expenseCount else 0.0
+        val expenseCount = totalAndCount.getExpenseCount().toInt()
 
         // Get category-wise expenses including both personal and family expenses
         val categoryData = expenseRepository.getCategoryWiseExpensesForUserIncludingFamily(userId, userFamilyId, startDate, endDate)
@@ -45,6 +44,11 @@ class StatisticsService(
         val currencyData = expenseRepository.getCurrencyWiseExpensesForUserIncludingFamily(userId, userFamilyId, startDate, endDate)
         val currencyWiseExpenses = processCurrencyData(currencyData)
 
+        // Calculate average expense per currency
+        val averageExpense = currencyWiseExpenses.associate { currencyExpense ->
+            currencyExpense.currencyPrefix to currencyExpense.averageAmount
+        }
+
         // Get monthly trend including both personal and family expenses
         val monthlyData = expenseRepository.getMonthlyExpensesForUserIncludingFamily(userId, userFamilyId, startDate, endDate)
         val monthlyTrend = processMonthlyData(monthlyData)
@@ -52,7 +56,7 @@ class StatisticsService(
         return UserStats(
             totalExpenses = totalExpenses,
             currencyPrefix = primaryCurrency,
-            expenseCount = expenseCount.toInt(),
+            expenseCount = expenseCount,
             averageExpense = averageExpense,
             categoryWiseExpenses = categoryWiseExpenses,
             monthlyTrend = monthlyTrend,
@@ -68,8 +72,7 @@ class StatisticsService(
         // Get total family expenses and count
         val totalAndCount = expenseRepository.getTotalAndCountForFamilyInDateRange(familyId, startDate, endDate)
         val totalFamilyExpenses = totalAndCount.getTotalAmount()
-        val expenseCount = totalAndCount.getExpenseCount().toDouble()
-        val averageExpense = if (expenseCount > 0) totalFamilyExpenses / expenseCount else 0.0
+        val expenseCount = totalAndCount.getExpenseCount().toInt()
 
         // Get primary currency (we'll use the first member's preference or default)
         val primaryCurrency = "₹" // Default currency for family stats
@@ -86,6 +89,11 @@ class StatisticsService(
         val currencyData = expenseRepository.getCurrencyWiseExpensesForFamily(familyId, startDate, endDate)
         val currencyWiseExpenses = processCurrencyData(currencyData)
 
+        // Calculate average expense per currency
+        val averageExpense = currencyWiseExpenses.associate { currencyExpense ->
+            currencyExpense.currencyPrefix to currencyExpense.averageAmount
+        }
+
         // Get monthly trend for family
         val monthlyData = expenseRepository.getMonthlyExpensesForFamily(familyId, startDate, endDate)
         val monthlyTrend = processMonthlyData(monthlyData)
@@ -93,7 +101,7 @@ class StatisticsService(
         return FamilyStats(
             totalFamilyExpenses = totalFamilyExpenses,
             currencyPrefix = primaryCurrency,
-            expenseCount = expenseCount.toInt(),
+            expenseCount = expenseCount,
             averageExpense = averageExpense,
             memberStats = memberStats,
             categoryWiseExpenses = categoryWiseExpenses,

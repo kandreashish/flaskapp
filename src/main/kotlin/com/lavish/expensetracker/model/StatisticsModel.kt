@@ -7,7 +7,7 @@ data class UserStats(
     val totalExpenses: Double,
     val currencyPrefix: String, // Primary currency for backwards compatibility
     val expenseCount: Int,
-    val averageExpense: Double,
+    val averageExpense: Map<String, Double>, // Map of currency to average expense amount
     val categoryWiseExpenses: List<CategoryExpense>,
     val monthlyTrend: List<MonthlyExpense>,
     val currencyWiseExpenses: List<CurrencyExpense>, // New field for multiple currencies
@@ -18,7 +18,7 @@ data class FamilyStats(
     val totalFamilyExpenses: Double,
     val currencyPrefix: String, // Primary currency for backwards compatibility
     val expenseCount: Int, // Total number of non-deleted family expenses
-    val averageExpense: Double, // Average expense amount for the family
+    val averageExpense: Map<String, Double>, // Map of currency to average expense amount for the family
     val memberStats: List<FamilyMemberStats>,
     val categoryWiseExpenses: List<CategoryExpense>,
     val monthlyTrend: List<MonthlyExpense>,
