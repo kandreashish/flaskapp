@@ -609,4 +609,87 @@ interface ExpenseJpaRepository : JpaRepository<Expense, String> {
         @Param("startDate") startDate: Long,
         @Param("endDate") endDate: Long
     ): List<Array<Any>>
+
+    /**
+     * Get total and count for user including both personal and family expenses
+     * Personal expenses: familyId IS NULL
+     * Family expenses: familyId matches user's familyId (user must be member of that family)
+     */
+    @Query("""
+        SELECT COALESCE(SUM(e.amount), 0) as totalAmount, COUNT(e) as expenseCount
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false
+        AND e.date >= :startDate AND e.date <= :endDate
+        AND (e.familyId IS NULL OR e.familyId = :userFamilyId)
+    """)
+    fun getTotalAndCountForUserIncludingFamilyInDateRange(
+        @Param("userId") userId: String,
+        @Param("userFamilyId") userFamilyId: String?,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): TotalAndCountProjection
+
+    /**
+     * Get category-wise expenses for a user including both personal and family expenses
+     * Personal expenses: familyId IS NULL
+     * Family expenses: familyId matches user's familyId (user must be member of that family)
+     */
+    @Query("""
+        SELECT e.category, COALESCE(SUM(e.amount), 0), COUNT(e), e.currencyPrefix
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false
+        AND e.date >= :startDate AND e.date <= :endDate
+        AND (e.familyId IS NULL OR e.familyId = :userFamilyId)
+        GROUP BY e.category, e.currencyPrefix
+    """)
+    fun getCategoryWiseExpensesForUserIncludingFamily(
+        @Param("userId") userId: String,
+        @Param("userFamilyId") userFamilyId: String?,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get currency-wise expenses for a user including both personal and family expenses
+     * Personal expenses: familyId IS NULL
+     * Family expenses: familyId matches user's familyId (user must be member of that family)
+     */
+    @Query("""
+        SELECT e.currencyPrefix, COALESCE(SUM(e.amount), 0), COUNT(e)
+        FROM Expense e 
+        WHERE e.userId = :userId AND e.deleted = false
+        AND e.date >= :startDate AND e.date <= :endDate
+        AND (e.familyId IS NULL OR e.familyId = :userFamilyId)
+        GROUP BY e.currencyPrefix
+    """)
+    fun getCurrencyWiseExpensesForUserIncludingFamily(
+        @Param("userId") userId: String,
+        @Param("userFamilyId") userFamilyId: String?,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
+
+    /**
+     * Get monthly expenses for a user including both personal and family expenses
+     * Personal expenses: familyId IS NULL
+     * Family expenses: familyId matches user's familyId (user must be member of that family)
+     */
+    @Query(value = """
+        SELECT 
+            FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM') as expense_month,
+            COALESCE(SUM(e.amount), 0),
+            e.currency_prefix
+        FROM expenses e 
+        WHERE e.user_id = :userId AND e.deleted = false
+        AND e.date >= :startDate AND e.date <= :endDate
+        AND (e.family_id IS NULL OR e.family_id = :userFamilyId)
+        GROUP BY FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM'), e.currency_prefix
+        ORDER BY FORMATDATETIME(DATEADD('MILLISECOND', e.date, DATE '1970-01-01'), 'yyyy-MM')
+    """, nativeQuery = true)
+    fun getMonthlyExpensesForUserIncludingFamily(
+        @Param("userId") userId: String,
+        @Param("userFamilyId") userFamilyId: String?,
+        @Param("startDate") startDate: Long,
+        @Param("endDate") endDate: Long
+    ): List<Array<Any>>
 }

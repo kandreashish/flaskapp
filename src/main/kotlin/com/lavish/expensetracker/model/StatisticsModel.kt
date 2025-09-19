@@ -17,6 +17,8 @@ data class UserStats(
 data class FamilyStats(
     val totalFamilyExpenses: Double,
     val currencyPrefix: String, // Primary currency for backwards compatibility
+    val expenseCount: Int, // Total number of non-deleted family expenses
+    val averageExpense: Double, // Average expense amount for the family
     val memberStats: List<FamilyMemberStats>,
     val categoryWiseExpenses: List<CategoryExpense>,
     val monthlyTrend: List<MonthlyExpense>,

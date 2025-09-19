@@ -82,7 +82,9 @@ class StatisticsController(
                     .body(mapOf("error" to "Access denied to family statistics"))
             }
 
-            val familyStats = statisticsService.getFamilyStats(familyId)
+            // Parse the period parameter
+            val periodEnum = StatisticsService.parsePeriod(period)
+            val familyStats = statisticsService.getFamilyStats(familyId, periodEnum)
             ResponseEntity.ok(familyStats)
 
         } catch (e: ResponseStatusException) {
