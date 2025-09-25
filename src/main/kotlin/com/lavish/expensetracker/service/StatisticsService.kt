@@ -49,8 +49,9 @@ class StatisticsService(
             currencyExpense.currencyPrefix to currencyExpense.averageAmount
         }
 
-        // Get monthly trend including both personal and family expenses
-        val monthlyData = expenseRepository.getMonthlyExpensesForUserIncludingFamily(userId, userFamilyId, startDate, endDate)
+        // Get monthly trend for last 6 months (always, regardless of selected period)
+        val monthlyDateRange = getLast6MonthsDateRange()
+        val monthlyData = expenseRepository.getMonthlyExpensesForUserIncludingFamily(userId, userFamilyId, monthlyDateRange.first, monthlyDateRange.second)
         val monthlyTrend = processMonthlyData(monthlyData)
 
         return UserStats(
@@ -94,8 +95,9 @@ class StatisticsService(
             currencyExpense.currencyPrefix to currencyExpense.averageAmount
         }
 
-        // Get monthly trend for family
-        val monthlyData = expenseRepository.getMonthlyExpensesForFamily(familyId, startDate, endDate)
+        // Get monthly trend for last 6 months (always, regardless of selected period)
+        val monthlyDateRange = getLast6MonthsDateRange()
+        val monthlyData = expenseRepository.getMonthlyExpensesForFamily(familyId, monthlyDateRange.first, monthlyDateRange.second)
         val monthlyTrend = processMonthlyData(monthlyData)
 
         return FamilyStats(
@@ -141,6 +143,15 @@ class StatisticsService(
                 Pair(startOfTime, endOfTime)
             }
         }
+    }
+
+    private fun getLast6MonthsDateRange(): Pair<Long, Long> {
+        val now = LocalDate.now()
+        // Start from 6 months ago, first day of that month
+        val startOfSixMonthsAgo = now.minusMonths(5).withDayOfMonth(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000
+        // End at the last day of current month
+        val endOfCurrentMonth = now.withDayOfMonth(now.lengthOfMonth()).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC) * 1000
+        return Pair(startOfSixMonthsAgo, endOfCurrentMonth)
     }
 
     private fun processCategoryData(categoryData: List<Array<Any>>, totalExpenses: Double): List<CategoryExpense> {
