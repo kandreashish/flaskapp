@@ -102,10 +102,9 @@ class StatisticsController(
         }
     }
 
-    @GetMapping("/user/{userId}")
-    fun getUserStats(
-        @PathVariable userId: String,
-        @RequestParam(defaultValue = "current_month") period: String
+    @GetMapping("/personal/{userId}/monthly-trend")
+    fun getPersonalMonthlyTrend(
+        @PathVariable userId: String
     ): ResponseEntity<Any> {
         return try {
             // Get current authenticated user
@@ -114,19 +113,22 @@ class StatisticsController(
                 ?: return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(mapOf("error" to "User not found"))
 
-            // Validate that user can access the requested userId stats
+            // Validate that user can access the requested userId monthly trend
             if (currentUserId != userId) {
                 // Check if they are in the same family
                 if (currentUser.familyId.isNullOrBlank() || 
                     currentUser.familyId != userService.findById(userId)?.familyId) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(mapOf("error" to "Access denied to user statistics"))
+                        .body(mapOf("error" to "Access denied to user monthly trend"))
                 }
             }
 
-            val parsedPeriod = StatisticsService.parsePeriod(period)
-            val userStats = statisticsService.getUserStats(userId, parsedPeriod)
-            ResponseEntity.ok(userStats)
+            val requestedUser = userService.findById(userId)
+                ?: return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(mapOf("error" to "Requested user not found"))
+
+            val monthlyTrend = statisticsService.getUserMonthlyTrend(userId)
+            ResponseEntity.ok(mapOf("monthlyTrend" to monthlyTrend))
 
         } catch (e: ResponseStatusException) {
             when (e.statusCode) {
@@ -139,7 +141,42 @@ class StatisticsController(
             }
         } catch (e: Exception) {
             ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(mapOf("error" to "Failed to retrieve user statistics: ${e.message}"))
+                .body(mapOf("error" to "Failed to retrieve personal monthly trend: ${e.message}"))
+        }
+    }
+
+    @GetMapping("/family/{familyId}/monthly-trend")
+    fun getFamilyMonthlyTrend(
+        @PathVariable familyId: String
+    ): ResponseEntity<Any> {
+        return try {
+            // Get current authenticated user
+            val currentUserId = authUtil.getCurrentUserId()
+            val currentUser = userService.findById(currentUserId)
+                ?: return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(mapOf("error" to "User not found"))
+
+            // Validate that user is part of the requested family
+            if (currentUser.familyId != familyId) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(mapOf("error" to "Access denied to family monthly trend"))
+            }
+
+            val monthlyTrend = statisticsService.getFamilyMonthlyTrend(familyId)
+            ResponseEntity.ok(mapOf("monthlyTrend" to monthlyTrend))
+
+        } catch (e: ResponseStatusException) {
+            when (e.statusCode) {
+                HttpStatus.UNAUTHORIZED -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(mapOf("error" to "Authentication required. Please provide a valid JWT token."))
+                HttpStatus.FORBIDDEN -> ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(mapOf("error" to "Please re-authenticate."))
+                else -> ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(mapOf("error" to "Authentication failed: ${e.reason}"))
+            }
+        } catch (e: Exception) {
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(mapOf("error" to "Failed to retrieve family monthly trend: ${e.message}"))
         }
     }
 }

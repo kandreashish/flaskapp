@@ -9,8 +9,7 @@ data class UserStats(
     val expenseCount: Int,
     val averageExpense: Map<String, Double>, // Map of currency to average expense amount
     val categoryWiseExpenses: List<CategoryExpense>,
-    val monthlyTrend: List<MonthlyExpense>,
-    val currencyWiseExpenses: List<CurrencyExpense>, // New field for multiple currencies
+    val currencyWiseExpenses: List<CurrencyExpense>, // Multiple currencies
 )
 
 @Serializable
@@ -21,8 +20,7 @@ data class FamilyStats(
     val averageExpense: Map<String, Double>, // Map of currency to average expense amount for the family
     val memberStats: List<FamilyMemberStats>,
     val categoryWiseExpenses: List<CategoryExpense>,
-    val monthlyTrend: List<MonthlyExpense>,
-    val currencyWiseExpenses: List<CurrencyExpense>, // New field for multiple currencies
+    val currencyWiseExpenses: List<CurrencyExpense>, // Multiple currencies
 )
 
 @Serializable
@@ -33,7 +31,7 @@ data class FamilyMemberStats(
     val currencyPrefix: String, // Primary currency for backwards compatibility
     val expenseCount: Int,
     val percentage: Float,
-    val currencyWiseExpenses: List<CurrencyExpense>, // New field for multiple currencies
+    val currencyWiseExpenses: List<CurrencyExpense>, // Multiple currencies
 )
 
 @Serializable

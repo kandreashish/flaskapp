@@ -126,6 +126,20 @@ class ExpenseControllerTest {
             currencyService
         )
 
+        // Currency service stubs (added to support new currency validation logic)
+        `when`(currencyService.isCurrencySymbolSupported(anyString())).thenReturn(true)
+        `when`(currencyService.getCurrencyBySymbol(anyString())).thenAnswer {
+            com.lavish.expensetracker.model.CurrencyInfo(
+                code = "INR",
+                name = "Indian Rupee",
+                symbol = "₹",
+                countryCode = "IN",
+                countryName = "India",
+                flag = "🇮🇳"
+            )
+        }
+        `when`(currencyService.getCurrencySymbol(anyString())).thenReturn("₹")
+
         // Common stubs
         `when`(authUtil.getCurrentUserId()).thenReturn(baseUser.id)
         `when`(userService.findById(baseUser.id)).thenReturn(baseUser)

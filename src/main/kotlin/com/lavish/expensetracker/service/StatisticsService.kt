@@ -49,18 +49,12 @@ class StatisticsService(
             currencyExpense.currencyPrefix to currencyExpense.averageAmount
         }
 
-        // Get monthly trend for last 6 months (always, regardless of selected period)
-        val monthlyDateRange = getLast6MonthsDateRange()
-        val monthlyData = expenseRepository.getMonthlyExpensesForUserIncludingFamily(userId, userFamilyId, monthlyDateRange.first, monthlyDateRange.second)
-        val monthlyTrend = processMonthlyData(monthlyData)
-
         return UserStats(
             totalExpenses = totalExpenses,
             currencyPrefix = primaryCurrency,
             expenseCount = expenseCount,
             averageExpense = averageExpense,
             categoryWiseExpenses = categoryWiseExpenses,
-            monthlyTrend = monthlyTrend,
             currencyWiseExpenses = currencyWiseExpenses
         )
     }
@@ -95,11 +89,6 @@ class StatisticsService(
             currencyExpense.currencyPrefix to currencyExpense.averageAmount
         }
 
-        // Get monthly trend for last 6 months (always, regardless of selected period)
-        val monthlyDateRange = getLast6MonthsDateRange()
-        val monthlyData = expenseRepository.getMonthlyExpensesForFamily(familyId, monthlyDateRange.first, monthlyDateRange.second)
-        val monthlyTrend = processMonthlyData(monthlyData)
-
         return FamilyStats(
             totalFamilyExpenses = totalFamilyExpenses,
             currencyPrefix = primaryCurrency,
@@ -107,7 +96,6 @@ class StatisticsService(
             averageExpense = averageExpense,
             memberStats = memberStats,
             categoryWiseExpenses = categoryWiseExpenses,
-            monthlyTrend = monthlyTrend,
             currencyWiseExpenses = currencyWiseExpenses
         )
     }
@@ -266,6 +254,24 @@ class StatisticsService(
                 currencyWiseExpenses = currencyWiseExpenses
             )
         }
+    }
+
+    fun getUserMonthlyTrend(userId: String): List<MonthlyExpense> {
+        // Get user's family ID to properly filter family expenses
+        val user = userService.findById(userId)
+        val userFamilyId = user?.familyId
+
+        // Get monthly trend for last 6 months
+        val monthlyDateRange = getLast6MonthsDateRange()
+        val monthlyData = expenseRepository.getMonthlyExpensesForUserIncludingFamily(userId, userFamilyId, monthlyDateRange.first, monthlyDateRange.second)
+        return processMonthlyData(monthlyData)
+    }
+
+    fun getFamilyMonthlyTrend(familyId: String): List<MonthlyExpense> {
+        // Get monthly trend for last 6 months
+        val monthlyDateRange = getLast6MonthsDateRange()
+        val monthlyData = expenseRepository.getMonthlyExpensesForFamily(familyId, monthlyDateRange.first, monthlyDateRange.second)
+        return processMonthlyData(monthlyData)
     }
 
     companion object {
