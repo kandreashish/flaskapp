@@ -100,6 +100,61 @@ class StatisticsService(
         )
     }
 
+    fun getUserStatsInRange(userId: String, startDate: Long, endDate: Long): UserStats {
+        val user = userService.findById(userId)
+        val userFamilyId = user?.familyId
+        val primaryCurrency = user?.currencyPreference ?: "₹"
+
+        val totalAndCount = expenseRepository.getTotalAndCountForUserIncludingFamilyInDateRange(userId, userFamilyId, startDate, endDate)
+        val totalExpenses = totalAndCount.getTotalAmount()
+        val expenseCount = totalAndCount.getExpenseCount().toInt()
+
+        val categoryData = expenseRepository.getCategoryWiseExpensesForUserIncludingFamily(userId, userFamilyId, startDate, endDate)
+        val categoryWiseExpenses = processCategoryData(categoryData, totalExpenses)
+
+        val currencyData = expenseRepository.getCurrencyWiseExpensesForUserIncludingFamily(userId, userFamilyId, startDate, endDate)
+        val currencyWiseExpenses = processCurrencyData(currencyData)
+
+        val averageExpense = currencyWiseExpenses.associate { it.currencyPrefix to it.averageAmount }
+
+        return UserStats(
+            totalExpenses = totalExpenses,
+            currencyPrefix = primaryCurrency,
+            expenseCount = expenseCount,
+            averageExpense = averageExpense,
+            categoryWiseExpenses = categoryWiseExpenses,
+            currencyWiseExpenses = currencyWiseExpenses
+        )
+    }
+
+    fun getFamilyStatsInRange(familyId: String, startDate: Long, endDate: Long): FamilyStats {
+        val totalAndCount = expenseRepository.getTotalAndCountForFamilyInDateRange(familyId, startDate, endDate)
+        val totalFamilyExpenses = totalAndCount.getTotalAmount()
+        val expenseCount = totalAndCount.getExpenseCount().toInt()
+        val primaryCurrency = "₹"
+
+        val memberData = expenseRepository.getFamilyMemberStats(familyId, startDate, endDate)
+        val memberStats = processFamilyMemberData(memberData, totalFamilyExpenses)
+
+        val categoryData = expenseRepository.getCategoryWiseExpensesForFamily(familyId, startDate, endDate)
+        val categoryWiseExpenses = processCategoryData(categoryData, totalFamilyExpenses)
+
+        val currencyData = expenseRepository.getCurrencyWiseExpensesForFamily(familyId, startDate, endDate)
+        val currencyWiseExpenses = processCurrencyData(currencyData)
+
+        val averageExpense = currencyWiseExpenses.associate { it.currencyPrefix to it.averageAmount }
+
+        return FamilyStats(
+            totalFamilyExpenses = totalFamilyExpenses,
+            currencyPrefix = primaryCurrency,
+            expenseCount = expenseCount,
+            averageExpense = averageExpense,
+            memberStats = memberStats,
+            categoryWiseExpenses = categoryWiseExpenses,
+            currencyWiseExpenses = currencyWiseExpenses
+        )
+    }
+
     private fun getDateRange(period: Period): Pair<Long, Long> {
         val now = LocalDate.now()
         return when (period) {
@@ -192,7 +247,7 @@ class StatisticsService(
         return grouped.map { (month, rows) ->
             val currencyMap = rows.associate { row ->
                 val amount = when (val amountValue = row[1]) {
-                    is java.math.BigDecimal -> amountValue.toDouble()
+                    is BigDecimal -> amountValue.toDouble()
                     is Double -> amountValue
                     is Number -> amountValue.toDouble()
                     else -> 0.0
