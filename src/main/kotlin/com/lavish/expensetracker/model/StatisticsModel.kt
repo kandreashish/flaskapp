@@ -46,8 +46,7 @@ data class CategoryExpense(
 @Serializable
 data class MonthlyExpense(
     val month: String,
-    val amount: Double,
-    val currencyPrefix: String, // Currency for this month's expenses
+    val amountsByCurrency: Map<String, Double>, // Map of currencyPrefix -> total amount for that month
 )
 
 @Serializable

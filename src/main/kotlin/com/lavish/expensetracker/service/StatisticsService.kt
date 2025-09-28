@@ -187,22 +187,24 @@ class StatisticsService(
     }
 
     private fun processMonthlyData(monthlyData: List<Array<Any>>): List<MonthlyExpense> {
-        return monthlyData.map { row ->
-            val month = row[0] as String
-            val amount = when (val amountValue = row[1]) {
-                is BigDecimal -> amountValue.toDouble()
-                is Double -> amountValue
-                is Number -> amountValue.toDouble()
-                else -> 0.0
+        // monthlyData rows: [month(yyyy-MM), amount, currencyPrefix]
+        val grouped = monthlyData.groupBy { it[0] as String }
+        return grouped.map { (month, rows) ->
+            val currencyMap = rows.associate { row ->
+                val amount = when (val amountValue = row[1]) {
+                    is java.math.BigDecimal -> amountValue.toDouble()
+                    is Double -> amountValue
+                    is Number -> amountValue.toDouble()
+                    else -> 0.0
+                }
+                val currencyPrefix = row[2] as String
+                currencyPrefix to amount
             }
-            val currencyPrefix = row[2] as String
-
             MonthlyExpense(
                 month = month,
-                amount = amount,
-                currencyPrefix = currencyPrefix
+                amountsByCurrency = currencyMap
             )
-        }
+        }.sortedBy { it.month }
     }
 
     private fun processFamilyMemberData(memberData: List<Array<Any>>, totalFamilyExpenses: Double): List<FamilyMemberStats> {
