@@ -20,6 +20,7 @@ import org.mockito.Mockito.*
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.argumentCaptor
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDate
@@ -1415,5 +1416,76 @@ class ExpenseControllerTest {
         }
         val response = controller.createExpense(dto)
         assertEquals(HttpStatus.CREATED, response.statusCode)
+    }
+
+    @Test
+    fun createExpense_withEuroSymbol_success() {
+        // Arrange Euro currency support
+        `when`(currencyService.isCurrencySymbolSupported("€")).thenReturn(true)
+        `when`(currencyService.getCurrencyBySymbol("€")).thenReturn(
+            com.lavish.expensetracker.model.CurrencyInfo(
+                code = "EUR", name = "Euro", symbol = "€", countryCode = "EU", countryName = "European Union", flag = "🇪🇺"
+            )
+        )
+        val captor = argumentCaptor<ExpenseDto>()
+        `when`(expenseService.createExpense(captor.capture())).thenAnswer {
+            captor.firstValue.copy(expenseId = "euro_created")
+        }
+        val dto = expense(id = "", userId = "", currency = "EUR", currencyPrefix = "€", amount = 25.0, description = "Lunch EU")
+
+        // Act
+        val response = controller.createExpense(dto)
+
+        // Assert
+        assertEquals(HttpStatus.CREATED, response.statusCode)
+        val sent = captor.firstValue
+        assertEquals("EUR", sent.currency)
+        assertEquals("€", sent.currencyPrefix)
+    }
+
+    @Test
+    fun updateExpense_withEuroSymbol_success() {
+        // Existing expense (different currency originally)
+        val existing = expense(currency = "INR", currencyPrefix = "₹")
+        `when`(expenseService.getExpenseById(existing.expenseId)).thenReturn(existing)
+        // Euro stubs
+        `when`(currencyService.isCurrencySymbolSupported("€")).thenReturn(true)
+        `when`(currencyService.getCurrencyBySymbol("€")).thenReturn(
+            com.lavish.expensetracker.model.CurrencyInfo(
+                code = "EUR", name = "Euro", symbol = "€", countryCode = "EU", countryName = "European Union", flag = "🇪🇺"
+            )
+        )
+        val captor = argumentCaptor<ExpenseDto>()
+        `when`(expenseService.updateExpense(eq(existing.expenseId), captor.capture())).thenAnswer {
+            captor.firstValue.copy(amount = 40.0)
+        }
+        val updateDto = existing.copy(currency = "EUR", currencyPrefix = "€", amount = 40.0)
+
+        val res = controller.updateExpense(existing.expenseId, updateDto)
+        assertEquals(HttpStatus.OK, res.statusCode)
+        val body = res.body as ExpenseDto
+        assertEquals(40.0, body.amount)
+        val sent = captor.firstValue
+        assertEquals("EUR", sent.currency)
+        assertEquals("€", sent.currencyPrefix)
+    }
+
+    @Test
+    fun createExpense_invalidCurrencySymbol() {
+        // Force invalid for specific symbol
+        `when`(currencyService.isCurrencySymbolSupported("¤")).thenReturn(false)
+        val dto = expense(id = "", userId = "", currency = "EUR", currencyPrefix = "¤", amount = 10.0)
+        val response = controller.createExpense(dto)
+        assertEquals(HttpStatus.PRECONDITION_FAILED, response.statusCode)
+    }
+
+    @Test
+    fun updateExpense_invalidCurrencySymbol() {
+        val existing = expense()
+        `when`(expenseService.getExpenseById(existing.expenseId)).thenReturn(existing)
+        `when`(currencyService.isCurrencySymbolSupported("¤")).thenReturn(false)
+        val updateDto = existing.copy(currencyPrefix = "¤")
+        val response = controller.updateExpense(existing.expenseId, updateDto)
+        assertEquals(HttpStatus.PRECONDITION_FAILED, response.statusCode)
     }
 }

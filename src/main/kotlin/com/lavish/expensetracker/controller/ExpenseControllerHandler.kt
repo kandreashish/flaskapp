@@ -170,7 +170,7 @@ class ExpenseControllerHandler(
                 userId = currentUser.id,
                 modifiedBy = currentUser.id,
                 lastModifiedOn = System.currentTimeMillis(),
-                currency = currency.name,
+                currency = currency.code, // FIX: use ISO code not currency name
                 currencyPrefix = currencyPrefix // Use validated currency prefix from app
             ))
 
