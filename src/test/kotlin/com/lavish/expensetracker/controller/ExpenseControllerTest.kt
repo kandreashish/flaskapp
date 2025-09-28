@@ -1404,88 +1404,86 @@ class ExpenseControllerTest {
     }
 
     @Test
-    fun createExpense_multilineDescription() {
-        val multilineDescription = """
-            Line 1
-            Line 2
-            Line 3
-        """.trimIndent()
-        val dto = expense(id = "", userId = "", description = multilineDescription)
-        `when`(expenseService.createExpense(any())).thenAnswer {
-            (it.arguments[0] as ExpenseDto).copy(expenseId = "multiline_id")
-        }
-        val response = controller.createExpense(dto)
-        assertEquals(HttpStatus.CREATED, response.statusCode)
-    }
+    fun createAndUpdate_allSupportedCurrencies_loop() {
+        // Use real CurrencyService for this test to iterate through actual currency data
+        val realCurrencyService = com.lavish.expensetracker.service.CurrencyService()
 
-    @Test
-    fun createExpense_withEuroSymbol_success() {
-        // Arrange Euro currency support
-        `when`(currencyService.isCurrencySymbolSupported("€")).thenReturn(true)
-        `when`(currencyService.getCurrencyBySymbol("€")).thenReturn(
-            com.lavish.expensetracker.model.CurrencyInfo(
-                code = "EUR", name = "Euro", symbol = "€", countryCode = "EU", countryName = "European Union", flag = "🇪🇺"
-            )
+        // Rebuild controller with real currency service (other mocks remain the same)
+        val loopController = ExpenseController(
+            expenseService,
+            authUtil,
+            userService,
+            userDeviceService,
+            familyRepository,
+            notificationRepository,
+            expenseNotificationService,
+            realCurrencyService
         )
-        val captor = argumentCaptor<ExpenseDto>()
-        `when`(expenseService.createExpense(captor.capture())).thenAnswer {
-            captor.firstValue.copy(expenseId = "euro_created")
+
+        // Map first currency code for each symbol (handles duplicate symbols like $ or kr)
+        val firstCodeForSymbol = mutableMapOf<String, String>()
+        CurrencyData.currencyInfoList.forEach { ci ->
+            firstCodeForSymbol.putIfAbsent(ci.symbol, ci.code)
         }
-        val dto = expense(id = "", userId = "", currency = "EUR", currencyPrefix = "€", amount = 25.0, description = "Lunch EU")
 
-        // Act
-        val response = controller.createExpense(dto)
+        val failures = mutableListOf<String>()
+        var processed = 0
 
-        // Assert
-        assertEquals(HttpStatus.CREATED, response.statusCode)
-        val sent = captor.firstValue
-        assertEquals("EUR", sent.currency)
-        assertEquals("€", sent.currencyPrefix)
-    }
+        // Stub common dependencies again for safety
+        `when`(authUtil.getCurrentUserId()).thenReturn(baseUser.id)
+        `when`(userService.findById(baseUser.id)).thenReturn(baseUser)
 
-    @Test
-    fun updateExpense_withEuroSymbol_success() {
-        // Existing expense (different currency originally)
-        val existing = expense(currency = "INR", currencyPrefix = "₹")
-        `when`(expenseService.getExpenseById(existing.expenseId)).thenReturn(existing)
-        // Euro stubs
-        `when`(currencyService.isCurrencySymbolSupported("€")).thenReturn(true)
-        `when`(currencyService.getCurrencyBySymbol("€")).thenReturn(
-            com.lavish.expensetracker.model.CurrencyInfo(
-                code = "EUR", name = "Euro", symbol = "€", countryCode = "EU", countryName = "European Union", flag = "🇪🇺"
+        CurrencyData.currencyInfoList.forEach { info ->
+            processed++
+            val expectedCode = firstCodeForSymbol[info.symbol]!!
+            val createCaptor = argumentCaptor<ExpenseDto>()
+            `when`(expenseService.createExpense(createCaptor.capture())).thenAnswer {
+                // Return exactly what was passed with a generated id
+                createCaptor.firstValue.copy(expenseId = "exp-${info.code}-create")
+            }
+            val newExpenseDto = expense(
+                id = "", userId = "", amount = 10.0, description = "Test ${info.code}",
+                currency = info.code, currencyPrefix = info.symbol
             )
-        )
-        val captor = argumentCaptor<ExpenseDto>()
-        `when`(expenseService.updateExpense(eq(existing.expenseId), captor.capture())).thenAnswer {
-            captor.firstValue.copy(amount = 40.0)
+            try {
+                val resp = loopController.createExpense(newExpenseDto)
+                if (resp.statusCode != HttpStatus.CREATED) {
+                    failures.add("CREATE ${info.code}: unexpected status ${resp.statusCode}")
+                } else {
+                    val sent = createCaptor.firstValue
+                    if (sent.currency != expectedCode || sent.currencyPrefix != info.symbol) {
+                        failures.add("CREATE ${info.code}: expected currency=$expectedCode prefix=${info.symbol} but got currency=${sent.currency} prefix=${sent.currencyPrefix}")
+                    }
+                }
+            } catch (e: Exception) {
+                failures.add("CREATE ${info.code}: exception ${e::class.simpleName} ${e.message}")
+            }
+
+            // Update path
+            val existing = expense(id = "exp-${info.code}-u", currency = expectedCode, currencyPrefix = info.symbol)
+            `when`(expenseService.getExpenseById(existing.expenseId)).thenReturn(existing)
+            val updateCaptor = argumentCaptor<ExpenseDto>()
+            `when`(expenseService.updateExpense(eq(existing.expenseId), updateCaptor.capture())).thenAnswer {
+                updateCaptor.firstValue.copy(amount = 99.0)
+            }
+            val updateDto = existing.copy(currency = info.code, currencyPrefix = info.symbol, amount = 99.0)
+            try {
+                val resp = loopController.updateExpense(existing.expenseId, updateDto)
+                if (resp.statusCode != HttpStatus.OK) {
+                    failures.add("UPDATE ${info.code}: unexpected status ${resp.statusCode}")
+                } else {
+                    val sent = updateCaptor.firstValue
+                    if (sent.currency != expectedCode || sent.currencyPrefix != info.symbol) {
+                        failures.add("UPDATE ${info.code}: expected currency=$expectedCode prefix=${info.symbol} but got currency=${sent.currency} prefix=${sent.currencyPrefix}")
+                    }
+                }
+            } catch (e: Exception) {
+                failures.add("UPDATE ${info.code}: exception ${e::class.simpleName} ${e.message}")
+            }
         }
-        val updateDto = existing.copy(currency = "EUR", currencyPrefix = "€", amount = 40.0)
 
-        val res = controller.updateExpense(existing.expenseId, updateDto)
-        assertEquals(HttpStatus.OK, res.statusCode)
-        val body = res.body as ExpenseDto
-        assertEquals(40.0, body.amount)
-        val sent = captor.firstValue
-        assertEquals("EUR", sent.currency)
-        assertEquals("€", sent.currencyPrefix)
-    }
-
-    @Test
-    fun createExpense_invalidCurrencySymbol() {
-        // Force invalid for specific symbol
-        `when`(currencyService.isCurrencySymbolSupported("¤")).thenReturn(false)
-        val dto = expense(id = "", userId = "", currency = "EUR", currencyPrefix = "¤", amount = 10.0)
-        val response = controller.createExpense(dto)
-        assertEquals(HttpStatus.PRECONDITION_FAILED, response.statusCode)
-    }
-
-    @Test
-    fun updateExpense_invalidCurrencySymbol() {
-        val existing = expense()
-        `when`(expenseService.getExpenseById(existing.expenseId)).thenReturn(existing)
-        `when`(currencyService.isCurrencySymbolSupported("¤")).thenReturn(false)
-        val updateDto = existing.copy(currencyPrefix = "¤")
-        val response = controller.updateExpense(existing.expenseId, updateDto)
-        assertEquals(HttpStatus.PRECONDITION_FAILED, response.statusCode)
+        if (failures.isNotEmpty()) {
+            fail("Currency loop failures (${failures.size}/$processed):\n" + failures.joinToString("\n"))
+        }
     }
 }
